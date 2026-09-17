@@ -1,0 +1,10 @@
+import http from 'node:http';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+const root=fileURLToPath(new URL('./dist/',import.meta.url));
+const types={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.png':'image/png','.svg':'image/svg+xml','.json':'application/json','.woff2':'font/woff2','.ttf':'font/ttf','.otf':'font/otf'};
+const port=Number(process.env.PORT)||4173;
+const server=http.createServer((req,res)=>{try{const pathname=decodeURIComponent(new URL(req.url,'http://localhost').pathname);const file=path.resolve(root,'.'+pathname+(pathname.endsWith('/')?'index.html':''));const rel=path.relative(root,file);if(rel.startsWith('..')||path.isAbsolute(rel)){res.writeHead(403);return res.end('Forbidden');}fs.stat(file,(error,stat)=>{if(error||!stat.isFile()){res.writeHead(404);return res.end('Not found');}res.writeHead(200,{'Content-Type':types[path.extname(file)]||'application/octet-stream','Content-Length':stat.size});fs.createReadStream(file).pipe(res);});}catch{res.writeHead(400);res.end('Bad request');}});
+server.on('error',error=>{console.error(error.code==='EADDRINUSE'?`Port ${port} is already in use. Close the other studio server or choose another PORT.`:error.message);process.exitCode=1;});
+server.listen(port,'127.0.0.1',()=>console.log(`Caviot Studio: http://127.0.0.1:${port}\nKeep this window open. Press Ctrl+C to stop.`));

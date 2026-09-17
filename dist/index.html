@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Caviot Studio — Design it. Print it.</title>
+<meta name="description" content="Turn your images, patterns and lettering into custom 3D-printable sleeves and reliefs. Design locally, calibrate your fit, and export STL or OBJ." />
+<meta name="theme-color" content="#101114" />
+<link rel="stylesheet" href="studio.css" />
+<link rel="stylesheet" href="product.css" /><link rel="stylesheet" href="template.css" />
+
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+</head>
+<body>
+<div class="shell">
+<nav class="projectbar" aria-label="Project"><div class="project-identity"><span class="studio-mark">C</span><label for="projectName" class="sr-only">Project name</label><input id="projectName" value="Untitled design" maxlength="80" /><span class="local-label">LOCAL WORKSPACE</span></div><div class="project-actions"><button class="btn btn-ghost" id="saveProject">Save project</button><button class="btn btn-ghost" id="openProject">Open project</button><button class="btn btn-ghost" id="guideBtn">Guide</button><input type="file" id="projectFile" accept=".icaviot,application/json" hidden /></div></nav>
+
+  <header class="topbar">
+    <a class="brand" href="#" aria-label="Caviot home"><span>CAVIOT</span><small>STUDIO</small></a>
+
+    <div class="mode-pills" role="radiogroup" aria-label="Export mode">
+      <input type="radio" id="exportSleeve" name="exportMode" value="sleeve" checked />
+      <label for="exportSleeve"><span class="glyph">▢</span> Sleeve</label>
+      <input type="radio" id="exportLogoOnly" name="exportMode" value="logo-only" />
+      <label for="exportLogoOnly"><span class="glyph">◐</span> Logo only</label>
+      <input type="radio" id="exportFlat" name="exportMode" value="flat" />
+      <label for="exportFlat"><span class="glyph">▭</span> Flat plate</label>
+    </div>
+
+    <div class="top-actions">
+      <button class="btn btn-ghost btn-sm mobile-settings-btn" id="mobileSettingsBtn" type="button" aria-controls="appSidebar" aria-expanded="false">Settings</button>
+      <button class="btn btn-ghost btn-sm" id="downloadObjBtn" type="button" disabled>OBJ</button>
+      <button class="btn btn-primary" id="generateBtn" type="button" disabled>Export STL <kbd>Ctrl/⌘E</kbd></button>
+    </div>
+  </header>
+
+  <div class="app">
+    <aside class="sidebar" id="appSidebar">
+      <input type="file" id="fileInput" accept="image/png, image/jpeg, image/jpg" hidden />
+      <input type="file" id="stlInput" accept=".stl,model/stl" hidden />
+      <input type="file" id="fontInput" accept=".ttf,.otf,.woff,.woff2,font/ttf,font/otf,font/woff,font/woff2" multiple hidden />
+      <input type="file" id="fontFolderInput" accept=".ttf,.otf,.woff,.woff2,font/ttf,font/otf,font/woff,font/woff2" webkitdirectory directory multiple hidden />
+
+      <section class="panel template-select-panel"><div class="panel-label">Sleeve template</div><label class="sr-only" for="templateChoice">Sleeve template</label><select id="templateChoice"><option value="etsyfolger-v1">ETSYFOLGER · your STL</option><option value="parametric">Parametric sleeve presets</option></select><p class="muted-tip" id="templateDescription">Original cavity, openings and dimensions preserved.</p></section>
+      <!-- SOURCE -->
+      <section class="panel">
+        <div id="designSidesPanel"><div class="panel-label">Artwork on each side</div><div class="design-side-buttons" role="group" aria-label="Side to edit"><button class="btn btn-ghost" id="editSide0" type="button" aria-pressed="true">Front · empty</button><button class="btn btn-ghost" id="editSide1" type="button" aria-pressed="false">Back · empty</button></div><button class="btn btn-ghost btn-sm" id="copyDesignSide" type="button">Copy front to back</button><label class="check"><input type="checkbox" id="linkDesignSettings"><span>Link settings between sides</span></label><p class="muted-tip" id="sideLinkHelp">Click a logo to edit it. Each side has its own size, position and image settings.</p><p id="editingSideLabel">Editing front artwork</p></div><div class="panel-label">01 / Your design</div>
+        <div id="uploadBtn" class="drop" role="button" tabindex="0">
+          <span class="glyph">▣</span>
+          <strong>Drop or click image</strong>
+          <small>PNG · JPG · Ctrl+V paste</small>
+        </div>
+        <div id="fileName" class="filename" style="display:none"></div>
+        <div class="img-tools" id="imgTools" hidden>
+          <button class="icon-btn" id="rotCcw" type="button" title="Rotate 90° CCW" disabled>↺</button>
+          <button class="icon-btn" id="rot180" type="button" title="Rotate 180°" disabled>↻↻</button>
+          <button class="icon-btn" id="rotCw" type="button" title="Rotate 90° CW" disabled>↻</button>
+          <button class="icon-btn" id="flipH" type="button" title="Mirror horizontally" disabled>⇄</button>
+        </div>
+        <div class="source-actions">
+          <button class="btn btn-ghost btn-sm" id="openPatterns" type="button">Pattern</button>
+          <button class="btn btn-ghost btn-sm" id="openSTL" type="button">Import STL</button>
+        </div>
+        <div class="divider"></div>
+        <input type="text" id="textInput" placeholder="Or type text…" maxlength="60" />
+        <div id="textStretchField" style="margin-top:8px;display:none">
+          <div class="field" style="margin-bottom:6px">
+            <label style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px">
+              <span>Letter spacing</span>
+              <span id="letterSpacingVal" style="color:var(--accent)">0</span>
+            </label>
+            <input type="range" id="letterSpacingIn" value="0" min="-30" max="60" step="1" style="width:100%;accent-color:var(--accent)" />
+          </div>
+          <div class="field" style="margin-bottom:0">
+            <label style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px">
+              <span>Letter thickness</span>
+              <span id="letterThicknessVal" style="color:var(--accent)">0</span>
+            </label>
+            <input type="range" id="letterThicknessIn" value="0" min="-3" max="12" step="1" style="width:100%;accent-color:var(--accent)" />
+          </div>
+        </div>
+        <div class="source-actions">
+          <button class="btn btn-ghost btn-sm" id="openFont" type="button">Import extra fonts</button>
+          <button class="btn btn-ghost btn-sm" id="openFontFolder" type="button">Import font folder</button>
+        </div>
+        <div class="source-actions">
+          <button class="btn btn-ghost btn-sm" id="clearFont" type="button" style="display:none">Remove fonts</button>
+        </div>
+        <label for="fontChoice" style="display:block;margin-top:12px;font-size:14px;font-weight:600">Lettering font · 120 included</label>
+        <select id="fontChoice" aria-label="Lettering font" style="display:none;margin-top:8px"></select>
+        <div id="fontName" class="filename" style="display:none" aria-live="polite"></div>
+      </section>
+
+      <!-- DESIGN: size + depth -->
+      <section class="panel">
+        <div class="big-field">
+          <div class="big-field-row">
+            <span class="big-field-label">Logo size</span>
+            <span class="big-field-value"><span id="imageScaleVal">100</span><span class="unit">%</span></span>
+          </div>
+          <input type="range" id="imageScale" value="100" min="10" max="100" step="1" />
+          <div class="big-field-context"><span>10%</span><span id="imageScaleMm"></span><span>100%</span></div>
+        </div>
+
+        <div class="big-field">
+          <div class="big-field-row">
+            <span class="big-field-label">Depth</span>
+            <span class="big-field-value"><span id="depthVal">⬆ 1.0</span><span class="unit"> mm</span></span>
+          </div>
+          <input type="range" id="depthIn" value="1.0" min="0.1" max="5" step="0.1" />
+          <div class="big-field-context"><span>0.1 mm</span><span>magnitude</span><span>5 mm</span></div>
+        </div>
+
+        <div class="pill-toggle" role="radiogroup" aria-label="Relief direction">
+          <input type="radio" id="modeRaised" name="reliefMode" value="raised" checked />
+          <label for="modeRaised" title="Emboss outward from the sleeve (V)">↑ Emboss</label>
+          <input type="radio" id="modeCarved" name="reliefMode" value="carved" />
+          <label for="modeCarved" title="Deboss into the sleeve (C)">↓ Deboss</label>
+        </div>
+      </section>
+
+      <section class="panel" id="templatePlacement"><div class="panel-label">03 / Place on the sleeve</div><button class="btn btn-ghost" id="moveDesign" aria-pressed="false" type="button">Move design on sleeve</button><p class="muted-tip">Hold the scroll wheel on a logo and drag to move it. Or turn this button on for left-button dragging.</p><div id="placementFields"></div><label class="check"><input id="uniformDepth" type="checkbox" checked><span>Even depth (logos)</span></label><p class="muted-tip">Uses the artwork silhouette. Remove the background to isolate your logo.</p><div class="source-actions"><button class="btn btn-ghost btn-sm" id="centerDesign" type="button">Center on front</button><button class="btn btn-ghost btn-sm" id="clearDesign" type="button">Clear design</button></div><p id="templateStatus" role="status" aria-live="polite">Loading your sleeve…</p></section>
+      <!-- DEVICE (lighter / vape) -->
+      <section class="panel" id="sleevePanel">
+        <div class="panel-label">03 / Size &amp; fit</div>
+        <div class="field">
+          <select id="lighterChoice" aria-label="Device template">
+            <optgroup label="Lighters">
+              <option value="bic-template" selected>Bic Maxi — starting dimensions (25.5×15.2×72)</option>
+              <option value="bic-maxi">Bic Maxi — alternate dimensions</option>
+              <option value="bic-mini">Bic Mini lighter</option>
+            </optgroup>
+            <optgroup label="Vapes — Geek Bar">
+              <option value="geek-bar-pulse">Geek Bar Pulse (52.6×27.7×82.6)</option>
+              <option value="geek-bar-pulse-x">Geek Bar Pulse X (approx 54×28×95)</option>
+            </optgroup>
+            <optgroup label="Vapes — Foger / Fogger">
+              <option value="foger-switch-pro">Foger Switch Pro — pod body (51.4×27.7×96)</option>
+              <option value="foger-switch-pro-full">Foger Switch Pro — full kit (54.6×27.7×96)</option>
+            </optgroup>
+            <optgroup label="Round / other">
+              <option value="cylinder-25">Round tube — 25mm OD</option>
+              <option value="cylinder-32">Round tube — 32mm OD</option>
+              <option value="custom">Custom dimensions</option>
+            </optgroup>
+          </select>
+        </div>
+        <p class="muted-tip" id="devicePresetTip" style="margin:6px 0 0">
+          Factory outer sizes used as sleeve cavity. Print a <strong>fit ring</strong> first — vapes vary by batch.
+        </p>
+        <div class="field-row">
+          <div class="field">
+            <div class="field-label">Inner width <span class="v">mm</span></div>
+            <input type="number" id="wrapInnerWidth" value="25.5" min="3" max="200" step="0.1" />
+          </div>
+          <div class="field">
+            <div class="field-label">Inner depth <span class="v">mm</span></div>
+            <input type="number" id="wrapInnerDepth" value="15.2" min="3" max="200" step="0.1" />
+          </div>
+        </div>
+        <div class="field">
+          <div class="field-label">Wall thickness <span class="v"><span id="wrapWallVal">2.4</span> mm</span></div>
+          <input type="range" id="wrapWall" value="2.4" min="0.6" max="5" step="0.1" />
+        </div>
+        <div class="field">
+          <div class="field-label">Sleeve height <span class="v"><span id="wrapHeightVal">72</span> mm</span></div>
+          <input type="range" id="wrapHeight" value="72" min="10" max="200" step="1" />
+        </div>
+        <div class="field">
+          <div class="field-label">Looseness of fit <span class="v"><span id="wrapTolVal">0.00</span> mm</span></div>
+          <input type="range" id="wrapTol" value="0" min="0" max="2" step="0.05" />
+        </div>
+
+        <div class="field-label" style="margin-top:8px">Print orientation</div>
+        <div class="orient-pills" role="radiogroup" aria-label="Print orientation">
+          <input type="radio" id="orientFlat" name="orient" value="flat" checked />
+          <label for="orientFlat">Half sleeve (180°)</label>
+          <input type="radio" id="orientWhole" name="orient" value="whole" />
+          <label for="orientWhole">Whole (360°)</label>
+        </div>
+
+        <button class="btn fit-ring-btn" id="fitRingBtn" type="button" title="Export a 5mm plain calibration sleeve">
+          Fit ring export (5 mm)
+        </button>
+
+        <details class="adv">
+          <summary>Advanced — cap bottom</summary>
+          <label class="check">
+            <input type="checkbox" id="wrapCapBottom" />
+            <span>Closed bottom + push-out hole <small style="color:var(--t3)">(360° only)</small></span>
+          </label>
+          <div id="capBottomControls" style="display:none">
+            <div class="field-row" style="margin-top:8px">
+              <div class="field">
+                <div class="field-label">Bottom <span class="v"><span id="wrapCapThickVal">1.5</span> mm</span></div>
+                <input type="range" id="wrapCapThick" value="1.5" min="0.6" max="5" step="0.1" />
+              </div>
+              <div class="field">
+                <div class="field-label">Hole ⌀ <span class="v"><span id="wrapCapHoleVal">6.0</span> mm</span></div>
+                <input type="range" id="wrapCapHole" value="6" min="0" max="15" step="0.5" />
+              </div>
+            </div>
+          </div>
+        </details>
+      </section>
+
+      <!-- FLAT PLATE -->
+      <section class="panel" id="flatPanel" style="display:none">
+        <div class="panel-label">Flat plate size</div>
+        <div class="field-row">
+          <div class="field">
+            <div class="field-label">Width <span class="v"><span id="widthVal">100</span> mm</span></div>
+            <input type="number" id="widthIn" value="100" min="10" max="500" step="1" />
+          </div>
+          <div class="field">
+            <div class="field-label">Backing <span class="v"><span id="baseVal">1.0</span> mm</span></div>
+            <input type="number" id="baseIn" value="1.0" min="0.4" max="10" step="0.1" />
+          </div>
+        </div>
+      </section>
+
+      <!-- CURVE (flat advanced) -->
+      <section class="panel" id="bendSection" style="display:none">
+        <details class="adv" open>
+          <summary>Advanced — curve plate</summary>
+          <label class="check">
+            <input type="checkbox" id="curveEnable" />
+            <span>Curve the plate</span>
+          </label>
+          <div id="curveControls" style="display:none;margin-top:10px">
+            <div class="field">
+              <div class="field-label">Which sides curve</div>
+              <select id="curveDirection">
+                <option value="horizontal">Left + right sides</option>
+                <option value="vertical">Top + bottom sides</option>
+                <option value="all">All four sides</option>
+              </select>
+            </div>
+            <div class="field">
+              <div class="field-label">Curve diameter <span class="v"><span id="curveDiamVal">100.0</span> mm</span></div>
+              <input type="range" id="curveDiamIn" value="100" min="20" max="500" step="1" />
+            </div>
+            <div class="field">
+              <div class="field-label">How much it curves <span class="v"><span id="curveAngleVal">30</span>°</span></div>
+              <input type="range" id="curveAngleIn" value="30" min="-180" max="180" step="1" />
+            </div>
+            <div class="field">
+              <div class="field-label">Flat in the middle <span class="v"><span id="curveFalloffVal">60</span>%</span></div>
+              <input type="range" id="curveFalloffIn" value="60" min="0" max="90" step="1" />
+            </div>
+          </div>
+        </details>
+      </section>
+
+      <!-- IMAGE PROCESSING -->
+      <section class="panel">
+        <div class="panel-label">Image processing</div>
+        <label class="check">
+          <input type="checkbox" id="bgEnable" checked />
+          <span>Remove background</span>
+        </label>
+        <div id="bgControls" style="display:block;margin-top:8px">
+          <div class="bg-color">
+            <div id="bgSwatch" class="swatch"></div>
+            <span id="bgColorLabel" class="swatch-label">#FFFFFF</span>
+            <button class="btn btn-ghost btn-sm" id="bgAuto" type="button">Auto</button>
+            <button class="btn btn-ghost btn-sm" id="bgPick" type="button">Pick</button>
+          </div>
+          <div class="field" style="margin-top:10px">
+            <div class="field-label">Removal strength <span class="v" id="bgTolVal">40</span></div>
+            <input type="range" id="bgTol" value="40" min="0" max="180" step="1" />
+          </div>
+          <label class="check">
+            <input type="checkbox" id="bgSoft" />
+            <span>Soften edges</span>
+          </label>
+        </div>
+        <div class="divider"></div>
+        <label class="check"><input type="checkbox" id="crisp" checked /> <span>Sharp edges (logos)</span></label>
+        <label class="check"><input type="checkbox" id="invert" checked /> <span>Light parts stick out</span></label>
+        <label class="check"><input type="checkbox" id="mirror" /> <span>Mirror left ↔ right</span></label>
+        <label class="check"><input type="checkbox" id="silhouette" checked /> <span>Trim flat plate to image</span></label>
+
+        <details class="adv">
+          <summary>Advanced — detail &amp; smooth</summary>
+          <div class="field">
+            <div class="field-label">Export detail <span class="v" id="resVal">400</span></div>
+            <input type="range" id="resIn" value="400" min="50" max="400" step="10" />
+            <div class="big-field-context" style="margin-top:4px">
+              <span>fast</span>
+              <span style="color:var(--t2)">preview ≤160</span>
+              <span>print</span>
+            </div>
+          </div>
+          <label class="check" title="Use full export resolution in the 3D view">
+            <input type="checkbox" id="fullPreview" />
+            <span>Full-quality live preview</span>
+          </label>
+          <div class="field">
+            <div class="field-label">Smooth the surface <span class="v" id="smoothVal">0</span></div>
+            <input type="range" id="smoothIn" value="0" min="0" max="3" step="1" />
+          </div>
+          <div class="field">
+            <div class="field-label">Smooth the outline <span class="v" id="edgeSmoothVal">4</span></div>
+            <input type="range" id="edgeSmoothIn" value="4" min="0" max="10" step="1" />
+          </div>
+        </details>
+      </section>
+    </aside>
+
+    <main class="canvas">
+      <div class="canvas-meta">
+        <span class="dot"></span><span>live preview</span>
+      </div>
+      <div class="canvas-hint" id="threeInfo">Drag to orbit · Right-drag to pan · Scroll to zoom</div>
+      <button id="resetViewBtn" class="btn btn-ghost btn-sm" type="button" title="Frame the model (R)">Reset view</button>
+      <div id="threeContainer"></div><div class="template-toolbar" id="templateToolbar"><span>ETSYFOLGER</span><button class="btn btn-ghost btn-sm" data-template-view="front">Front</button><button class="btn btn-ghost btn-sm" data-template-view="back">Back</button><button class="btn btn-ghost btn-sm" data-template-view="left">Left</button><button class="btn btn-ghost btn-sm" data-template-view="right">Right</button></div><div class="template-start" id="templateStart"><strong>Your sleeve. Your design.</strong><p>Upload an image or type text, then emboss or deboss it along the curves.</p><button class="btn btn-primary" id="templateUpload">Upload design</button><button class="btn btn-ghost" id="templateSample">Try lettering</button></div>
+      <div class="axis-legend" aria-label="Axis colors"><span class="axis-x">X</span><span class="axis-y">Y</span><span class="axis-z">Z</span></div>
+      <div id="threeEmpty" class="canvas-empty">
+        <div class="onboarding">
+          <div class="eyebrow">FROM IDEA TO OBJECT</div><h2>Make it yours.</h2>
+          <p class="sub">Turn an image, a pattern, or a few words into a printable sleeve or relief. Your design stays in this browser.</p>
+          <ol>
+            <li><div><strong>Add design</strong>Drop / paste an image, type text, or pick a pattern.</div></li>
+            <li><div><strong>Pick device / mode</strong>Bic, Geek Bar, Foger/Fogger, or custom — set depth &amp; raised/carved.</div></li>
+            <li><div><strong>Fit ring → Export STL</strong>Print a 5&nbsp;mm fit ring first, then the full sleeve.</div></li>
+          </ol>
+        </div>
+      </div>
+
+      <div class="hm-mini" aria-label="Flat image preview">
+        <div class="hm-mini-head">
+          <span>Flat image</span>
+          <span id="hmInfo"></span>
+        </div>
+        <div class="hm-mini-canvas-wrap">
+          <canvas id="heightmapCanvas"></canvas>
+          <div id="hmEmpty" class="hm-mini-empty">—</div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <footer class="status-strip">
+    <div class="stat-cell"><span class="k">SRC</span><span class="v" id="statSource">—</span></div>
+    <div class="stat-cell"><span class="k">GRID</span><span class="v" id="statGrid">—</span></div>
+    <div class="stat-cell"><span class="k">TRIS</span><span class="v" id="statTris">—</span></div>
+    <div class="stat-cell"><span class="k">SIZE</span><span class="v" id="statSize">—</span></div>
+    <div class="stat-cell"><span class="k">DIM</span><span class="v" id="statVol">—</span></div>
+    <div class="stat-cell"><span class="k">MESH</span><span class="v" id="statQuality">—</span></div>
+    <div class="stat-cell"><span class="k">QUAL</span><span class="v" id="statQualityMode">—</span></div>
+    <div class="status-right">
+      <button id="runMeshTests" class="tips-link" type="button" title="Run watertight mesh self-tests">▶ Mesh tests</button>
+      <button id="tipsToggle" class="tips-link" type="button">▸ Print tips</button>
+    </div>
+  </footer>
+</div>
+
+<div class="tips-drawer hidden" id="tipsContent"><strong>Measure → Fit ring → Design → Slice</strong><p>Presets are starting dimensions with elliptical cavities. Test the 5 mm fit ring on the actual object, then adjust fit. A half sleeve exports one 180° shell; a whole sleeve exports 360°. Inspect the model in your slicer and choose settings for your printer and material. See the Guide for details.</p></div>
+
+<div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+
+<div class="modal-overlay hidden" id="patternModal" role="dialog" aria-modal="true" aria-labelledby="patternModalTitle">
+  <div class="modal-box" tabindex="-1">
+    <div class="modal-head">
+      <h3 id="patternModalTitle">Pick a pattern</h3>
+      <button class="modal-close" id="patternModalClose" type="button" aria-label="Close">×</button>
+    </div>
+    <div class="modal-body">
+      <p class="muted-tip" style="margin:0 0 12px">Knurl, hex, plain, lines, diamond — click to apply.</p>
+      <div class="pattern-grid" id="patternGrid"></div>
+    </div>
+  </div>
+</div>
+
+<script src="vendor/three.min.js"></script>
+<script src="vendor/OrbitControls.js"></script>
+
+
+
+<script src="project-format.js"></script>
+<script src="mesh-core.js"></script>
+<script src="app.js"></script>
+<script src="product.js"></script><script src="template-core.js"></script><script src="fonts/catalog.js"></script><script src="builtin-fonts.js"></script><script src="template-render.js"></script><script src="placement-preview.js"></script><script src="template-ui.js"></script><script src="design-sides.js"></script><script src="bottom-brand.js"></script><script src="repair-ui.js"></script>
+</body>
+</html>

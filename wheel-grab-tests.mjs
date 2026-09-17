@@ -1,0 +1,13 @@
+import fs from 'node:fs';import vm from 'node:vm';import assert from 'node:assert/strict';
+const source=fs.readFileSync(new URL('./dist/template-ui.js',import.meta.url),'utf8');const code=source.slice(source.indexOf('let templateGrabOffset='),source.indexOf('async function showTemplate()'));
+const handlers={},captures=new Set(),fields={},chart={},state={designAngle:0,designY:45},events={};let hit={x:0,y:40,z:20},selected=true,queued=null,builds=0;
+const c={AppState:state,templateBase:{height:89},templateMove:false,templateActivePointer:null,exportBusy:false,templateActive:()=>true,selectLogoAtPointer:()=>selected,ensurePlacementMesh(){},placementMesh:{userData:{chart}},SleeveTemplate:{arcAt:(_,a)=>a*20,angleAt:(_,a)=>a/20},$:id=>fields[id]||(fields[id]={}),updatePlacement(){},dirty(){},templateStatus(){},window:{addEventListener:(n,fn)=>events[n]=fn},setTemplateMove(v){c.templateMove=v},queuePlacementPointer(e){queued=e},flushPlacementPointer(){if(queued){c.placeFromPointer(queued);queued=null}builds++}};
+vm.createContext(c);vm.runInContext(code,c);c.templateSurfaceHit=()=>hit;
+const canvas={addEventListener:(name,fn)=>handlers[name]=fn,setPointerCapture:id=>captures.add(id),hasPointerCapture:id=>captures.has(id),releasePointerCapture:id=>captures.delete(id)};c.installLogoPointerControls(canvas);
+const event=(button=1)=>({button,pointerId:7,preventDefault(){this.prevented=true},stopImmediatePropagation(){this.stopped=true}});
+const down=event();handlers.pointerdown(down);assert(down.prevented&&down.stopped);assert(c.templateMove);assert.equal(state.designY,45);assert(captures.has(7));
+hit={x:0,y:46,z:20};handlers.pointermove(event());handlers.pointerup(event());assert.equal(state.designY,51);assert.equal(state.designAngle,0);assert.equal(c.templateMove,false);assert.equal(c.templateActivePointer,null);assert.equal(captures.size,0);assert.equal(builds,1);
+c.templateMove=true;handlers.pointerdown(event());handlers.pointercancel(event());assert.equal(c.templateMove,true);
+c.templateMove=false;handlers.pointerdown(event());events.blur();assert.equal(c.templateMove,false);assert.equal(captures.size,0);
+selected=false;const miss=event();handlers.pointerdown(miss);assert(!miss.prevented);assert.equal(c.templateActivePointer,null);assert.equal(handlers.wheel,undefined);
+console.log('Wheel grab preserves cursor offset; release/cancel/blur restore orbit; button mode and normal wheel zoom are retained.');

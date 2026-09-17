@@ -1,0 +1,8 @@
+import fs from 'node:fs';import vm from 'node:vm';import assert from 'node:assert/strict';
+let counter=0,terminated=0,overlays=0,builds=0,saves=0,pointers=0;const timers=new Map(),frames=new Map();
+const c={THREE:{Vector2:class{}},AppState:{image:{},rebuildTimer:null},templateActive:()=>true,renderTemplateBlank:()=>{},templateRevision:0,templatePending:{},templatePreviewRunning:true,templatePreviewWorker:{terminate(){terminated++}},templateActivePointer:1,document:{body:{classList:{remove(){}}}},templateStatus(){},saveSettings(){saves++},requestTemplatePreview(){builds++},placeFromPointer(){pointers++},clearTimeout(id){timers.delete(id)},setTimeout(fn){const id=++counter;timers.set(id,fn);return id},requestAnimationFrame(fn){const id=++counter;frames.set(id,fn);return id},cancelAnimationFrame(id){frames.delete(id)}};
+vm.createContext(c);vm.runInContext(fs.readFileSync(new URL('./dist/placement-preview.js',import.meta.url),'utf8'),c);c.showPlacementPreview=()=>overlays++;
+for(let i=0;i<1000;i++)c.updatePlacement();assert.equal(overlays,1000);assert.equal(terminated,1);assert.equal(builds,0);assert.equal(saves,0);assert.equal(timers.size,1);assert.equal(c.templatePending,null);
+c.finishPlacement();assert.equal(builds,1);assert.equal(saves,1);assert.equal(timers.size,0);
+for(let i=0;i<100;i++)c.queuePlacementPointer({clientX:i,clientY:i});assert.equal(frames.size,1);c.flushPlacementPointer();assert.equal(pointers,1);assert.equal(frames.size,0);assert.equal(builds,2);
+console.log('Placement scheduling passed: 1,000 inputs, zero heavy builds during input, one settled build; pointer events coalesced.');
