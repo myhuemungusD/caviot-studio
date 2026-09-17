@@ -1,4 +1,7 @@
 @echo off
+title Caviot Studio - Build 2026.09.17
+echo Caviot Studio build 2026.09.17
+echo This is the offline-font and modular-app update.
 cd /d "%~dp0"
 where node >nul 2>nul
 if errorlevel 1 (

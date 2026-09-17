@@ -34,9 +34,10 @@
     --text: var(--t1);
     --muted: var(--t2);
     /* Type */
-    --sans: 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
-    --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
-    --display: 'Bebas Neue', var(--sans);
+    /* System font stacks keep the interface usable entirely offline. */
+    --sans: "Segoe UI Variable", "Segoe UI", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+    --mono: "Cascadia Mono", "SFMono-Regular", Consolas, ui-monospace, monospace;
+    --display: Impact, Haettenschweiler, "Arial Narrow Bold", var(--sans);
     /* Layout */
     --topbar-h: 56px;
     --status-h: 36px;

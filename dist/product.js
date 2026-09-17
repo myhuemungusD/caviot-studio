@@ -19,8 +19,8 @@ guide.addEventListener('click',e=>{if(e.target===guide){const r=guide.getBoundin
 
 let projectDirty=false;
 let projectRevision=0;
-function dirty(){projectDirty=true;projectRevision++;document.title='• '+document.getElementById('projectName').value+' — Caviot Studio'}
-function clean(){projectDirty=false;document.title=document.getElementById('projectName').value+' — Caviot Studio'}
+function dirty(){projectDirty=true;projectRevision++;document.title='• '+document.getElementById('projectName').value+' — Caviot Studio '+APP_BUILD}
+function clean(){projectDirty=false;document.title=document.getElementById('projectName').value+' — Caviot Studio '+APP_BUILD}
 document.querySelector('.shell').addEventListener('input',e=>{if(e.target.id!=='projectFile')dirty()});
 document.querySelector('.shell').addEventListener('change',e=>{if(e.target.id!=='projectFile')dirty()});
 const originalSetDesignImage=setDesignImage;

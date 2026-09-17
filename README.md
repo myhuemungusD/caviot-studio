@@ -1,4 +1,6 @@
-# Caviot Studio — launch edition
+# Caviot Studio — build 2026.09.17
+
+This PC copy is **build 2026.09.17** (the offline-font and modular-app update). The same build label appears in the app header and in the `Start-Caviot.cmd` window.
 
 A browser-based tool for turning images, text and patterns into 3D-printable sleeves and reliefs. The existing mesh engine has been preserved and separated from the interface.
 
