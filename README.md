@@ -1,6 +1,6 @@
 # Caviot Studio — build 2026.09.17
 
-This PC copy is **build 2026.09.17** (the offline-font and modular-app update). The same build label appears in the app header and in the `Start-Caviot.cmd` window.
+This PC copy is **build 2026.09.17** (the offline-font and modular-app update). The same build label appears in the app header.
 
 A browser-based tool for turning images, text and patterns into 3D-printable sleeves and reliefs. The existing mesh engine has been preserved and separated from the interface.
 
@@ -8,8 +8,10 @@ A browser-based tool for turning images, text and patterns into 3D-printable sle
 
 1. Extract the ZIP into a normal folder.
 2. Install Node.js if it is not already installed.
-3. Double-click Start-Caviot.cmd and keep its window open.
-4. Open http://127.0.0.1:4173 in your browser.
+3. Double-click `Start-Caviot.cmd`. The launcher starts the local server in the background and opens your browser automatically.
+4. Use the same launcher next time; it reuses the running server. If port 4173 is busy, it chooses another available port. A restart of Windows stops the server; double-clicking the launcher starts it again.
+
+The launcher checks common Node.js installation paths even when a desktop shortcut has an outdated PATH. Startup errors appear in a dialog; logs are kept in the local `.launcher` folder.
 
 Alternatively run `node serve.mjs` from this folder. No npm install or build step is required. Use Save project for your artwork and settings; Export STL downloads the printable model. This repository contains the application itself.
 

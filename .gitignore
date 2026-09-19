@@ -6,3 +6,4 @@ node_modules/
 .DS_Store
 .openai/
 bottom-logo-mask.f32
+.launcher/
