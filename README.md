@@ -1,6 +1,6 @@
-# Caviot Studio — build 2026.09.17
+# Caviot Studio — build 2026.09.19
 
-This PC copy is **build 2026.09.17** (the offline-font and modular-app update). The same build label appears in the app header.
+This PC copy is **build 2026.09.19** (the independent design layers and Undo update). The same build label appears in the app header.
 
 A browser-based tool for turning images, text and patterns into 3D-printable sleeves and reliefs. The existing mesh engine has been preserved and separated from the interface.
 
@@ -38,7 +38,7 @@ Run `node tests.mjs` from this directory to check geometry, project validation, 
 
 Automated tests cover closed-edge geometry for representative modes, caps, fit-ring height, serialized STL/OBJ, malformed projects and worker exports. Browser checks for the current template and repair flow are listed below. Physical printing has not been performed. Presets use an elliptical cross-section and are unverified starting dimensions. Checks do not detect all self-intersections, strength problems or printer-specific limitations.
 
-Project files preserve artwork as PNG, not editable text or custom font files. Settings and fonts persist locally; artwork requires an explicit project download. No cloud backup, customer accounts, payment system, licensing enforcement or analytics is implemented.
+Project files preserve each image, editable text and selected font, with PNG backups. Additional custom font files are not embedded. Settings and fonts persist locally; artwork requires an explicit project download. No cloud backup, customer accounts, payment system, licensing enforcement or analytics is implemented.
 
 Keep your original HTML as the historical source. The included third-party Three.js distribution remains version 0.128.0 for compatibility; this release does not claim a dependency security audit.
 
@@ -92,3 +92,11 @@ Press and hold the middle mouse button (the scroll wheel) over either logo to se
 
 Bottom branding: the supplied Design Mainline mark is included, with separate underside and inside-floor starting placements, middle-button dragging, and saved project settings. Both prepared template surfaces now include bottom normals, thickness checks, and opening margins.
 
+
+## Design layers — September 19
+
+Each side supports multiple images and text, with independent size, placement, image processing, depth and emboss/deboss settings. Select a design on the sleeve or in the design list. A new image prompts Add, Replace selected or Cancel. Link settings pairs the selected front and back designs. The bottom logo has separate depth and finish controls.
+
+Undo/Redo retain up to 40 editing states during the session (Ctrl+Z / Ctrl+Shift+Z); text fields retain normal typing undo. Hide tools collapses the panel into accessible shortcut icons. Version 3 project files save all layers and editable text; older project files still open. Up to 12 design layers are supported per sleeve.
+
+Automatic background detection uses the dominant border color and preserves transparent PNGs. Drop events load once, and the same file can be selected again. Mesh regression checks cover independent emboss/deboss depths and overlapping designs; overlapping different finishes can transition between depths, so inspect the exported mesh in your slicer.

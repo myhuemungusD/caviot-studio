@@ -85,7 +85,7 @@ globalThis.SleeveTemplate=(()=>{
   }
   function build(prepared,options={}){
     const width=Math.max(2,Math.min(prepared.chart.perimeter,Number(options.designWidth)||30)),height=Math.max(2,Math.min(prepared.height,Number(options.designHeight)||30)),centerY=Number.isFinite(options.designY)?options.designY:prepared.height/2,angle=(Number(options.designAngle)||0)*Math.PI/180+Math.PI/2,centerS=arcAt(prepared.chart,angle),rotation=(Number(options.designRotation)||0)*Math.PI/180,c=Math.cos(rotation),s=Math.sin(rotation),depth=Math.max(0,Math.min(3,Number(options.maxHeight)||0)),hm=options.heightmap,rows=options.rows,cols=options.cols;
-    const positions=new Float32Array(prepared.positions),amplitude=new Float32Array(prepared.distance.length);let maxSafe=3,affected=0,clipped=0,peak=0;
+    const positions=new Float32Array(prepared.positions),amplitude=new Float32Array(prepared.distance.length),offsets=new Float32Array(prepared.distance.length);let maxSafe=3,affected=0,clipped=0,peak=0;
     const designs=(options.designs||[options]).filter(d=>d.heightmap).map(d=>{const r=(d.designRotation||0)*Math.PI/180;return {...d,centerS:arcAt(prepared.chart,(d.designAngle||0)*Math.PI/180+Math.PI/2),c:Math.cos(r),s:Math.sin(r)}});
     const affectedByDesign=designs.map(()=>0);
     if(designs.length)for(let i=0;i<amplitude.length;i++){
@@ -93,15 +93,15 @@ globalThis.SleeveTemplate=(()=>{
       const wall=prepared.thickness[i],wallGuard=Number.isFinite(wall)?Math.max(0,Math.min(1,(wall-.8)/.8)):0,boundary=Math.min(1,prepared.distance[i]/1.2)*wallGuard;
       let value=0;
       for(let j=0;j<designs.length;j++){const d=designs[j];const xy=artworkPoint(prepared,i,d);if(!xy)continue;const [dx,dy]=xy;const x=dx*d.c+dy*d.s,y=-dx*d.s+dy*d.c,w=Math.max(2,Math.min(prepared.chart.perimeter,d.designWidth||30)),h=Math.max(2,Math.min(prepared.height,d.designHeight||30));
-       const v=sample(d.heightmap,d.rows,d.cols,x/w+.5,.5-y/h)*Math.max(0,Math.min(1,(w/2-Math.abs(x))/.3,(h/2-Math.abs(y))/.3));value=Math.max(value,v);if(v*boundary>=.001)affectedByDesign[j]++;
+       const v=sample(d.heightmap,d.rows,d.cols,x/w+.5,.5-y/h)*Math.max(0,Math.min(1,(w/2-Math.abs(x))/.3,(h/2-Math.abs(y))/.3));value=Math.max(value,v);if(v*boundary>=.001){affectedByDesign[j]++;const localDepth=Math.max(0,Math.min(3,d.maxHeight??depth));offsets[i]=v*boundary*localDepth*((d.negative??options.negative)?-1:1);if(offsets[i]<0&&-offsets[i]>wall-.8+.001)throw Error('Deboss depth exceeds the wall allowance for one design. Reduce its depth.');}
       }
       if(value<.001)continue;
       if(boundary<.99)clipped++;
       const a=value*boundary;if(a<.001)continue;amplitude[i]=a;affected++;peak=Math.max(peak,a);
       if(Number.isFinite(wall))maxSafe=Math.min(maxSafe,Math.max(0,(wall-.8)/a));
     }
-    if(options.negative&&depth>maxSafe+.001)throw Error('Deboss depth exceeds the wall allowance here. Use '+Math.max(0,Math.floor(maxSafe*100)/100).toFixed(2)+' mm or less, or move the design.');
-    const sign=options.negative?-1:1;for(let i=0;i<amplitude.length;i++)if(amplitude[i])for(let a=0;a<3;a++)positions[i*3+a]+=prepared.normals[i*3+a]*depth*sign*amplitude[i];
+    if(!options.designs&&options.negative&&depth>maxSafe+.001)throw Error('Deboss depth exceeds the wall allowance here. Use '+Math.max(0,Math.floor(maxSafe*100)/100).toFixed(2)+' mm or less, or move the design.');
+    const sign=options.negative?-1:1;for(let i=0;i<amplitude.length;i++)if(amplitude[i])for(let a=0;a<3;a++)positions[i*3+a]+=prepared.normals[i*3+a]*offsets[i];
     return{positions,indices:prepared.indices,amplitude,info:{affected,affectedByDesign,clipped,maxSafeDepth:maxSafe,peakDepth:peak*depth,spacing:prepared.spacing,perimeter:prepared.chart.perimeter}};
   }
   function decode(buffer){const view=new DataView(buffer),len=view.getUint32(0,true),meta=JSON.parse(new TextDecoder().decode(new Uint8Array(buffer,4,len)));if(meta.format!=='icaviot-template-1')throw Error('Invalid prepared template.');let offset=(4+len+3)&~3;const out={chart:meta.chart,height:meta.height,spacing:meta.spacing};for(const field of meta.fields){const Type=field.type==='uint32'?Uint32Array:field.type==='uint8'?Uint8Array:Float32Array;out[field.name]=new Type(buffer,offset,field.length);offset=(offset+field.length*Type.BYTES_PER_ELEMENT+3)&~3}return out}

@@ -3,7 +3,7 @@
 'use strict';
 
 const MC = window.MeshCore;
-const APP_BUILD = '2026.09.17';
+const APP_BUILD = '2026.09.19';
 const SETTINGS_KEY = 'icaviot.settings.v1';
 const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
 const MAX_IMAGE_PIXELS = 24 * 1024 * 1024;

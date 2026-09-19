@@ -84,16 +84,12 @@ function autoDetectBgColor(img, state = AppState) {
   const ctx = c.getContext('2d');
   ctx.drawImage(img, 0, 0, s, s);
   const d = ctx.getImageData(0, 0, s, s).data;
-  // Sample corners
-  const samples = [[0, 0], [s - 1, 0], [0, s - 1], [s - 1, s - 1], [s >> 1, 0], [0, s >> 1]];
-  let r = 0, g = 0, b = 0;
-  samples.forEach(([x, y]) => {
-    const i = (y * s + x) * 4;
-    r += d[i]; g += d[i + 1]; b += d[i + 2];
-  });
-  state.bgR = Math.round(r / samples.length);
-  state.bgG = Math.round(g / samples.length);
-  state.bgB = Math.round(b / samples.length);
+  // Choose an actual dominant border color, never an average of unrelated colors.
+  // Transparent PNG borders already define the silhouette and need no color key.
+  const bins=new Map();let transparent=0,total=0;
+  for(let y=0;y<s;y++)for(let x=0;x<s;x++)if(x<3||y<3||x>=s-3||y>=s-3){const i=(y*s+x)*4;total++;if(d[i+3]<128){transparent++;continue;}const key=[d[i]>>4,d[i+1]>>4,d[i+2]>>4].join(',');let b=bins.get(key);if(!b){b={n:0,r:0,g:0,b:0};bins.set(key,b);}b.n++;b.r+=d[i];b.g+=d[i+1];b.b+=d[i+2];}
+  if(transparent>total*.5){state.bgR=255;state.bgG=255;state.bgB=255;state.bgEnable=false;}
+  else {const best=[...bins.values()].sort((a,b)=>b.n-a.n)[0];if(best){state.bgR=Math.round(best.r/best.n);state.bgG=Math.round(best.g/best.n);state.bgB=Math.round(best.b/best.n);}}
   if(state===AppState)updateBgSwatch();
 }
 

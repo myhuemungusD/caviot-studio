@@ -175,6 +175,7 @@ function bindUI() {
   if (els.fileInput) {
     els.fileInput.addEventListener('change', () => {
       if (els.fileInput.files && els.fileInput.files[0]) loadImageFile(els.fileInput.files[0]);
+      els.fileInput.value = '';
     });
   }
   if (els.uploadBtn) {
@@ -201,6 +202,7 @@ function bindUI() {
       });
     });
     els.uploadBtn.addEventListener('drop', (e) => {
+      e.stopPropagation();
       const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
       if (f) loadImageFile(f);
     });
@@ -366,7 +368,7 @@ function bindUI() {
         setSettingsOpen(false);
         if (els.mobileSettingsBtn) {
           els.mobileSettingsBtn.setAttribute('aria-expanded', 'false');
-          els.mobileSettingsBtn.textContent = 'Settings';
+          els.mobileSettingsBtn.textContent = 'Tools';
           els.mobileSettingsBtn.focus();
         }
       }
@@ -417,4 +419,4 @@ if (document.readyState === 'loading') {
 
 
 function settingsAreOpen(){return document.body.classList.contains('mobile-settings-open')}
-function setSettingsOpen(open){document.body.classList.toggle('mobile-settings-open',open);document.body.classList.toggle('settings-closed',!open);const b=document.getElementById('mobileSettingsBtn');if(b){b.setAttribute('aria-expanded',String(open));b.textContent=open?'Hide settings':'Settings'}window.dispatchEvent(new Event('resize'));}
+function setSettingsOpen(open){if(!open){const sidebar=document.querySelector('.sidebar');if(sidebar)sidebar.scrollTop=0;}document.body.classList.toggle('mobile-settings-open',open);document.body.classList.toggle('settings-closed',!open);const b=document.getElementById('mobileSettingsBtn');if(b){b.setAttribute('aria-expanded',String(open));b.textContent=open?'Hide tools':'Tools'}window.dispatchEvent(new Event('resize'));}

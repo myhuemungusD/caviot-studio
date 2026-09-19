@@ -166,6 +166,8 @@ async function applyTextDesign() {
   const t = (AppState.text || '').trim();
   if (!t) return;
   const renderId = ++AppState.textRenderId;
+  if(typeof selectedFontReady!=='undefined')await selectedFontReady;
+  if(renderId!==AppState.textRenderId)return;
   const img = await renderTextToImage(t);
   if (renderId !== AppState.textRenderId || t !== (AppState.text || '').trim()) return;
   setDesignImage(img, 'text:' + t.slice(0, 24));

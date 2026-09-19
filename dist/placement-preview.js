@@ -27,9 +27,8 @@ function ensurePlacementMesh(){
    float outsideWall=step(0.25,dot(normalize(placeNormal),normalize(vec3(placePosition.x,0.0,placePosition.z))))*(1.0-step(0.78,abs(normalize(placeNormal).y)));
    float inBounds=step(0.0,uv.x)*step(uv.x,1.0)*step(0.0,uv.y)*step(uv.y,1.0);
    float mask=texture2D(place_logo,uv).r*inBounds*outsideWall;
-   float odx=place_otherCenter.x-arcDistance;odx-=floor(odx/place_perimeter+0.5)*place_perimeter;float ody=placePosition.y-place_otherCenter.y;
-   vec2 ouv=vec2(odx*place_otherRotation.x+ody*place_otherRotation.y,-odx*place_otherRotation.y+ody*place_otherRotation.x)/place_otherSize+0.5;
-   float otherMask=texture2D(place_otherLogo,ouv).r*step(0.0,ouv.x)*step(ouv.x,1.0)*step(0.0,ouv.y)*step(ouv.y,1.0)*outsideWall*place_otherEnabled;
+   vec2 ouv=vec2(arcDistance/place_perimeter,placePosition.y/place_otherSize.y);
+   float otherMask=texture2D(place_otherLogo,ouv).r*outsideWall*place_otherEnabled;
    mask=max(mask,otherMask);
    diffuseColor.rgb=mix(diffuseColor.rgb,vec3(1.0,0.36,0.06),smoothstep(0.45,0.55,mask));`);
  };
@@ -41,12 +40,7 @@ function showPlacementPreview(){
  if(placementImageMap!==AppState.heightmap){placementImageMap=AppState.heightmap;placementTexture.needsUpdate=true;}
  placementUniforms.center.value.set(SleeveTemplate.arcAt(placementMesh.userData.chart,(AppState.designAngle||0)*Math.PI/180+Math.PI/2),AppState.designY);
  placementUniforms.size.value.set(AppState.designWidth,AppState.designHeight);const angle=AppState.designRotation*Math.PI/180;placementUniforms.rotation.value.set(Math.cos(angle),Math.sin(angle));
- if(typeof captureDesignSide==='function'){
-  captureDesignSide();const other=designSides[1-activeDesignSide];placementUniforms.otherEnabled.value=other?.image?1:0;
-  if(other?.image){const built=sideRaster(other,768);if(placementOtherMap!==built.hm){placementOtherMap=built.hm;const canvas=document.createElement('canvas');canvas.width=built.cols;canvas.height=built.rows;const context=canvas.getContext('2d'),pixels=context.createImageData(built.cols,built.rows);for(let i=0;i<built.hm.length;i++){const v=Math.round(Math.max(0,Math.min(1,built.hm[i]))*255);pixels.data[i*4]=pixels.data[i*4+1]=pixels.data[i*4+2]=v;pixels.data[i*4+3]=255}context.putImageData(pixels,0,0);placementOtherTexture.image=canvas;placementOtherTexture.needsUpdate=true;}
-   placementUniforms.otherCenter.value.set(SleeveTemplate.arcAt(placementMesh.userData.chart,(other.designAngle||0)*Math.PI/180+Math.PI/2),other.designY);placementUniforms.otherSize.value.set(other.designWidth,other.designHeight);const r=other.designRotation*Math.PI/180;placementUniforms.otherRotation.value.set(Math.cos(r),Math.sin(r));
-  }
- }
+ if(typeof captureDesignSide==='function'){captureDesignSide();updateOtherLayerAtlas();}
  const repair=document.getElementById('makeWatertight');if(repair)repair.disabled=true;placementMesh.visible=true;if(meshObj)meshObj.visible=false;
 }
 function finishPlacement(){
@@ -65,3 +59,19 @@ function updatePlacement(){
 }
 function queuePlacementPointer(e){placementPointer={clientX:e.clientX,clientY:e.clientY};if(placementFrame!==null)return;placementFrame=requestAnimationFrame(()=>{placementFrame=null;const point=placementPointer;placementPointer=null;if(point&&templateActivePointer!==null)placeFromPointer(point)})}
 function flushPlacementPointer(){if(placementFrame!==null)cancelAnimationFrame(placementFrame);placementFrame=null;const point=placementPointer;placementPointer=null;if(point)placeFromPointer(point);finishPlacement()}
+
+let placementAtlasEntries=[],placementAtlasKey='';
+function updateOtherLayerAtlas(){
+ const layers=designLayers.flat().filter(s=>s.image&&s!==designSides[activeDesignSide]);
+ const entries=layers.map(slot=>({slot,built:sideRaster(slot,512),cache:slot.cache}));
+ const key=JSON.stringify(layers.map(s=>[s.id,s.designAngle,s.designY,s.designWidth,s.designHeight,s.designRotation]));
+ placementUniforms.otherEnabled.value=layers.length?1:0;placementUniforms.otherSize.value.set(placementMesh.userData.chart.perimeter,templateBase.height);
+ if(key===placementAtlasKey&&entries.length===placementAtlasEntries.length&&entries.every((e,i)=>e.cache===placementAtlasEntries[i].cache))return;
+ placementAtlasEntries=entries;placementAtlasKey=key;
+ const canvas=document.createElement('canvas');canvas.width=2048;canvas.height=1024;const ctx=canvas.getContext('2d');ctx.fillStyle='black';ctx.fillRect(0,0,canvas.width,canvas.height);const chart=placementMesh.userData.chart;
+ ctx.scale(canvas.width/chart.perimeter,canvas.height/templateBase.height);
+ for(const {slot,built}of entries){if(!slot.cache.atlasCanvas){const c=document.createElement('canvas');c.width=built.cols;c.height=built.rows;const context=c.getContext('2d'),pixels=context.createImageData(c.width,c.height);for(let i=0;i<built.hm.length;i++){pixels.data[i*4]=pixels.data[i*4+1]=pixels.data[i*4+2]=255;pixels.data[i*4+3]=Math.round(Math.max(0,Math.min(1,built.hm[i]))*255);}context.putImageData(pixels,0,0);slot.cache.atlasCanvas=c;}
+  const center=SleeveTemplate.arcAt(chart,(slot.designAngle||0)*Math.PI/180+Math.PI/2);for(const shift of [-chart.perimeter,0,chart.perimeter]){ctx.save();ctx.translate(center+shift,templateBase.height-slot.designY);ctx.rotate(slot.designRotation*Math.PI/180);ctx.scale(-1,1);ctx.drawImage(slot.cache.atlasCanvas,-slot.designWidth/2,-slot.designHeight/2,slot.designWidth,slot.designHeight);ctx.restore();}
+ }
+ placementOtherTexture.image=canvas;placementOtherTexture.needsUpdate=true;
+}
