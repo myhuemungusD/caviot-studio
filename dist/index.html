@@ -46,6 +46,7 @@
       <!-- SOURCE -->
       <section class="panel">
         <div id="designSidesPanel"><div class="panel-label">Artwork on each side</div><div class="design-side-buttons" role="group" aria-label="Side to edit"><button class="btn btn-ghost" id="editSide0" type="button" aria-pressed="true">Front · empty</button><button class="btn btn-ghost" id="editSide1" type="button" aria-pressed="false">Back · empty</button></div><button class="btn btn-ghost btn-sm" id="copyDesignSide" type="button">Copy front to back</button><label class="check"><input type="checkbox" id="linkDesignSettings"><span>Link settings between sides</span></label><p class="muted-tip" id="sideLinkHelp">Click a logo to edit it. Each side has its own size, position and image settings.</p><p id="editingSideLabel">Editing front artwork</p></div><div class="panel-label">01 / Your design</div>
+        <div id="designSizing"><div class="panel-label">Size &amp; rotation · selected design</div><div id="placementFields"></div></div>
         <div id="uploadBtn" class="drop" role="button" tabindex="0">
           <span class="glyph">▣</span>
           <strong>Drop or click image</strong>
@@ -120,7 +121,7 @@
         </div>
       </section>
 
-      <section class="panel" id="templatePlacement"><div class="panel-label">03 / Place on the sleeve</div><button class="btn btn-ghost" id="moveDesign" aria-pressed="false" type="button">Move design on sleeve</button><p class="muted-tip">Hold the scroll wheel on a logo and drag to move it. Or turn this button on for left-button dragging.</p><div id="placementFields"></div><label class="check"><input id="uniformDepth" type="checkbox" checked><span>Even depth (logos)</span></label><p class="muted-tip">Uses the artwork silhouette. Remove the background to isolate your logo.</p><div class="source-actions"><button class="btn btn-ghost btn-sm" id="centerDesign" type="button">Center on front</button><button class="btn btn-ghost btn-sm" id="clearDesign" type="button">Clear design</button></div><p id="templateStatus" role="status" aria-live="polite">Loading your sleeve…</p></section>
+      <section class="panel" id="templatePlacement"><div class="panel-label">03 / Place on the sleeve</div><button class="btn btn-ghost" id="moveDesign" aria-pressed="false" type="button">Move design on sleeve</button><p class="muted-tip">Hold the scroll wheel on a logo and drag to move it. Or turn this button on for left-button dragging.</p><label class="check"><input id="uniformDepth" type="checkbox" checked><span>Even depth (logos)</span></label><p class="muted-tip">Uses the artwork silhouette. Remove the background to isolate your logo.</p><div class="source-actions"><button class="btn btn-ghost btn-sm" id="centerDesign" type="button">Center on front</button><button class="btn btn-ghost btn-sm" id="clearDesign" type="button">Clear design</button></div><p id="templateStatus" role="status" aria-live="polite">Loading your sleeve…</p></section>
       <!-- DEVICE (lighter / vape) -->
       <section class="panel" id="sleevePanel">
         <div class="panel-label">03 / Size &amp; fit</div>
