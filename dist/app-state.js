@@ -3,7 +3,7 @@
 'use strict';
 
 const MC = window.MeshCore;
-const APP_BUILD = '2026.09.19';
+const APP_BUILD = '2026.09.21';
 const SETTINGS_KEY = 'icaviot.settings.v1';
 const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
 const MAX_IMAGE_PIXELS = 24 * 1024 * 1024;
@@ -22,7 +22,7 @@ const AppState = {
   designAngle: 0, designY: 44.5, designWidth: 30, designHeight: 30, designRotation: 0, uniformDepth: true,
   mode: 'sleeve',          // 'sleeve' | 'logo-only' | 'flat'
   relief: 'raised',        // 'raised' | 'carved'
-  depthMm: 1.0,            // magnitude 0.1–5
+  depthMm: 0.4,            // magnitude 0.01–5
   detail: 400,             // export long-side
   fullPreview: false,
 
@@ -275,7 +275,7 @@ function loadSettings(settingsOverride) {
     const s = JSON.parse(raw);
     const numberRules = {
       designAngle: [-180,180], designY: [0,89], designWidth: [2,160], designHeight: [2,89], designRotation: [-180,180],
-      depthMm: [0.1, 5], detail: [50, 400], innerWidth: [3, 200], innerDepth: [3, 200],
+      depthMm: [0.01, 5], detail: [50, 400], innerWidth: [3, 200], innerDepth: [3, 200],
       wall: [0.6, 5], sleeveHeight: [10, 200], tol: [0, 2], capThick: [0.6, 5],
       capHole: [0, 15], plateWidth: [10, 500], baseThickness: [0.4, 10],
       curveDiam: [20, 500], curveAngle: [-180, 180], curveFalloff: [0, 90],
@@ -388,7 +388,7 @@ function projectStateToUI() {
   if (els.depthIn) els.depthIn.value = String(AppState.depthMm);
   if (els.depthVal) {
     const arrow = AppState.relief === 'carved' ? '⬇' : '⬆';
-    els.depthVal.textContent = arrow + ' ' + AppState.depthMm.toFixed(1);
+    els.depthVal.textContent = arrow + ' ' + AppState.depthMm.toFixed(2);
   }
   // Logo size
   if (els.imageScale) els.imageScale.value = String(AppState.logoSizePct);

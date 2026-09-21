@@ -1,6 +1,6 @@
-# Caviot Studio — build 2026.09.19
+# Caviot Studio — build 2026.09.21
 
-This PC copy is **build 2026.09.19** (the independent design layers and Undo update). The same build label appears in the app header.
+This PC copy is **build 2026.09.21** (the independent design layers and Undo update). The same build label appears in the app header.
 
 A browser-based tool for turning images, text and patterns into 3D-printable sleeves and reliefs. The existing mesh engine has been preserved and separated from the interface.
 
@@ -100,3 +100,7 @@ Each side supports multiple images and text, with independent size, placement, i
 Undo/Redo retain up to 40 editing states during the session (Ctrl+Z / Ctrl+Shift+Z); text fields retain normal typing undo. Hide tools collapses the panel into accessible shortcut icons. Version 3 project files save all layers and editable text; older project files still open. Up to 12 design layers are supported per sleeve.
 
 Automatic background detection uses the dominant border color and preserves transparent PNGs. Drop events load once, and the same file can be selected again. Mesh regression checks cover independent emboss/deboss depths and overlapping designs; overlapping different finishes can transition between depths, so inspect the exported mesh in your slicer.
+
+## September 21 layout
+
+Selected-design depth and finish sit directly below rotation. New designs and bottom branding start at 0.4 mm; saved project depths are retained. Hide tools sits at the left by the toolbar. Import STL sits beside export. Output shape, sleeve template and bottom branding are at the bottom of the tools. The extra Add Image and Pattern buttons are hidden; image drop/upload remains available. Add & view bottom logo enables the mark, turns to the selected surface and reports placement results.

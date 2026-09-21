@@ -38,7 +38,7 @@ function bindUI() {
   // Depth magnitude
   if (els.depthIn) {
     els.depthIn.addEventListener('input', () => {
-      AppState.depthMm = Math.max(0.1, Math.min(5, parseFloat(els.depthIn.value) || 1));
+      AppState.depthMm = Math.max(0.01, Math.min(5, parseFloat(els.depthIn.value) || 0.4));
       projectStateToUI();
       scheduleRebuild();
     });
@@ -399,7 +399,7 @@ function bindUI() {
 function boot() {
   loadSettings();
   // Ensure depth magnitude is positive
-  AppState.depthMm = Math.max(0.1, Math.abs(AppState.depthMm) || 1);
+  AppState.depthMm = Math.max(0.01, Math.abs(AppState.depthMm) || 0.4);
   projectStateToUI();
   try { initThree(); } catch (error) {
     console.error(error);

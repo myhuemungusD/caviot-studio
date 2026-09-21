@@ -12,3 +12,5 @@
 .rail-button{flex:0 0 40px;white-space:nowrap;padding:0;font-size:18px}body.settings-closed .sidebar{scrollbar-width:none}body.settings-closed .sidebar::-webkit-scrollbar{display:none}
 
 .layer-item{display:flex;align-items:stretch;gap:6px;margin:6px 0}.layer-item .layer-row{flex:1;min-width:0;width:auto;margin:0}.layer-delete{display:flex;align-items:center;justify-content:center;flex:0 0 40px;min-height:40px;border:1px solid var(--b2);border-radius:7px;background:var(--s1);color:var(--t2);cursor:pointer}.layer-delete:hover,.layer-delete:focus-visible{color:#ff7878;border-color:#ff7878;background:#ff787812}.layer-delete:disabled{opacity:.45;cursor:default}
+
+.tools-heading{display:flex;align-items:center;flex-shrink:0}.topbar{flex-wrap:wrap}.top-actions{margin-left:auto}#selectedFinish{margin:14px 0 20px}#addImageLayer,#openPatterns{display:none!important}.output-mode-panel .mode-pills{display:flex;flex-wrap:wrap;width:100%;grid-column:auto}.output-mode-panel .mode-pills label{flex:1;white-space:nowrap;font-size:12px}#bottomBrandPanel input[type=number]{width:100%;margin:5px 0 12px}#bottomBrandPanel label:not(.check){display:block;margin-top:10px}
