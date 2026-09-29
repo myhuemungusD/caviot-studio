@@ -274,7 +274,8 @@ function loadSettings(settingsOverride) {
     if (!raw) return;
     const s = JSON.parse(raw);
     const numberRules = {
-      designAngle: [-180,180], designY: [0,89], designWidth: [2,160], designHeight: [2,89], designRotation: [-180,180],
+      // Wide enough for custom STL templates; the placement UI clamps to the active template.
+      designAngle: [-180,180], designY: [0,1000], designWidth: [2,3000], designHeight: [2,1000], designRotation: [-180,180],
       depthMm: [0.01, 5], detail: [50, 400], innerWidth: [3, 200], innerDepth: [3, 200],
       wall: [0.6, 5], sleeveHeight: [10, 200], tol: [0, 2], capThick: [0.6, 5],
       capHole: [0, 15], plateWidth: [10, 500], baseThickness: [0.4, 10],
@@ -291,7 +292,7 @@ function loadSettings(settingsOverride) {
         AppState[k] = s[k];
       }
     });
-    if (!['etsyfolger-v1','parametric'].includes(AppState.templateId)) AppState.templateId='etsyfolger-v1';
+    if (!['etsyfolger-v1','custom-stl','parametric'].includes(AppState.templateId)) AppState.templateId='etsyfolger-v1';
     if (!['sleeve', 'logo-only', 'flat'].includes(AppState.mode)) AppState.mode = 'sleeve';
     if (!['raised', 'carved'].includes(AppState.relief)) AppState.relief = 'raised';
     if (![180, 360].includes(Number(AppState.wrapAngle))) AppState.wrapAngle = 180;

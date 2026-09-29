@@ -1,0 +1,122 @@
+// Custom STL template pipeline: parse (binary + ASCII), weld, orientation, preparation,
+// worker preview/export with emboss/deboss, manifold checks and project format 4.
+import fs from 'node:fs';import vm from 'node:vm';import zlib from 'node:zlib';import assert from 'node:assert/strict';
+const dist=new URL('./dist/',import.meta.url);
+let count=0;const test=async(name,fn)=>{const t=Date.now();await fn();count++;console.log('PASS '+name+' ('+(Date.now()-t)+' ms)')};
+
+// ---------- Worker in a sandbox, same scripts as the browser ----------
+// vm.runInThisContext keeps browser-like global script semantics without slow contextified globals.
+const replies=[];globalThis.self=globalThis;globalThis.postMessage=r=>replies.push(r);
+globalThis.importScripts=(...files)=>{for(const f of files)vm.runInThisContext(fs.readFileSync(new URL(f,dist),'utf8'),{filename:f})};
+vm.runInThisContext(fs.readFileSync(new URL('template-worker.js',dist),'utf8'),{filename:'template-worker.js'});
+vm.runInThisContext(fs.readFileSync(new URL('project-format.js',dist),'utf8'),{filename:'project-format.js'});
+const ctx=globalThis,{CustomTemplate,MeshCore,ProjectFormat}=globalThis;
+async function worker(message){replies.length=0;await ctx.onmessage({data:message});return replies.filter(r=>!r.progress)}
+
+// ---------- Generated meshes ----------
+function binarySTL(tris){const buf=Buffer.alloc(84+tris.length*50);buf.writeUInt32LE(tris.length,80);tris.forEach((t,f)=>t.flat().forEach((v,k)=>buf.writeFloatLE(v,84+f*50+12+k*4)));return buf}
+function asciiSTL(tris){return Buffer.from('solid generated\n'+tris.map(t=>' facet normal 0 0 0\n  outer loop\n'+t.map(p=>'   vertex '+p.map(v=>v.toExponential(6)).join(' ')).join('\n')+'\n  endloop\n endfacet').join('\n')+'\nendsolid generated\n')}
+// Z-up box, outward winding.
+function box(sx,sy,sz){const v=[[0,0,0],[sx,0,0],[sx,sy,0],[0,sy,0],[0,0,sz],[sx,0,sz],[sx,sy,sz],[0,sy,sz]],q=[[0,3,2,1],[4,5,6,7],[0,1,5,4],[1,2,6,5],[2,3,7,6],[3,0,4,7]],t=[];for(const [a,b,c,d]of q)t.push([v[a],v[b],v[c]],[v[a],v[c],v[d]]);return t}
+// Z-up hollow tube (a simple sleeve with an open cavity), outward winding.
+function tube(ro,ri,h,n=64){const t=[],P=(r,i,z)=>[r*Math.cos(i/n*2*Math.PI),r*Math.sin(i/n*2*Math.PI),z];for(let i=0;i<n;i++){const j=i+1;
+  t.push([P(ro,i,0),P(ro,j,0),P(ro,j,h)],[P(ro,i,0),P(ro,j,h),P(ro,i,h)]);t.push([P(ri,i,0),P(ri,j,h),P(ri,j,0)],[P(ri,i,0),P(ri,i,h),P(ri,j,h)]);
+  t.push([P(ri,i,h),P(ro,i,h),P(ro,j,h)],[P(ri,i,h),P(ro,j,h),P(ri,j,h)]);t.push([P(ri,i,0),P(ro,j,0),P(ro,i,0)],[P(ri,i,0),P(ri,j,0),P(ro,j,0)])}return t}
+// Box with each face split into an n×n grid (small triangles, so a missing one is a "tiny hole").
+function gridBox(size,n){const t=[],faces=[[[0,0,0],[0,1,0],[1,0,0]],[[0,0,1],[1,0,0],[0,1,0]],[[0,0,0],[1,0,0],[0,0,1]],[[1,0,0],[0,1,0],[0,0,1]],[[1,1,0],[-1,0,0],[0,0,1]],[[0,1,0],[0,-1,0],[0,0,1]]];
+  for(const [o,u,v]of faces)for(let i=0;i<n;i++)for(let j=0;j<n;j++){const P=(a,b)=>[0,1,2].map(k=>(o[k]+u[k]*a/n+v[k]*b/n)*size);t.push([P(i,j),P(i+1,j),P(i+1,j+1)],[P(i,j),P(i+1,j+1),P(i,j+1)])}return t}
+const flip=tris=>tris.map(([a,b,c])=>[a,c,b]);
+const ab=b=>b.buffer.slice(b.byteOffset,b.byteOffset+b.byteLength);
+
+// Artwork: a filled square and the Design Mainline mask from test-fixtures.
+const rows=96,cols=96,square=new Float32Array(rows*cols);for(let y=0;y<rows;y++)for(let x=0;x<cols;x++)square[y*cols+x]=x>12&&x<84&&y>12&&y<84?1:0;
+const logoRaw=zlib.gunzipSync(fs.readFileSync(new URL('./test-fixtures/bottom-logo-mask.f32.gz',import.meta.url))),logo=new Float32Array(ab(logoRaw));
+const design=(extra)=>({heightmap:square,rows,cols,designWidth:12,designHeight:12,designAngle:0,designRotation:0,maxHeight:.6,negative:false,sharp:true,...extra});
+
+await test('binary and ASCII parsing agree',()=>{
+  const tris=box(20,10,30),b=CustomTemplate.parseSTL(binarySTL(tris)),a=CustomTemplate.parseSTL(asciiSTL(tris));
+  assert.equal(b.format,'binary');assert.equal(a.format,'ascii');assert.equal(b.triangles,12);assert.equal(a.triangles,12);for(let i=0;i<b.soup.length;i++)assert(Math.abs(a.soup[i]-b.soup[i])<1e-4);
+});
+await test('bad files give clear errors',()=>{
+  assert.throws(()=>CustomTemplate.parseSTL(new ArrayBuffer(0)),/empty/);
+  assert.throws(()=>CustomTemplate.parseSTL(Buffer.from('hello world, definitely not an stl file with enough bytes to look binary maybe........................')),/not a valid STL/);
+  const truncated=binarySTL(box(1,1,1)).subarray(0,300);assert.throws(()=>CustomTemplate.parseSTL(truncated),/not a valid STL/);
+  assert.throws(()=>CustomTemplate.parseSTL(Buffer.from('solid x\nfacet normal 0 0 1\nouter loop\nvertex 0 0 0\nvertex 1 0 0\nendloop\nendfacet\nendsolid')),/truncated/);
+  assert.throws(()=>CustomTemplate.parseSTL(Buffer.from('solid x\nendsolid x\n')),/no triangles/);
+  const nan=binarySTL(box(1,1,1));nan.writeFloatLE(NaN,84+12);assert.throws(()=>CustomTemplate.parseSTL(nan),/invalid/i);
+});
+await test('weld, inverted normals and open meshes are reported',()=>{
+  const inverted=CustomTemplate.load(asciiSTL(flip(tube(15,12,40))));assert(inverted.report.inverted);assert(inverted.report.closed);assert(inverted.report.volume>0);
+  const mixed=box(10,10,10);mixed[3]=[mixed[3][0],mixed[3][2],mixed[3][1]];const m=CustomTemplate.load(binarySTL(mixed));assert.equal(m.report.flippedFaces,1);assert(m.report.closed);
+  const open=CustomTemplate.load(binarySTL(box(10,10,10).slice(0,11)));assert.equal(open.report.closed,false);assert.equal(open.report.boundary,3);assert.match(CustomTemplate.describeProblems(open.report)[0],/3 open edges/);
+  const holed=gridBox(10,8);holed.splice(40,1);const repaired=CustomTemplate.load(binarySTL(holed),{repair:true});assert(repaired.report.closed,'Make watertight closes one missing triangle');
+});
+await test('orientation: auto up, flips, quarter turns, units',()=>{
+  const src=CustomTemplate.load(binarySTL(box(60,20,10))).source;
+  const auto=CustomTemplate.orient(src,{up:'auto'});assert.equal(auto.orientation.resolvedUp,'+x');assert(Math.abs(auto.height-60)<1e-4);
+  const z=CustomTemplate.orient(src,{up:'+z',autoAlign:true});assert(Math.abs(z.height-10)<1e-4);const w=z.bounds.max[0]-z.bounds.min[0],d=z.bounds.max[2]-z.bounds.min[2];assert(Math.abs(w-60)<1e-3&&Math.abs(d-20)<1e-3,'widest side faces front');
+  const turned=CustomTemplate.orient(src,{up:'+z',turn:90});assert(Math.abs(turned.bounds.max[0]-turned.bounds.min[0]-20)<1e-3);
+  const cm=CustomTemplate.orient(src,{up:'-z',units:'cm'});assert(Math.abs(cm.height-100)<1e-3);assert(Math.abs(cm.bounds.min[1])<1e-6);
+  // Proper rotations keep outward winding.
+  for(const up of ['+z','-z','+y','-y','+x','-x'])assert(CustomTemplate.signedVolume(CustomTemplate.orient(src,{up}).positions,src.indices)>0,up);
+});
+await test('decimated preview copy stays within budget',()=>{
+  const base=CustomTemplate.orient(CustomTemplate.load(binarySTL(tube(15,12,40,400))).source,{});const d=CustomTemplate.decimate(base,600);assert(d.decimated);assert(d.indices.length/3<=690);assert.equal(CustomTemplate.decimate(base,1e6),base);
+});
+
+const templates=[
+  ['generated cube (binary, 30 mm)',binarySTL(box(30,30,30)),{up:'+z'},[design({designY:15}),design({designY:15,designAngle:180,heightmap:logo,rows:logo.length/1024,cols:1024,designWidth:20,designHeight:15})]],
+  ['generated tube sleeve (ASCII, inverted winding)',asciiSTL(flip(tube(16,12.5,50))),{up:'auto'},[design({designY:25}),design({designY:25,designAngle:180})]],
+  ['ETSYFOLGER.stl loaded as a custom template',fs.readFileSync(new URL('templates/ETSYFOLGER.stl',dist)),{},[design({designY:44.5,designWidth:20,designHeight:20}),design({designY:40,designAngle:180,heightmap:logo,rows:logo.length/1024,cols:1024,designWidth:22,designHeight:16.45})]],
+];
+for(const [name,bytes,orientation,designs]of templates){
+  let ready,print,key='t-'+count;
+  await test(name+': load and prepare in worker',async()=>{
+    const out=await worker({type:'custom-prepare',id:1,buffer:ab(bytes),orientation});assert(!out.find(r=>r.error),out.find(r=>r.error)?.error);
+    ready=out.find(r=>r.stage==='ready');print=out.find(r=>r.stage==='print').print;assert(ready.report.closed,'template is closed');
+    const v=MeshCore.validateMesh(print.positions,print.indices);assert.equal(v.boundary+v.nonManifold,0);assert(ready.preview.stats.outerVertices>0);
+    assert.equal(print.chart.arc.length,721);assert(print.spacing>=.5&&ready.preview.spacing>=1.1);
+    console.log('   ',{triangles:ready.report.triangles,height:+ready.base.height.toFixed(2),preview:ready.preview.stats.triangles,print:print.stats.triangles,spacing:+print.spacing.toFixed(3)});
+  });
+  await test(name+': front/back placement preview',async()=>{
+    const out=await worker({id:2,type:'preview',template:{kind:'custom',key,prepared:ready.preview},options:{designs,maxHeight:.6,negative:false,sharp:false}});const r=out[0];assert(!r.error,r.error);
+    assert(r.info.affectedByDesign.every(n=>n>0),'both designs land on the surface: '+r.info.affectedByDesign);
+    const p=ready.preview;let moved=0,kept=0;for(let i=0;i<r.amplitude.length;i++){const d=Math.hypot(r.positions[i*3]-p.positions[i*3],r.positions[i*3+1]-p.positions[i*3+1],r.positions[i*3+2]-p.positions[i*3+2]);if(r.amplitude[i]>.99){assert(Math.abs(d-.6*r.amplitude[i])<1e-4);moved++}if(!p.outer[i]||p.distance[i]===0){assert.equal(d,0);kept++}}assert(moved>0&&kept>0);
+    const cached=await worker({id:3,type:'preview',template:{kind:'custom',key},options:{designs,maxHeight:.6,negative:false,sharp:false}});assert(!cached[0].error,'worker caches the prepared template');
+  });
+  for(const negative of [false,true])for(const sharp of [true,false])await test(name+': '+(negative?'deboss':'emboss')+(sharp?' sharp':' smooth')+' STL export is manifold',async()=>{
+    const out=await worker({id:4,type:'export',format:'stl',template:{kind:'custom',key,prepared:print},options:{designs:designs.map(d=>({...d,negative,sharp,maxHeight:.5})),maxHeight:.5,negative,sharp}});const r=out[0];assert(!r.error,r.error);
+    const back=CustomTemplate.load(r.buffer);assert(back.report.closed,'exported STL re-imports closed: '+JSON.stringify(back.report));assert.equal(back.report.nonOrientable,0);assert.equal(back.report.flippedFaces,0);assert(!back.report.inverted);
+    assert.equal(r.validation.boundary+r.validation.nonManifold+r.validation.zeroArea,0);
+  });
+  if(name.includes('cube'))await test(name+': background print preparation message',async()=>{const out=await worker({type:'custom-print',id:11,base:ready.base});assert(!out[0].error,out[0].error);assert.equal(out[0].stage,'print');assert.equal(out[0].print.indices.length,print.indices.length)});
+  if(name.includes('cube'))await test(name+': export without a cached print surface prepares one from the base',async()=>{
+    const out=await worker({id:5,type:'export',format:'obj',template:{kind:'custom',key:key+'-fresh',base:ready.base},options:{designs:designs.slice(0,1),maxHeight:.4,negative:false,sharp:true}});assert(!out[0].error,out[0].error);assert(out[0].text.startsWith('# iCaviot'));
+  });
+}
+await test('open template: clear export error; Make template watertight fixes it',async()=>{
+  const holed=gridBox(30,24);holed.splice(10,1);const out=await worker({type:'custom-prepare',id:6,buffer:ab(binarySTL(holed)),orientation:{up:'+z'},skipPrint:true});const ready=out.find(r=>r.stage==='ready');assert.equal(ready.report.closed,false);assert.equal(ready.report.boundary,3);
+  const o={designs:[design({designY:15})],maxHeight:.5,negative:false,sharp:true};
+  const bad=await worker({id:7,type:'export',format:'stl',template:{kind:'custom',key:'open',base:ready.base},options:o});assert.match(bad[0].error,/open edges/);
+  const rep=await worker({type:'custom-prepare',id:9,source:{positions:ready.source.positions,indices:ready.source.indices},report:ready.report,repair:true,orientation:{up:'+z'},skipPrint:true});const fixed=rep.find(r=>r.stage==='ready');assert(fixed.report.closed,'template repair closes the missing triangle');assert.equal(fixed.report.repairReport.filled,1);
+  const good=await worker({id:8,type:'export',format:'stl',template:{kind:'custom',key:'fixed',base:fixed.base},options:o});assert(!good[0].error,good[0].error);assert(CustomTemplate.load(good[0].buffer).report.closed);
+});
+await test('worker reports parse errors',async()=>{const out=await worker({type:'custom-prepare',id:10,buffer:ab(Buffer.from('solid x\nendsolid x\n')),orientation:{}});assert.match(out[0].error,/no triangles/)});
+
+// ---------- Project format 4 ----------
+const layer={id:'layer-1',kind:'image',image:'data:image/png;base64,AAAA',source:'Logo',fontChoice:'system',settings:{designAngle:0,designY:150,designWidth:40,designHeight:120,designRotation:0,bgR:255,bgG:255,bgB:255,bgTol:40,smoothPasses:0,letterSpacing:0,letterThickness:0,bgEnable:true,bgSoft:false,mirror:false,invert:true,depthMm:.4,relief:'raised',uniformDepth:true,crisp:true,text:''}};
+const gz=zlib.gzipSync(binarySTL(box(30,30,200))).toString('base64');
+const v4={format:'icaviot-project',version:4,name:'Custom',source:'Logo',settings:{templateId:'custom-stl'},image:null,layers:[[layer],[]],activeSide:0,linkSides:false,selectedIds:['layer-1',null],template:{kind:'custom-stl',name:'tall box',triangles:12,repaired:false,orientation:{up:'+z',turn:90,units:'mm',autoAlign:true},mesh:'data:application/gzip;base64,'+gz}};
+await test('project format 4 embeds the template and allows tall placements',()=>{
+  const p=ProjectFormat.decode(JSON.stringify(v4));assert.equal(p.template.name,'tall box');assert.equal(p.layers[0][0].settings.designY,150);
+  const stl=zlib.gunzipSync(Buffer.from(p.template.mesh.split(',')[1],'base64'));assert(CustomTemplate.load(stl).report.closed);
+  assert.equal(ProjectFormat.decode(JSON.stringify({...v4,template:{...v4.template,mesh:null}})).template.mesh,null);
+  assert.equal(ProjectFormat.decode(JSON.stringify({...v4,template:null})).template,null);
+});
+await test('project format 4 rejects malformed templates; version 3 limits unchanged',()=>{
+  for(const t of [{...v4.template,kind:'other'},{...v4.template,mesh:'https://example.com/x.stl'},{...v4.template,orientation:{...v4.template.orientation,turn:45}},{...v4.template,triangles:0},{...v4.template,name:5}])assert.throws(()=>ProjectFormat.decode(JSON.stringify({...v4,template:t})));
+  assert.throws(()=>ProjectFormat.decode(JSON.stringify({...v4,version:3,template:undefined})),/Invalid side setting: designY/);
+  const v3={...v4,version:3,template:undefined,layers:[[{...layer,settings:{...layer.settings,designY:44.5,designHeight:30}}],[]]};assert.equal(ProjectFormat.decode(JSON.stringify(v3)).version,3);
+});
+await test('browser scripts parse',()=>{for(const f of ['custom-template.js','custom-template-ui.js','template-worker.js','template-ui.js','product.js','project-format.js','design-sides.js','app-state.js','app.js'])new vm.Script(fs.readFileSync(new URL(f,dist),'utf8'),{filename:f})});
+console.log(count+' custom template checks passed');
