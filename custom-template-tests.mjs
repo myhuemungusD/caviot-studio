@@ -18,10 +18,11 @@ function binarySTL(tris){const buf=Buffer.alloc(84+tris.length*50);buf.writeUInt
 function asciiSTL(tris){return Buffer.from('solid generated\n'+tris.map(t=>' facet normal 0 0 0\n  outer loop\n'+t.map(p=>'   vertex '+p.map(v=>v.toExponential(6)).join(' ')).join('\n')+'\n  endloop\n endfacet').join('\n')+'\nendsolid generated\n')}
 // Z-up box, outward winding.
 function box(sx,sy,sz){const v=[[0,0,0],[sx,0,0],[sx,sy,0],[0,sy,0],[0,0,sz],[sx,0,sz],[sx,sy,sz],[0,sy,sz]],q=[[0,3,2,1],[4,5,6,7],[0,1,5,4],[1,2,6,5],[2,3,7,6],[3,0,4,7]],t=[];for(const [a,b,c,d]of q)t.push([v[a],v[b],v[c]],[v[a],v[c],v[d]]);return t}
-// Z-up hollow tube (a simple sleeve with an open cavity), outward winding.
-function tube(ro,ri,h,n=64){const t=[],P=(r,i,z)=>[r*Math.cos(i/n*2*Math.PI),r*Math.sin(i/n*2*Math.PI),z];for(let i=0;i<n;i++){const j=i+1;
-  t.push([P(ro,i,0),P(ro,j,0),P(ro,j,h)],[P(ro,i,0),P(ro,j,h),P(ro,i,h)]);t.push([P(ri,i,0),P(ri,j,h),P(ri,j,0)],[P(ri,i,0),P(ri,i,h),P(ri,j,h)]);
-  t.push([P(ri,i,h),P(ro,i,h),P(ro,j,h)],[P(ri,i,h),P(ro,j,h),P(ri,j,h)]);t.push([P(ri,i,0),P(ro,j,0),P(ro,i,0)],[P(ri,i,0),P(ri,j,0),P(ro,j,0)])}return t}
+// Z-up hollow tube (a simple sleeve with an open cavity), outward winding; bottom>0 closes it with a floor of that thickness.
+function tube(ro,ri,h,n=64,bottom=0){const t=[],P=(r,i,z)=>[r*Math.cos(i/n*2*Math.PI),r*Math.sin(i/n*2*Math.PI),z];for(let i=0;i<n;i++){const j=i+1;
+  t.push([P(ro,i,0),P(ro,j,0),P(ro,j,h)],[P(ro,i,0),P(ro,j,h),P(ro,i,h)]);t.push([P(ri,i,bottom),P(ri,j,h),P(ri,j,bottom)],[P(ri,i,bottom),P(ri,i,h),P(ri,j,h)]);
+  t.push([P(ri,i,h),P(ro,i,h),P(ro,j,h)],[P(ri,i,h),P(ro,j,h),P(ri,j,h)]);
+  if(bottom)t.push([[0,0,0],P(ro,j,0),P(ro,i,0)],[[0,0,bottom],P(ri,i,bottom),P(ri,j,bottom)]);else t.push([P(ri,i,0),P(ro,j,0),P(ro,i,0)],[P(ri,i,0),P(ri,j,0),P(ro,j,0)])}return t}
 // Box with each face split into an n×n grid (small triangles, so a missing one is a "tiny hole").
 function gridBox(size,n){const t=[],faces=[[[0,0,0],[0,1,0],[1,0,0]],[[0,0,1],[1,0,0],[0,1,0]],[[0,0,0],[1,0,0],[0,0,1]],[[1,0,0],[0,1,0],[0,0,1]],[[1,1,0],[-1,0,0],[0,0,1]],[[0,1,0],[0,-1,0],[0,0,1]]];
   for(const [o,u,v]of faces)for(let i=0;i<n;i++)for(let j=0;j<n;j++){const P=(a,b)=>[0,1,2].map(k=>(o[k]+u[k]*a/n+v[k]*b/n)*size);t.push([P(i,j),P(i+1,j),P(i+1,j+1)],[P(i,j),P(i+1,j+1),P(i,j+1)])}return t}
@@ -112,7 +113,7 @@ for(const [name,bytes,orientation,designs]of templates){
   });
   for(const negative of [false,true])for(const sharp of [true,false])await test(name+': '+(negative?'deboss':'emboss')+(sharp?' sharp':' smooth')+' STL export is manifold',async()=>{
     const out=await worker({id:4,type:'export',format:'stl',template:{kind:'custom',key,prepared:print},options:{designs:designs.map(d=>({...d,negative,sharp,maxHeight:.5})),maxHeight:.5,negative,sharp}});const r=out[0];assert(!r.error,r.error);
-    const back=CustomTemplate.load(r.buffer);assert(back.report.closed,'exported STL re-imports closed: '+JSON.stringify(back.report));assert.equal(back.report.nonOrientable,0);assert.equal(back.report.flippedFaces,0);assert(!back.report.inverted);
+    const back=CustomTemplate.load(r.buffer);assert(back.report.closed,'exported STL re-imports closed: '+JSON.stringify(back.report));assert.equal(back.report.degenerate,0,'no faces fold when re-imported with 1e-5 mm welding');assert.equal(back.report.nonOrientable,0);assert.equal(back.report.flippedFaces,0);assert(!back.report.inverted);
     assert.equal(r.validation.boundary+r.validation.nonManifold+r.validation.zeroArea,0);
   });
   if(name.includes('cube'))await test(name+': background print preparation message',async()=>{const out=await worker({type:'custom-print',id:11,base:ready.base});assert(!out[0].error,out[0].error);assert.equal(out[0].stage,'print');assert.equal(out[0].print.indices.length,print.indices.length)});
@@ -120,12 +121,20 @@ for(const [name,bytes,orientation,designs]of templates){
     const out=await worker({id:5,type:'export',format:'obj',template:{kind:'custom',key:key+'-fresh',base:ready.base},options:{designs:designs.slice(0,1),maxHeight:.4,negative:false,sharp:true}});assert(!out[0].error,out[0].error);assert(out[0].text.startsWith('# iCaviot'));
   });
 }
-await test('flat CAD facets: collinear contour faces are flipped so the export passes',async()=>{
+await test('flat CAD facets: collinear and sub-20 nm contour faces are cleaned so exports pass and re-import cleanly',async()=>{
   // Regression: a 96-sided tube (flat vertical facets) with this logo left one collinear face and failed the mesh check.
   const raw=zlib.gunzipSync(fs.readFileSync(new URL('./test-fixtures/design-mainline-square-mask.f32.gz',import.meta.url))),mask=new Float32Array(ab(raw));
   const out=await worker({type:'custom-prepare',id:12,buffer:ab(binarySTL(tube(16,12.5,50,96))),orientation:{},skipPrint:true});const base=out.find(r=>r.stage==='ready').base;
   const r=(await worker({id:13,type:'export',format:'stl',template:{kind:'custom',key:'facets',base},options:{designs:[design({heightmap:mask,rows:1024,cols:1024,designAngle:180,designY:25,designWidth:30,designHeight:30,maxHeight:.4,negative:true})],maxHeight:.4,negative:true,sharp:true}}))[0];
   assert(!r.error,r.error);assert(CustomTemplate.load(r.buffer).report.closed);
+  // Regression: on a closed-bottom cup the same logo left edges under 1e-5 mm, which fold when a slicer welds vertices.
+  const cup=(await worker({type:'custom-prepare',id:14,buffer:ab(binarySTL(tube(17,13.5,60,96,3))),orientation:{},skipPrint:true})).find(r=>r.stage==='ready').base;
+  const r2=(await worker({id:15,type:'export',format:'stl',template:{kind:'custom',key:'cup',base:cup},options:{designs:[design({heightmap:mask,rows:1024,cols:1024,designAngle:180,designY:30,designWidth:30,designHeight:30,maxHeight:.4,negative:true})],maxHeight:.4,negative:true,sharp:true}}))[0];
+  assert(!r2.error,r2.error);const back=CustomTemplate.load(r2.buffer).report;assert(back.closed);assert.equal(back.degenerate,0,'no sub-0.1 µm edges');
+  // OBJ for custom templates keeps 6 decimals, so those slivers do not round to zero area.
+  const obj=(await worker({id:16,type:'export',format:'obj',template:{kind:'custom',key:'cup'},options:{designs:[design({heightmap:mask,rows:1024,cols:1024,designAngle:180,designY:30,designWidth:30,designHeight:30,maxHeight:.4,negative:true})],maxHeight:.4,negative:true,sharp:true}}))[0].text;
+  const OP=[],OI=[];for(const line of obj.split('\n')){const w=line.split(' ');if(w[0]==='v')OP.push(+w[1],+w[2],+w[3]);else if(w[0]==='f')OI.push(w[1]-1,w[2]-1,w[3]-1)}
+  const a=CustomTemplate.analyze(new Float32Array(OP),new Uint32Array(OI));assert(a.closed,'OBJ closed: '+JSON.stringify(a));
   // Unit check: a collinear face next to a normal one is flipped into two valid faces covering the same area.
   const P=new Float32Array([0,0,0, 2,0,0, 1,0,0, 1,1,0]),tris=[0,1,2, 1,0,3];const flipped=SharpSleeve.flipCollinear(P,tris.slice(),new Set());
   assert.deepEqual(flipped,[2,0,3, 3,1,2]);assert.deepEqual(SharpSleeve.flipCollinear(P,[1,0,3],new Set()),[1,0,3],'valid faces are untouched');

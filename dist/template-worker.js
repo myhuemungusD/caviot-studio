@@ -37,7 +37,7 @@ self.onmessage=async({data})=>{
     if(data.type==='custom-prepare'){customPrepare(data);return}
     if(data.type==='custom-print'){const print=CustomTemplate.prepare(data.base,{quality:'print',onProgress:message=>postMessage({id:data.id,progress:message})});postMessage({id:data.id,stage:'print',print},transferPrepared(print));return}
     const prepared=await resolveTemplate(data,data.type==='export'?'print':'preview');
-    const result=data.options.sharp?SharpSleeve.buildAdaptive(prepared,{...data.options,sharpSpacing:data.type==='export'?.14:.24}):SleeveTemplate.build(prepared,data.options);
+    const result=data.options.sharp?SharpSleeve.buildAdaptive(prepared,{...data.options,sharpSpacing:data.type==='export'?.14:.24,weldSafe:data.template?.kind==='custom'}):SleeveTemplate.build(prepared,data.options);
     if(data.type==='export'){
       if(data.repair){const repaired=MeshRepair.repair(result.positions,result.indices);if(!repaired.report.closed)throw Error('Repair could not close this mesh. Reduce relief depth or adjust placement.');result.positions=repaired.positions;result.indices=repaired.indices;}
       if((data.options.designs?.length||data.options.heightmap)&&result.info.affected===0)throw Error('The design is not on a printable surface. Move it, resize it, or check background removal.');
@@ -46,7 +46,7 @@ self.onmessage=async({data})=>{
       if(v.boundary||v.nonManifold||v.zeroArea)throw Error('Mesh check: '+v.zeroArea+' collapsed faces, '+v.boundary+' open edges, '+v.nonManifold+' non-manifold edges. Reduce depth or move the design.');
       // Export Z-up for slicers, preserving the template shape and millimeter scale.
       const positions=result.positions;for(let i=0;i<positions.length;i+=3){const y=positions[i+1];positions[i+1]=-positions[i+2];positions[i+2]=y}
-      if(data.format==='obj')postMessage({id:data.id,validation:v,info:result.info,text:MeshCore.exportOBJ(positions,result.indices)});
+      if(data.format==='obj')postMessage({id:data.id,validation:v,info:result.info,text:MeshCore.exportOBJ(positions,result.indices,data.template?.kind==='custom'?6:4)});
       else{const buffer=MeshCore.exportSTL(positions,result.indices);postMessage({id:data.id,validation:v,info:result.info,buffer},[buffer])}
     }else{
       const indices=new Uint32Array(result.indices);postMessage({id:data.id,positions:result.positions,indices,amplitude:result.amplitude,walls:result.walls,info:result.info},[result.positions.buffer,indices.buffer,result.amplitude.buffer]);

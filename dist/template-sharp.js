@@ -67,15 +67,18 @@ globalThis.SharpSleeve=(()=>{
   }
   // Collapse only sliver edges whose link has exactly two common neighbors.
   // This removes sub-resolution triangles without opening the surface.
-  let clean=indices,wallFaces=new Set(walls);
+  let clean=indices,wallFaces=new Set(walls);const micro=o.weldSafe?1e-4:0;
   const packed=new Float32Array(values);
   for(let pass=0;pass<24;pass++){
    const pairs=[];
    for(let f=0;f<clean.length;f+=3){
     const ia=clean[f],ib=clean[f+1],ic=clean[f+2],a=ia*3,b=ib*3,c=ic*3;
     const ux=packed[b]-packed[a],uy=packed[b+1]-packed[a+1],uz=packed[b+2]-packed[a+2],vx=packed[c]-packed[a],vy=packed[c+1]-packed[a+1],vz=packed[c+2]-packed[a+2];
-    const nx=uy*vz-uz*vy,ny=uz*vx-ux*vz,nz=ux*vy-uy*vx;if(nx*nx+ny*ny+nz*nz>=1e-12)continue;
-    const candidates=[];for(let j=0;j<3;j++){const x=clean[f+j],y=clean[f+(j+1)%3];if(amplitude[x]!==amplitude[y])continue;const length=Math.hypot(packed[x*3]-packed[y*3],packed[x*3+1]-packed[y*3+1],packed[x*3+2]-packed[y*3+2]);if(length<.05)candidates.push([Math.min(x,y),Math.max(x,y),length])}candidates.sort((a,b)=>a[2]-b[2]);for(const [a,b]of candidates)pairs.push([a,b]);
+    const nx=uy*vz-uz*vy,ny=uz*vx-ux*vz,nz=ux*vy-uy*vx,sliver=nx*nx+ny*ny+nz*nz<1e-12;
+    // With o.weldSafe (custom templates) also collapse edges under 0.1 µm: STL importers weld nearby vertices, which
+    // would fold such faces. Off for ETSYFOLGER, whose established exports have no such edges and stay unchanged.
+    const shortest=Math.min(ux*ux+uy*uy+uz*uz,vx*vx+vy*vy+vz*vz,(packed[c]-packed[b])**2+(packed[c+1]-packed[b+1])**2+(packed[c+2]-packed[b+2])**2);if(!sliver&&!(shortest<micro*micro))continue;const limit=sliver?.05:micro;
+    const candidates=[];for(let j=0;j<3;j++){const x=clean[f+j],y=clean[f+(j+1)%3];if(amplitude[x]!==amplitude[y])continue;const length=Math.hypot(packed[x*3]-packed[y*3],packed[x*3+1]-packed[y*3+1],packed[x*3+2]-packed[y*3+2]);if(length<limit)candidates.push([Math.min(x,y),Math.max(x,y),length])}candidates.sort((a,b)=>a[2]-b[2]);for(const [a,b]of candidates)pairs.push([a,b]);
    }
    if(!pairs.length)break;const wanted=new Set(pairs.flat()),neighbors=new Map([...wanted].map(i=>[i,new Set()]));
    for(let f=0;f<clean.length;f+=3)for(let j=0;j<3;j++){const a=clean[f+j];if(neighbors.has(a)){neighbors.get(a).add(clean[f+(j+1)%3]);neighbors.get(a).add(clean[f+(j+2)%3])}}
