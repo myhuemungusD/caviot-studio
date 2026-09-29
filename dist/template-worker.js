@@ -21,10 +21,10 @@ function customPrepare(data){
   const progress=message=>postMessage({id:data.id,progress:message});
   let source=data.source,report=data.report;
   if(data.buffer||data.repair){progress(data.buffer?'Reading STL':'Repairing template');const loaded=CustomTemplate.load(data.buffer||CustomTemplate.toBinarySTL(source.positions,source.indices),{repair:!!data.repair});source=loaded.source;report=loaded.report}
-  progress('Orienting');const base=CustomTemplate.orient(source,data.orientation),display=CustomTemplate.decimate(base);
+  progress('Orienting');const base=CustomTemplate.orient({...source,closed:!!report?.closed},data.orientation),display=CustomTemplate.decimate(base);
   progress('Preparing preview surface');const preview=CustomTemplate.prepare(display,{quality:'preview',onProgress:progress});
-  const sendSource=!!(data.buffer||data.repair),baseOut={positions:base.positions,indices:base.indices,height:base.height,bounds:base.bounds,chart:base.chart,orientation:base.orientation};
-  const displayOut=display===base?null:{positions:display.positions,indices:display.indices,height:display.height,bounds:display.bounds,chart:display.chart,orientation:display.orientation,decimated:true,sourceTriangles:display.sourceTriangles};
+  const sendSource=!!(data.buffer||data.repair),baseOut={positions:base.positions,indices:base.indices,height:base.height,bounds:base.bounds,chart:base.chart,closed:base.closed,orientation:base.orientation};
+  const displayOut=display===base?null:{positions:display.positions,indices:display.indices,height:display.height,bounds:display.bounds,chart:display.chart,closed:display.closed,orientation:display.orientation,decimated:true,sourceTriangles:display.sourceTriangles};
   const transfer=[...transferPrepared(preview)];if(sendSource)transfer.push(source.positions.buffer);
   // Base positions are copied (not transferred) because print preparation below still needs them.
   postMessage({id:data.id,stage:'ready',source:sendSource?source:null,report,base:baseOut,display:displayOut,preview},transfer);

@@ -45,6 +45,17 @@ await test('bad files give clear errors',()=>{
   assert.throws(()=>CustomTemplate.parseSTL(Buffer.from('solid x\nendsolid x\n')),/no triangles/);
   const nan=binarySTL(box(1,1,1));nan.writeFloatLE(NaN,84+12);assert.throws(()=>CustomTemplate.parseSTL(nan),/invalid/i);
 });
+await test('binary quirks: "solid" header, trailing padding, chunked ASCII',()=>{
+  const bin=binarySTL(box(20,10,30));Buffer.from('solid exported by some CAD tool').copy(bin,0);
+  const h=CustomTemplate.parseSTL(bin);assert.equal(h.format,'binary');assert.equal(h.triangles,12);
+  const padded=Buffer.concat([binarySTL(box(20,10,30)),Buffer.alloc(3)]);assert.equal(CustomTemplate.parseSTL(padded).triangles,12);
+  // A short (truncated) binary file is rejected even when a big padding tolerance would otherwise apply.
+  assert.throws(()=>CustomTemplate.parseSTL(binarySTL(box(20,10,30)).subarray(0,84+11*50)),/truncated/);
+  // ASCII larger than one 8 MB parse chunk: facets crossing chunk borders are not lost.
+  const many=gridBox(50,70),big=asciiSTL(many);assert(big.length>8*1024*1024,'fixture spans chunks');
+  const a=CustomTemplate.parseSTL(big);assert.equal(a.triangles,many.length);assert.equal(a.soup.length,many.length*9);
+  const b=CustomTemplate.parseSTL(binarySTL(many));for(let i=0;i<b.soup.length;i+=997)assert(Math.abs(a.soup[i]-b.soup[i])<1e-3);
+});
 await test('weld, inverted normals and open meshes are reported',()=>{
   const inverted=CustomTemplate.load(asciiSTL(flip(tube(15,12,40))));assert(inverted.report.inverted);assert(inverted.report.closed);assert(inverted.report.volume>0);
   const mixed=box(10,10,10);mixed[3]=[mixed[3][0],mixed[3][2],mixed[3][1]];const m=CustomTemplate.load(binarySTL(mixed));assert.equal(m.report.flippedFaces,1);assert(m.report.closed);
@@ -62,6 +73,20 @@ await test('orientation: auto up, flips, quarter turns, units',()=>{
 });
 await test('decimated preview copy stays within budget',()=>{
   const base=CustomTemplate.orient(CustomTemplate.load(binarySTL(tube(15,12,40,400))).source,{});const d=CustomTemplate.decimate(base,600);assert(d.decimated);assert(d.indices.length/3<=690);assert.equal(CustomTemplate.decimate(base,1e6),base);
+});
+
+await test('dense meshes: coarser retries, then unrefined fallback, never a hard failure',()=>{
+  const base=CustomTemplate.orient(CustomTemplate.load(binarySTL(tube(15,12,40,64))).source,{});const msgs=[];
+  const p=CustomTemplate.prepare(base,{spacing:.3,maxPoints:base.positions.length/3+2000,onProgress:m=>msgs.push(m)});
+  assert(msgs.some(m=>/retrying/.test(m)),'backs off to a coarser spacing');assert(p.stats.vertices<=base.positions.length/3+2000||p.spacing===Infinity);
+  const tiny=CustomTemplate.prepare(base,{spacing:.3,maxPoints:10,onProgress:m=>msgs.push(m)});assert.equal(tiny.spacing,Infinity);assert(msgs.some(m=>/without refinement/.test(m)));
+  assert.equal(tiny.indices.length,base.indices.length);const v=MeshCore.validateMesh(tiny.positions,tiny.indices);assert.equal(v.boundary+v.nonManifold,0);
+});
+await test('wall-thickness rays capped at 4 mm on closed meshes give the same relief limits',()=>{
+  const base=CustomTemplate.orient(CustomTemplate.load(binarySTL(tube(16,10,40,48))).source,{});assert(base.closed);
+  const capped=CustomTemplate.prepare(base,{spacing:2}),full=CustomTemplate.prepare({...base,closed:false},{spacing:2});
+  let far=0;for(let i=0;i<full.thickness.length;i++){if(full.thickness[i]<4)assert(Math.abs(capped.thickness[i]-full.thickness[i])<1e-6);else{assert.equal(capped.thickness[i],4);far++}}
+  assert(far>0,'some rays hit farther than the cap (6 mm wall)');assert.equal(capped.stats.thinVertices,full.stats.thinVertices);
 });
 
 const templates=[

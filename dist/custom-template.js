@@ -3,7 +3,7 @@
    same per-template surface data as the precomputed ETSYFOLGER assets
    (positions, normals, indices, distance, thickness, uv, outer, chart, height). */
 globalThis.CustomTemplate=(()=>{
-  const MAX_BYTES=100*1024*1024,MAX_TRIANGLES=2000000,DISPLAY_TRIANGLES=300000,BOTTOM_BAND=12;
+  const WALL_CAP=4,MAX_BYTES=100*1024*1024,MAX_TRIANGLES=2000000,DISPLAY_TRIANGLES=300000,BOTTOM_BAND=12;
   const UP_AXES=['auto','+z','-z','+y','-y','+x','-x'],TURNS=[0,90,180,270],UNITS={mm:1,cm:10,in:25.4,m:1000};
   const fail=(message,code)=>{const e=Error(message);if(code)e.code=code;return e};
 
@@ -12,29 +12,36 @@ globalThis.CustomTemplate=(()=>{
     if(ArrayBuffer.isView(buffer))buffer=buffer.buffer.slice(buffer.byteOffset,buffer.byteOffset+buffer.byteLength);if(!buffer||typeof buffer.byteLength!=='number')throw fail('No STL data was provided.','EMPTY');
     if(!buffer.byteLength)throw fail('The STL file is empty.','EMPTY');
     if(buffer.byteLength>MAX_BYTES)throw fail('The STL is larger than 100 MB. Simplify it in your CAD or mesh tool first.','TOO_LARGE');
-    const view=new DataView(buffer);
+    const view=new DataView(buffer),bytes=new Uint8Array(buffer),head=new TextDecoder().decode(bytes.subarray(0,Math.min(bytes.length,1024)));
+    // Binary exporters often write "solid" into the 80-byte header, so only treat the file as ASCII when it also has ASCII facets.
+    const looksAscii=/^\s*solid\b/i.test(head)&&/\bfacet\b|\bendsolid\b/i.test(head);
     if(buffer.byteLength>=84){
-      const count=view.getUint32(80,true);
-      if(84+count*50===buffer.byteLength){
-        if(!count)throw fail('The STL contains no triangles.','EMPTY');
+      const count=view.getUint32(80,true),expected=84+count*50;
+      // Some exporters pad binary files with a few trailing bytes; accept that, but never a short file.
+      if(count&&(expected===buffer.byteLength||(!looksAscii&&expected<buffer.byteLength&&buffer.byteLength-expected<512))){
         if(count>MAX_TRIANGLES)throw fail('The STL has '+count.toLocaleString()+' triangles; the limit is '+MAX_TRIANGLES.toLocaleString()+'. Decimate it first.','TOO_LARGE');
         const soup=new Float32Array(count*9);
-        for(let f=0,o=84;f<count;f++,o+=50)for(let k=0;k<9;k++)soup[f*9+k]=view.getFloat32(o+12+k*4,true);
-        for(let i=0;i<soup.length;i++)if(!Number.isFinite(soup[i]))throw fail('The STL contains invalid (NaN or infinite) coordinates.','BAD_COORDS');
+        for(let f=0,o=84;f<count;f++,o+=50)for(let k=0;k<9;k++){const v=view.getFloat32(o+12+k*4,true);if(!Number.isFinite(v))throw fail('The STL contains invalid (NaN or infinite) coordinates in triangle '+(f+1).toLocaleString()+'.','BAD_COORDS');soup[f*9+k]=v}
         return{soup,triangles:count,format:'binary'};
       }
+      if(!count&&expected===buffer.byteLength)throw fail('The STL contains no triangles.','EMPTY');
     }
-    const head=new TextDecoder().decode(new Uint8Array(buffer,0,Math.min(buffer.byteLength,512)));
     if(!/^\s*solid\b/i.test(head)){
-      if(buffer.byteLength>=84)throw fail('This is not a valid STL: the binary triangle count does not match the file size, and it is not ASCII STL.','BAD_FORMAT');
+      if(buffer.byteLength>=84)throw fail('This is not a valid STL: the binary triangle count does not match the file size (the file may be truncated), and it is not ASCII STL.','BAD_FORMAT');
       throw fail('This is not a valid STL file.','BAD_FORMAT');
     }
-    const text=new TextDecoder().decode(new Uint8Array(buffer));
-    const re=/vertex\s+(\S+)\s+(\S+)\s+(\S+)/gi,values=[];let m;
-    while((m=re.exec(text))){for(let k=1;k<=3;k++){const v=Number(m[k]);if(!Number.isFinite(v))throw fail('The ASCII STL contains an invalid coordinate: '+m[k].slice(0,30),'BAD_COORDS');values.push(v)}if(values.length>MAX_TRIANGLES*9)throw fail('The STL has more than '+MAX_TRIANGLES.toLocaleString()+' triangles. Decimate it first.','TOO_LARGE')}
-    if(!values.length)throw fail('The ASCII STL contains no triangles.','EMPTY');
-    if(values.length%9)throw fail('The ASCII STL is truncated: a facet does not have exactly three vertices.','BAD_FORMAT');
-    return{soup:new Float32Array(values),triangles:values.length/9,format:'ascii'};
+    // ASCII: scan in chunks into a growing Float32Array (a plain number array would need ~4x the memory).
+    const decoder=new TextDecoder(),re=/vertex\s+(\S+)\s+(\S+)\s+(\S+)/gi,CHUNK=8*1024*1024;let soup=new Float32Array(9*4096),n=0,carry='';
+    for(let offset=0;offset<bytes.length;offset+=CHUNK){
+      const last=offset+CHUNK>=bytes.length,text=carry+decoder.decode(bytes.subarray(offset,offset+CHUNK),{stream:!last});
+      // Keep the unfinished final line for the next chunk.
+      const cut=last?text.length:text.lastIndexOf('\n')+1;const part=text.slice(0,cut);carry=text.slice(cut);re.lastIndex=0;let m;
+      while((m=re.exec(part))){if(n+3>soup.length){if(soup.length>=MAX_TRIANGLES*9)throw fail('The STL has more than '+MAX_TRIANGLES.toLocaleString()+' triangles. Decimate it first.','TOO_LARGE');const g=new Float32Array(Math.min(MAX_TRIANGLES*9,soup.length*2));g.set(soup);soup=g}
+        for(let k=1;k<=3;k++){const v=Number(m[k]);if(!Number.isFinite(v))throw fail('The ASCII STL contains an invalid coordinate: '+m[k].slice(0,30),'BAD_COORDS');soup[n++]=v}}
+    }
+    if(!n)throw fail('The ASCII STL contains no triangles.','EMPTY');
+    if(n%9)throw fail('The ASCII STL is truncated: a facet does not have exactly three vertices.','BAD_FORMAT');
+    return{soup:soup.slice(0,n),triangles:n/9,format:'ascii'};
   }
 
   // ---------- Welding and topology ----------
@@ -96,7 +103,7 @@ globalThis.CustomTemplate=(()=>{
     if(repair){if(!globalThis.MeshRepair)throw fail('Repair is unavailable.');const r=MeshRepair.repair(positions,indices);positions=r.positions;indices=r.indices;repairReport=r.report}
     const o=fixOrientation(positions,indices);indices=o.indices;
     const report={format:parsed.format,sourceTriangles:parsed.triangles,welded:w.welded,degenerate:w.degenerate,duplicate:w.duplicate,components:o.components,nonOrientable:o.nonOrientable,flippedFaces:o.flippedFaces,inverted:o.inverted,repaired:!!repair,repairReport,...analyze(positions,indices)};
-    return{source:{positions,indices},report};
+    return{source:{positions,indices,closed:report.closed},report};
   }
 
   // ---------- Orientation ----------
@@ -119,7 +126,7 @@ globalThis.CustomTemplate=(()=>{
     for(let i=0;i<n;i++){out[i*3]-=ox;out[i*3+1]-=oy;out[i*3+2]-=oz}
     b=bounds(out);const height=b.max[1]-b.min[1];
     if(!(height>0))throw fail('The model is flat along the chosen up axis. Choose another up axis.','FLAT');
-    const base={positions:out,indices:source.indices,height,bounds:b,orientation:{...o,resolvedUp:up}};base.chart=profile(base);return base;
+    const base={positions:out,indices:source.indices,height,bounds:b,closed:!!source.closed,orientation:{...o,resolvedUp:up}};base.chart=profile(base);return base;
   }
   // Same cylindrical chart as SleeveTemplate.profile, on typed arrays.
   function profile(base){
@@ -160,8 +167,8 @@ globalThis.CustomTemplate=(()=>{
       const L=make(s,m),R=make(m,e);left[node]=L;right[node]=R;return node};
     make(0,faces);return{lo:Float64Array.from(lo),hi:Float64Array.from(hi),left:Int32Array.from(left),right:Int32Array.from(right),start:Uint32Array.from(start),count:Uint32Array.from(count),order,P,I};
   }
-  function rayNearest(t,ox,oy,oz,dx,dy,dz){
-    let nearest=Infinity;const stack=[0],P=t.P,I=t.I;
+  function rayNearest(t,ox,oy,oz,dx,dy,dz,limit=Infinity){
+    let nearest=limit;const stack=[0],P=t.P,I=t.I;
     while(stack.length){const node=stack.pop();let tmin=0,tmax=nearest,ok=true;
       for(let a=0;a<3&&ok;a++){const o=a===0?ox:a===1?oy:oz,d=a===0?dx:a===1?dy:dz,l=t.lo[node*3+a],h=t.hi[node*3+a];if(Math.abs(d)<1e-12){if(o<l-1e-7||o>h+1e-7)ok=false}else{let t1=(l-o)/d,t2=(h-o)/d;if(t1>t2){const x=t1;t1=t2;t2=x}if(t1>tmin)tmin=t1;if(t2<tmax)tmax=t2;if(tmin>tmax)ok=false}}
       if(!ok)continue;if(t.left[node]>=0){stack.push(t.left[node],t.right[node]);continue}
@@ -176,14 +183,26 @@ globalThis.CustomTemplate=(()=>{
       const o=(nx*rx+nz*rz>.25&&Math.abs(ny)<.78)||(Math.abs(ny)>.95&&P[a+1]<BOTTOM_BAND&&P[b+1]<BOTTOM_BAND&&P[c+1]<BOTTOM_BAND);outer[f]=o?1:0;if(o)outerArea+=area/2}
     return{outer,fn,outerArea};
   }
-  // Longest-edge bisection produces ~22 triangles per spacing² of refined area (calibrated on ETSYFOLGER).
+  // Pick the finest spacing (not below the quality minimum) whose predicted refinement fits the
+  // triangle target. Longest-edge bisection yields about 22 triangles per spacing² of refined area
+  // (calibrated on ETSYFOLGER); faces already shorter than the spacing are not refined, so dense
+  // inputs are charged only for their existing triangles. The estimate is optimistic for long slivers;
+  // prepare() backs off to coarser spacing if the real refinement overflows its budget.
   function chooseSpacing(base,quality){
-    const {outerArea}=classify(base.positions,base.indices),min=quality==='print'?.5:1.1,target=quality==='print'?1200000:300000;
-    return Math.max(min,Math.sqrt(22*outerArea/target));
+    const P=base.positions,I=base.indices,{outer}=classify(P,I),min=quality==='print'?.5:1.1,target=quality==='print'?1200000:300000,faces=I.length/3;
+    const area=[],longest=[];
+    for(let f=0;f<faces;f++){if(!outer[f])continue;let l=0;const a=I[f*3]*3,b=I[f*3+1]*3,c=I[f*3+2]*3;for(const [x,y]of [[a,b],[b,c],[c,a]])l=Math.max(l,(P[x]-P[y])**2+(P[x+1]-P[y+1])**2+(P[x+2]-P[y+2])**2);
+      const ux=P[b]-P[a],uy=P[b+1]-P[a+1],uz=P[b+2]-P[a+2],vx=P[c]-P[a],vy=P[c+1]-P[a+1],vz=P[c+2]-P[a+2];area.push(Math.hypot(uy*vz-uz*vy,uz*vx-ux*vz,ux*vy-uy*vx)/2);longest.push(Math.sqrt(l))}
+    const predicted=s=>{let t=faces;for(let i=0;i<area.length;i++)if(longest[i]>s)t+=Math.max(0,22*area[i]/(s*s)-1);return t};
+    let s=min;while(predicted(s)>Math.max(target,faces*1.3)&&s<1000)s*=1.15;return s;
   }
-  function prepare(base,{spacing,quality='preview',onProgress=()=>{},maxPoints=900000}={}){
+  // Budget: 900k vertices, or the input plus 400k for already-dense meshes. If refinement still
+  // overflows after coarser retries, the surface is used unrefined (always within budget).
+  function prepare(base,{spacing,quality='preview',onProgress=()=>{},maxPoints}={}){
     if(!spacing)spacing=chooseSpacing(base,quality);
-    for(let attempt=0;;attempt++){try{return prepareAt(base,spacing,onProgress,maxPoints)}catch(e){if(e.code!=='DETAIL'||attempt>=4)throw e;spacing*=1.4;onProgress('Mesh too dense at this spacing; retrying at '+spacing.toFixed(2)+' mm')}}
+    const budget=maxPoints||Math.max(900000,base.positions.length/3+400000);
+    for(let attempt=0;attempt<4;attempt++){try{return prepareAt(base,spacing,onProgress,budget)}catch(e){if(e.code!=='DETAIL')throw e;spacing*=1.4;onProgress('Mesh too dense at this spacing; retrying at '+spacing.toFixed(2)+' mm')}}
+    onProgress('Using the original triangles without refinement');return prepareAt(base,Infinity,onProgress,Infinity);
   }
   function prepareAt(base,spacing,onProgress,maxPoints){
     const P0=base.positions,I0=base.indices,faces0=I0.length/3,{outer:faceOuter,fn}=classify(P0,I0);
@@ -217,8 +236,12 @@ globalThis.CustomTemplate=(()=>{
     for(let i=0;i<nPts;i++)if(membership[i]!==1){distance[i]=0;if(membership[i]===3)push(i,0)}
     while(hid.length){const[id,d]=pop();if(d>distance[id]+1e-6)continue;for(let k=deg[id];k<deg[id+1];k++){const j=nb[k],nd=d+nl[k];if(nd<distance[j]){distance[j]=nd;push(j,nd)}}}
     onProgress('Measuring wall thickness');
+    // Relief only needs walls up to 3.8 mm (0.8 mm guard + 3 mm maximum deboss). On a closed mesh an inward ray
+    // always hits, so rays stop at 4 mm and "farther" is stored as 4 - identical results, far fewer BVH visits.
+    // Open meshes keep unlimited rays so escaping rays stay Infinity (no relief where the wall is unknown).
+    const rayLimit=base.closed?WALL_CAP:Infinity;
     const thickness=new Float32Array(nPts),uv=new Float32Array(nPts),chart=base.chart||profile(base);let outerCount=0,thin=0;
-    for(let i=0;i<nPts;i++){uv[i]=SleeveTemplateArc(chart,Math.atan2(P[i*3+2],P[i*3]));if(membership[i]===1&&distance[i]>.001){outerCount++;const t=rayNearest(tree,P[i*3],P[i*3+1],P[i*3+2],-N[i*3],-N[i*3+1],-N[i*3+2]);thickness[i]=t;if(!(t>=1.6))thin++}
+    for(let i=0;i<nPts;i++){uv[i]=SleeveTemplateArc(chart,Math.atan2(P[i*3+2],P[i*3]));if(membership[i]===1&&distance[i]>.001){outerCount++;const t=rayNearest(tree,P[i*3],P[i*3+1],P[i*3+2],-N[i*3],-N[i*3+1],-N[i*3+2],rayLimit);thickness[i]=t;if(!(t>=1.6))thin++}
       if(i&&i%100000===0)onProgress('Measuring wall thickness: '+Math.round(i/nPts*100)+'%')}
     return{positions:Float32Array.from(P.subarray(0,nPts*3)),normals:Float32Array.from(N.subarray(0,nPts*3)),indices:tris,distance,thickness,uv,outer:Uint8Array.from(membership,x=>x&1),chart,height:base.height,spacing,stats:{outerVertices:outerCount,thinVertices:thin,triangles:nf,vertices:nPts}};
   }
