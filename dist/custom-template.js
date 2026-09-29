@@ -194,7 +194,8 @@ globalThis.CustomTemplate=(()=>{
     const faces=I.length/3,outer=new Uint8Array(faces),fn=new Float32Array(faces*3);let outerArea=0;
     for(let f=0;f<faces;f++){const a=I[f*3]*3,b=I[f*3+1]*3,c=I[f*3+2]*3,ux=P[b]-P[a],uy=P[b+1]-P[a+1],uz=P[b+2]-P[a+2],vx=P[c]-P[a],vy=P[c+1]-P[a+1],vz=P[c+2]-P[a+2];let nx=uy*vz-uz*vy,ny=uz*vx-ux*vz,nz=ux*vy-uy*vx;const area=Math.hypot(nx,ny,nz);if(area>1e-12){nx/=area;ny/=area;nz/=area}else nx=ny=nz=0;fn[f*3]=nx;fn[f*3+1]=ny;fn[f*3+2]=nz;
       let rx=P[a]+P[b]+P[c],rz=P[a+2]+P[b+2]+P[c+2];const rl=Math.hypot(rx,rz);if(rl>1e-12){rx/=rl;rz/=rl}else rx=rz=0;
-      const o=(nx*rx+nz*rz>.25&&Math.abs(ny)<.78)||(Math.abs(ny)>.95&&P[a+1]<BOTTOM_BAND&&P[b+1]<BOTTOM_BAND&&P[c+1]<BOTTOM_BAND);outer[f]=o?1:0;if(o)outerArea+=area/2}
+      // 1 = outward-facing side, 2 = flat face inside the bottom band (underside or inside floor).
+      const o=nx*rx+nz*rz>.25&&Math.abs(ny)<.78?1:Math.abs(ny)>.95&&P[a+1]<BOTTOM_BAND&&P[b+1]<BOTTOM_BAND&&P[c+1]<BOTTOM_BAND?2:0;outer[f]=o;if(o)outerArea+=area/2}
     return{outer,fn,outerArea};
   }
   // Pick the finest spacing (not below the quality minimum) whose predicted refinement fits the
@@ -210,11 +211,141 @@ globalThis.CustomTemplate=(()=>{
     const predicted=s=>{let t=faces;for(let i=0;i<area.length;i++)if(longest[i]>s)t+=Math.max(0,22*area[i]/(s*s)-1);return t};
     let s=min;while(predicted(s)>Math.max(target,faces*1.3)&&s<1000)s*=1.15;return s;
   }
+  // ---------- Underside remeshing ----------
+  // CAD exporters often triangulate flat bottoms as fans of long, thin triangles. Longest-edge bisection of a fan
+  // cascades (every split forces its neighbours to split) and can add over a million vertices, so on dense
+  // templates the budget fallback used to leave the bottom with no interior vertices and bottom logos could not
+  // be formed. Instead, each planar underside patch gets new interior points on a hexagonal grid at spacing h,
+  // inserted into the existing triangulation with Lawson flips (constrained Delaunay insertion). Only interior
+  // edges are ever flipped and every point lies strictly inside the patch, so the patch boundary - and the edges
+  // shared with the walls - are untouched and the mesh stays watertight. Non-planar or irregular patches are
+  // left exactly as they were.
+  const PLANE_TOL=2e-3,MAX_UNDERSIDE_POINTS=150000;
+  function remeshUnderside(base,h,maxNew=MAX_UNDERSIDE_POINTS){
+    if(!(h>0&&Number.isFinite(h))||maxNew<1)return{base,added:0};
+    const P=base.positions,I=base.indices,faces=I.length/3,{outer,fn}=classify(P,I);
+    const key=(a,b)=>a<b?a*4294967296+b:b*4294967296+a,edgeFaces=new Map();
+    for(let f=0;f<faces;f++)if(outer[f]===2)for(let e=0;e<3;e++){const k=key(I[f*3+e],I[f*3+(e+1)%3]),list=edgeFaces.get(k);if(list)list.push(f);else edgeFaces.set(k,[f])}
+    if(!edgeFaces.size)return{base,added:0};
+    // Group underside faces into patches that share edges and face the same way (within about 1 degree).
+    const patchOf=new Int32Array(faces).fill(-1),patches=[];
+    for(let f=0;f<faces;f++){if(outer[f]!==2||patchOf[f]>=0)continue;const list=[f],id=patches.length;patchOf[f]=id;
+      for(let q=0;q<list.length;q++){const g=list[q];for(let e=0;e<3;e++){const shared=edgeFaces.get(key(I[g*3+e],I[g*3+(e+1)%3]));if(shared.length!==2)continue;const o=shared[0]===g?shared[1]:shared[0];
+        if(patchOf[o]<0&&fn[g*3]*fn[o*3]+fn[g*3+1]*fn[o*3+1]+fn[g*3+2]*fn[o*3+2]>.9998){patchOf[o]=id;list.push(o)}}}
+      patches.push(list)}
+    const newPos=[],newFaces=new Map();let nextVertex=P.length/3,budget=maxNew;
+    // Largest patches first, so the budget goes where a logo is most likely to sit.
+    const areaOf=f=>{const a=I[f*3]*3,b=I[f*3+1]*3,c=I[f*3+2]*3;return Math.abs((P[b]-P[a])*(P[c+2]-P[a+2])-(P[c]-P[a])*(P[b+2]-P[a+2]))/2};
+    const sized=patches.map((list,id)=>({id,list,area:list.reduce((s,f)=>s+areaOf(f),0)})).sort((x,y)=>y.area-x.area);
+    for(const patch of sized){
+      if(patch.area<4*h*h||budget<1)continue;
+      const r=remeshPatch(P,I,patch.list,edgeFaces,key,h,budget,nextVertex);if(!r)continue;
+      for(let i=0;i<r.positions.length;i++)newPos.push(r.positions[i]);nextVertex+=r.positions.length/3;budget-=r.positions.length/3;newFaces.set(patch.id,r.indices);
+    }
+    if(!newFaces.size)return{base,added:0};
+    const out=[];for(let f=0;f<faces;f++){const id=patchOf[f];if(id>=0&&newFaces.has(id))continue;out.push(I[f*3],I[f*3+1],I[f*3+2])}
+    for(const tris of newFaces.values())for(let i=0;i<tris.length;i++)out.push(tris[i]);
+    const positions=new Float32Array(P.length+newPos.length);positions.set(P);positions.set(newPos,P.length);
+    return{base:{...base,positions,indices:Uint32Array.from(out)},added:newPos.length/3};
+  }
+  // Returns {positions,indices} for one patch, or null when the patch is not a clean planar triangulation.
+  function remeshPatch(P,I,list,edgeFaces,key,h,maxNew,firstVertex){
+    // Plane from the area-weighted normal and centroid; every vertex must lie on it.
+    let nx=0,ny=0,nz=0,cx=0,cy=0,cz=0,total=0;
+    for(const f of list){const a=I[f*3]*3,b=I[f*3+1]*3,c=I[f*3+2]*3,ux=P[b]-P[a],uy=P[b+1]-P[a+1],uz=P[b+2]-P[a+2],vx=P[c]-P[a],vy=P[c+1]-P[a+1],vz=P[c+2]-P[a+2];
+      const x=uy*vz-uz*vy,y=uz*vx-ux*vz,z=ux*vy-uy*vx,w=Math.hypot(x,y,z);nx+=x;ny+=y;nz+=z;cx+=(P[a]+P[b]+P[c])*w;cy+=(P[a+1]+P[b+1]+P[c+1])*w;cz+=(P[a+2]+P[b+2]+P[c+2])*w;total+=w*3}
+    const nl=Math.hypot(nx,ny,nz);if(!(nl>0)||!(total>0))return null;nx/=nl;ny/=nl;nz/=nl;cx/=total;cy/=total;cz/=total;if(Math.abs(ny)<.95)return null;
+    // Local triangulation in the x/z projection (one-to-one because |ny| > 0.95), stored counter-clockwise.
+    const local=new Map(),U=[],V=[],global=[];
+    const vertexOf=g=>{let l=local.get(g);if(l===undefined){if(Math.abs(nx*(P[g*3]-cx)+ny*(P[g*3+1]-cy)+nz*(P[g*3+2]-cz))>PLANE_TOL)return -1;l=U.length;local.set(g,l);U.push(P[g*3]);V.push(P[g*3+2]);global.push(g)}return l};
+    const orient=(a,b,c)=>(U[b]-U[a])*(V[c]-V[a])-(V[b]-V[a])*(U[c]-U[a]);
+    const tv=[],tn=[];let sign=0;
+    for(const f of list){const a=vertexOf(I[f*3]),b=vertexOf(I[f*3+1]),c=vertexOf(I[f*3+2]);if(a<0||b<0||c<0)return null;
+      const o=orient(a,b,c);if(Math.abs(o)<1e-12)return null;const s=o>0?1:-1;if(!sign)sign=s;else if(s!==sign)return null;
+      if(sign>0)tv.push(a,b,c);else tv.push(a,c,b);tn.push(-1,-1,-1)}
+    // Neighbours across interior edges; patch boundary edges stay -1 and are never flipped.
+    const halfEdges=new Map();
+    for(let t=0;t<list.length;t++)for(let e=0;e<3;e++){const a=tv[t*3+e],b=tv[t*3+(e+1)%3];if(edgeFaces.get(key(global[a],global[b])).length>2)return null;
+      const k=b*4294967296+a,other=halfEdges.get(k);if(other!==undefined){tn[t*3+e]=other>>2;tn[(other>>2)*3+(other&3)]=t}else{if(halfEdges.has(a*4294967296+b))return null;halfEdges.set(a*4294967296+b,t*4+e)}}
+    // Candidate points: hexagonal grid over the patch, offset so points rarely land on axis-aligned CAD edges.
+    let minU=Infinity,maxU=-Infinity,minV=Infinity,maxV=-Infinity,area=0;
+    for(let i=0;i<U.length;i++){minU=Math.min(minU,U[i]);maxU=Math.max(maxU,U[i]);minV=Math.min(minV,V[i]);maxV=Math.max(maxV,V[i])}
+    for(let t=0;t<list.length;t++)area+=orient(tv[t*3],tv[t*3+1],tv[t*3+2])/2;
+    if(area*1.16/(h*h)>maxNew)h=Math.sqrt(area*1.16/maxNew);
+    const rowStep=h*Math.sqrt(3)/2;
+    // Bucket grid for point location; triangles are (re)registered whenever their corners change.
+    let cell=h*1.5;const spanU=maxU-minU,spanV=maxV-minV;while((spanU/cell+1)*(spanV/cell+1)>4e6)cell*=1.5;
+    const gw=Math.floor(spanU/cell)+1,gh=Math.floor(spanV/cell)+1,buckets=new Map();
+    const register=t=>{const a=tv[t*3],b=tv[t*3+1],c=tv[t*3+2],v0=Math.min(V[a],V[b],V[c]),v1=Math.max(V[a],V[b],V[c]);
+      const r0=Math.max(0,Math.floor((v0-minV)/cell)),r1=Math.min(gh-1,Math.floor((v1-minV)/cell));
+      for(let row=r0;row<=r1;row++){const lo=Math.max(v0,minV+row*cell),hi=Math.min(v1,minV+(row+1)*cell);let u0=Infinity,u1=-Infinity;
+        // u-range of the triangle inside this row's slab: corners in the slab plus edge crossings of its borders.
+        for(let e=0;e<3;e++){const p=e===0?a:e===1?b:c,q=e===0?b:e===1?c:a;if(V[p]>=lo&&V[p]<=hi){if(U[p]<u0)u0=U[p];if(U[p]>u1)u1=U[p]}
+          for(let side=0;side<2;side++){const y=side?hi:lo;if((V[p]-y)*(V[q]-y)<0){const u=U[p]+(U[q]-U[p])*(y-V[p])/(V[q]-V[p]);if(u<u0)u0=u;if(u>u1)u1=u}}}
+        if(u0>u1)continue;const c0=Math.max(0,Math.floor((u0-minU)/cell)),c1=Math.min(gw-1,Math.floor((u1-minU)/cell));
+        for(let col=c0;col<=c1;col++){const k=row*gw+col,b2=buckets.get(k);if(b2)b2.push(t);else buckets.set(k,[t])}}};
+    for(let t=0;t<list.length;t++)register(t);
+    const locate=(u,v)=>{const k=Math.floor((v-minV)/cell)*gw+Math.floor((u-minU)/cell),cand=buckets.get(k);if(!cand)return -1;
+      for(let i=cand.length-1;i>=0;i--){const t=cand[i],a=tv[t*3],b=tv[t*3+1],c=tv[t*3+2],area2=orient(a,b,c);
+        const w0=((U[b]-u)*(V[c]-v)-(V[b]-v)*(U[c]-u))/area2,w1=((U[c]-u)*(V[a]-v)-(V[c]-v)*(U[a]-u))/area2,w2=1-w0-w1;
+        if(w0>1e-9&&w1>1e-9&&w2>1e-9)return t}return -1};
+    const segDist=(u,v,a,b)=>{const dx=U[b]-U[a],dy=V[b]-V[a],l=dx*dx+dy*dy,s=l?Math.max(0,Math.min(1,((u-U[a])*dx+(v-V[a])*dy)/l)):0;return Math.hypot(u-U[a]-s*dx,v-V[a]-s*dy)};
+    // d inside the circumcircle of counter-clockwise (a,b,c), with a small margin so near-cocircular grids terminate.
+    const inCircle=(a,b,c,d)=>{const ax=U[a]-U[d],ay=V[a]-V[d],bx=U[b]-U[d],by=V[b]-V[d],qx=U[c]-U[d],qy=V[c]-V[d];
+      return (ax*ax+ay*ay)*(bx*qy-qx*by)-(bx*bx+by*by)*(ax*qy-qx*ay)+(qx*qx+qy*qy)*(ax*by-bx*ay)>1e-10*h*h*h*h};
+    const setNeighbor=(t,from,to)=>{if(t<0)return;for(let e=0;e<3;e++)if(tn[t*3+e]===from){tn[t*3+e]=to;return}};
+    let flips=0;const touched=new Set(),flipLimit=64*(maxNew+list.length);
+    // Triangles created by insertion keep the new point at corner 2, so edge 0 is the edge to legalize.
+    const legalize=(t0)=>{const stack=[t0];while(stack.length){const t=stack.pop(),u=tn[t*3];if(u<0)continue;
+      const x=tv[t*3],y=tv[t*3+1],p=tv[t*3+2];let j=0;while(j<3&&tn[u*3+j]!==t)j++;if(j===3)continue;
+      const q=tv[u*3+(j+2)%3];if(!inCircle(x,y,p,q))continue;if(orient(x,q,p)<=0||orient(q,y,p)<=0)continue;if(++flips>flipLimit)throw fail('flip limit','REMESH');
+      const A=tn[u*3+(j+1)%3],B=tn[u*3+(j+2)%3],C=tn[t*3+1],D=tn[t*3+2];
+      // t=(x,y,p) and u=(y,x,q) become t=(x,q,p) and u=(q,y,p).
+      tv[t*3]=x;tv[t*3+1]=q;tv[t*3+2]=p;tn[t*3]=A;tn[t*3+1]=u;tn[t*3+2]=D;
+      tv[u*3]=q;tv[u*3+1]=y;tv[u*3+2]=p;tn[u*3]=B;tn[u*3+1]=C;tn[u*3+2]=t;
+      setNeighbor(A,u,t);setNeighbor(C,t,u);touched.add(t);touched.add(u);stack.push(t,u)}};
+    const minGap=h*.5;let added=0;
+    // Keep new points away from the patch boundary: at least half a spacing, and 0.9x the boundary edge's length,
+    // so the triangle on a boundary edge never has that edge as its longest. Otherwise refinement would split
+    // the boundary edge first and cut the neighbouring wall triangles into long slivers.
+    const guard=new Map(),gr=[];
+    for(let t=0;t<list.length;t++)for(let e=0;e<3;e++){if(tn[t*3+e]>=0)continue;const a=tv[t*3+e],b=tv[t*3+(e+1)%3],r=Math.max(minGap,.9*Math.hypot(U[b]-U[a],V[b]-V[a])),id=gr.length/3;gr.push(a,b,r);
+      const c0=Math.max(0,Math.floor((Math.min(U[a],U[b])-r-minU)/cell)),c1=Math.min(gw-1,Math.floor((Math.max(U[a],U[b])+r-minU)/cell)),r0=Math.max(0,Math.floor((Math.min(V[a],V[b])-r-minV)/cell)),r1=Math.min(gh-1,Math.floor((Math.max(V[a],V[b])+r-minV)/cell));
+      for(let row=r0;row<=r1;row++)for(let col=c0;col<=c1;col++){const k=row*gw+col,g=guard.get(k);if(g)g.push(id);else guard.set(k,[id])}}
+    const nearBoundary=(u,v)=>{const g=guard.get(Math.floor((v-minV)/cell)*gw+Math.floor((u-minU)/cell));if(g)for(const id of g)if(segDist(u,v,gr[id*3],gr[id*3+1])<gr[id*3+2])return true;return false};
+    try{
+      // Coarse-to-fine order (every 16th grid point first, then 8th, ...): triangles shrink quickly, so few
+      // long triangles are re-registered, and a point budget that runs out still leaves even coverage.
+      const cand=[],level=(i,j)=>{let l=0;while(l<4&&!((i|j)&((2<<l)-1)))l++;return l};
+      for(let row=0,v=minV+h*.377;v<maxV;row++,v+=rowStep)for(let col=0,u=minU+h*.123+(row&1?h/2:0);u<maxU;col++,u+=h){
+        // A small deterministic jitter keeps grid rows from lying exactly on edges between earlier grid points.
+        const j1=Math.sin(row*12.9898+col*78.233)*43758.5453,j2=Math.sin(row*39.346+col*11.135)*24634.6345;cand.push(level(row,col),u+(j1-Math.floor(j1)-.5)*h*.1,v+(j2-Math.floor(j2)-.5)*h*.1)}
+      const order=Array.from({length:cand.length/3},(_,i)=>i).sort((x,y)=>cand[y*3]-cand[x*3]||x-y);
+      for(const ci of order){if(added>=maxNew)break;const u=cand[ci*3+1],v=cand[ci*3+2];
+        const t=locate(u,v);if(t<0)continue;const a=tv[t*3],b=tv[t*3+1],c=tv[t*3+2];
+        if(Math.hypot(u-U[a],v-V[a])<minGap||Math.hypot(u-U[b],v-V[b])<minGap||Math.hypot(u-U[c],v-V[c])<minGap)continue;
+        if(nearBoundary(u,v))continue;
+        const p=U.length;U.push(u);V.push(v);added++;
+        const n0=tn[t*3],n1=tn[t*3+1],n2=tn[t*3+2],t1=tv.length/3,t2=t1+1;
+        tv[t*3]=a;tv[t*3+1]=b;tv[t*3+2]=p;tn[t*3]=n0;tn[t*3+1]=t1;tn[t*3+2]=t2;
+        tv.push(b,c,p,c,a,p);tn.push(n1,t2,t,n2,t,t1);setNeighbor(n1,t,t1);setNeighbor(n2,t,t2);
+        touched.add(t);touched.add(t1);touched.add(t2);legalize(t);legalize(t1);legalize(t2);
+        // Register each changed triangle once, with its final corners, before the next point is located.
+        for(const x of touched)register(x);touched.clear();
+      }
+    }catch(e){if(e.code==='REMESH')return null;throw e}
+    if(!added)return null;
+    const positions=new Float32Array(added*3),base=U.length-added;
+    for(let i=0;i<added;i++){const u=U[base+i],v=V[base+i];positions[i*3]=u;positions[i*3+1]=cy-(nx*(u-cx)+nz*(v-cz))/ny;positions[i*3+2]=v}
+    const toGlobal=l=>l<base?global[l]:firstVertex+l-base,indices=new Uint32Array(tv.length);
+    for(let t=0;t<tv.length/3;t++){const a=toGlobal(tv[t*3]),b=toGlobal(tv[t*3+1]),c=toGlobal(tv[t*3+2]);indices[t*3]=a;if(sign>0){indices[t*3+1]=b;indices[t*3+2]=c}else{indices[t*3+1]=c;indices[t*3+2]=b}}
+    return{positions,indices};
+  }
   // Budget: 900k vertices, or the input plus 400k for already-dense meshes, capped at 1.1M so sharp-edge
   // export (1.4M-vertex limit) keeps room for contours. If full refinement overflows after coarser retries
-  // (or the input alone is near the budget), only faces that are large in both directions are refined:
-  // that still gives big caps and bottoms vertices for relief without multiplying long slivers. The last
-  // resort is the unrefined surface.
+  // (or the input alone is near the budget), only faces that are large in both directions are refined, so long
+  // slivers are not multiplied. The last resort is the unrefined surface. Every attempt first remeshes flat
+  // undersides (remeshUnderside), which keeps bottom branding possible even on the fallbacks.
   function prepare(base,{spacing,quality='preview',onProgress=()=>{},maxPoints}={}){
     if(!spacing)spacing=chooseSpacing(base,quality);
     const vertices=base.positions.length/3,budget=maxPoints||Math.min(1100000,Math.max(900000,vertices+400000)),first=spacing;
@@ -222,10 +353,15 @@ globalThis.CustomTemplate=(()=>{
     for(let attempt=0;attempt<4&&vertices<budget*.9;attempt++){try{return prepareAt(base,spacing,onProgress,budget)}catch(e){spacing*=1.4;retry(e,spacing)}}
     spacing=first;
     for(let attempt=0;attempt<6;attempt++){try{return prepareAt(base,spacing,onProgress,budget,spacing*spacing)}catch(e){spacing*=1.4;retry(e,spacing)}}
-    onProgress('Using the original triangles without refinement');return prepareAt(base,Infinity,onProgress,Infinity);
+    onProgress('Using the original triangles without refinement');return prepareAt(base,Infinity,onProgress,Infinity,0,first,Math.max(0,Math.min(60000,budget-vertices)));
   }
   // minArea (optional): only split faces with at least this area (skips long thin slivers).
-  function prepareAt(base,spacing,onProgress,maxPoints,minArea=0){
+  // bottomSpacing/bottomPoints: target spacing and point budget for remeshing flat undersides (see remeshUnderside).
+  function prepareAt(base,spacing,onProgress,maxPoints,minArea=0,bottomSpacing=spacing,bottomPoints){
+    if(Number.isFinite(bottomSpacing)){
+      const room=Number.isFinite(maxPoints)?Math.floor((maxPoints-base.positions.length/3)/2):MAX_UNDERSIDE_POINTS;
+      onProgress('Remeshing flat underside');base=remeshUnderside(base,bottomSpacing*.8,Math.min(bottomPoints??MAX_UNDERSIDE_POINTS,room)).base;
+    }
     const P0=base.positions,I0=base.indices,faces0=I0.length/3,{outer:faceOuter,fn}=classify(P0,I0);
     let nPts=P0.length/3,cap=Math.max(nPts*2,1024);let P=new Float64Array(cap*3),N=new Float64Array(cap*3);P.set(P0);
     for(let f=0;f<faces0;f++)if(faceOuter[f])for(let j=0;j<3;j++){const i=I0[f*3+j],pj=I0[f*3+(j+1)%3],pk=I0[f*3+(j+2)%3];let ux=P[pj*3]-P[i*3],uy=P[pj*3+1]-P[i*3+1],uz=P[pj*3+2]-P[i*3+2],vx=P[pk*3]-P[i*3],vy=P[pk*3+1]-P[i*3+1],vz=P[pk*3+2]-P[i*3+2];const lu=Math.hypot(ux,uy,uz)||1,lv=Math.hypot(vx,vy,vz)||1;const angle=Math.acos(Math.max(-1,Math.min(1,(ux*vx+uy*vy+uz*vz)/(lu*lv))));for(let a=0;a<3;a++)N[i*3+a]+=fn[f*3+a]*angle}
@@ -281,5 +417,5 @@ globalThis.CustomTemplate=(()=>{
     if(r.zeroArea)issues.push(r.zeroArea.toLocaleString()+' collapsed faces');
     return issues;
   }
-  return{MAX_BYTES,MAX_TRIANGLES,DISPLAY_TRIANGLES,UP_AXES,TURNS,UNITS,parseSTL,weld,edgeTable,fixOrientation,analyze,load,orient,profile,decimate,chooseSpacing,prepare,bounds,normalizeOrientation,toBinarySTL,describeProblems,signedVolume};
+  return{MAX_BYTES,MAX_TRIANGLES,DISPLAY_TRIANGLES,UP_AXES,TURNS,UNITS,parseSTL,remeshUnderside,weld,edgeTable,fixOrientation,analyze,load,orient,profile,decimate,chooseSpacing,prepare,bounds,normalizeOrientation,toBinarySTL,describeProblems,signedVolume};
 })();

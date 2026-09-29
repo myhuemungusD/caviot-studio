@@ -93,6 +93,35 @@ await test('dense meshes: coarser retries, then unrefined fallback, never a hard
     assert(Number.isFinite(g.spacing)&&g.stats.vertices<=maxPoints,'area-gated refinement fits the budget');assert(bottom>100,'the bottom cap gets interior vertices for relief (unrefined it has 1): '+bottom)}
   assert.equal(tiny.indices.length,base.indices.length);const v=MeshCore.validateMesh(tiny.positions,tiny.indices);assert.equal(v.boundary+v.nonManifold,0);
 });
+// Solid Z-up cylinder whose caps are fans of long thin triangles and whose side is one long sliver pair per segment,
+// like CAD exports of turned parts (and the 2M-triangle browser fixture).
+function fanCylinder(r,h,n,rings=1,centerDrop=0){const t=[],C=(i,z)=>[r*Math.cos(i/n*2*Math.PI),r*Math.sin(i/n*2*Math.PI),z];
+  for(let i=0;i<n;i++){const j=(i+1)%n;for(let k=0;k<rings;k++){const z0=h*k/rings,z1=h*(k+1)/rings;t.push([C(i,z0),C(j,z0),C(j,z1)],[C(i,z0),C(j,z1),C(i,z1)])}
+    t.push([[0,0,-centerDrop],C(j,0),C(i,0)],[[0,0,h],C(i,h),C(j,h)])}return t}
+await test('fan-triangulated bottoms are remeshed watertight, so bottom logos export on near-budget templates',async()=>{
+  const base=CustomTemplate.orient(CustomTemplate.load(binarySTL(fanCylinder(20,30,600))).source,{up:'+z'}),V=base.positions.length/3;
+  // Unit: interior points on the planar underside only; boundary, volume and closedness unchanged.
+  const r=CustomTemplate.remeshUnderside(base,.4),a0=CustomTemplate.analyze(base.positions,base.indices),a1=CustomTemplate.analyze(r.base.positions,r.base.indices);
+  assert(r.added>6000&&r.added<11000,'about one point per 0.14 mm² of the 1257 mm² underside: '+r.added);assert(a1.closed);assert(Math.abs(a1.volume-a0.volume)<1e-6*a0.volume);
+  const P=r.base.positions;for(let i=V;i<P.length/3;i++){assert(Math.abs(P[i*3+1])<1e-6,'new points lie on the bottom plane');assert(Math.hypot(P[i*3],P[i*3+2])<20-.19,'and stay inside the rim')}
+  const again=CustomTemplate.remeshUnderside(base,.4);assert.deepEqual(again.base.indices,r.base.indices,'deterministic');
+  // A bottom that is not planar (fan centre 0.01 mm low) is left exactly as it was.
+  const bumpy=CustomTemplate.orient(CustomTemplate.load(binarySTL(fanCylinder(20,30,600,1,.01))).source,{up:'+z'});assert.equal(CustomTemplate.remeshUnderside(bumpy,.4).added,0);
+  // Near the budget (input at 90 % of it, like a 1M-vertex upload): previously the fans were only split into a few
+  // rings, so a logo between them had no vertices. Now the whole underside is covered at about the print spacing...
+  const dense=CustomTemplate.orient(CustomTemplate.load(binarySTL(fanCylinder(20,30,1500,60))).source,{up:'+z'}),DV=dense.positions.length/3,maxPoints=Math.floor(DV/.9);
+  const print=CustomTemplate.prepare(dense,{quality:'print',maxPoints});assert(Number.isFinite(print.spacing)&&print.stats.vertices<=maxPoints);
+  const cellOf=(x,z)=>Math.floor(x+50)*1000+Math.floor(z+50),grid=new Map();
+  for(let i=0;i<print.stats.vertices;i++)if(print.positions[i*3+1]<1e-3){const k=cellOf(print.positions[i*3],print.positions[i*3+2]);if(!grid.has(k))grid.set(k,[]);grid.get(k).push(i)}
+  let gap=0;for(let x=-17;x<=17;x+=.5)for(let z=-17;z<=17;z+=.5){if(Math.hypot(x,z)>17)continue;let best=Infinity;
+    for(let dx=-1;dx<=1;dx++)for(let dz=-1;dz<=1;dz++)for(const i of grid.get(cellOf(x+dx,z+dz))||[])best=Math.min(best,Math.hypot(print.positions[i*3]-x,print.positions[i*3+2]-z));gap=Math.max(gap,best)}
+  assert(gap<.8,'largest distance from a bottom point to a print vertex: '+gap.toFixed(2)+' mm');
+  const v=MeshCore.validateMesh(print.positions,print.indices);assert.equal(v.boundary+v.nonManifold+v.zeroArea,0);
+  // ...so the bottom logo at its starting position, together with a side design, exports closed.
+  const bottom={heightmap:logo,rows:logo.length/1024,cols:1024,surface:'underside',centerX:14,centerZ:1,designWidth:21,designHeight:15.71,designRotation:0,designY:0,maxHeight:.4,negative:false,sharp:true};
+  const out=(await worker({id:20,type:'export',format:'stl',template:{kind:'custom',key:'fan',prepared:print},options:{designs:[design({designY:15}),bottom],maxHeight:.4,negative:false,sharp:true}}))[0];
+  assert(!out.error,out.error);assert(out.info.affectedByDesign.every(n=>n>0));assert(CustomTemplate.load(out.buffer).report.closed);
+});
 await test('wall-thickness rays capped at 4 mm on closed meshes give the same relief limits',()=>{
   const base=CustomTemplate.orient(CustomTemplate.load(binarySTL(tube(16,10,40,48))).source,{});assert(base.closed);
   const capped=CustomTemplate.prepare(base,{spacing:2}),full=CustomTemplate.prepare({...base,closed:false},{spacing:2});
