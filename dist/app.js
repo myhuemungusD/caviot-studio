@@ -266,7 +266,8 @@ function bindUI() {
   if (els.patternModal) els.patternModal.addEventListener('click', (e) => {
     if (e.target === els.patternModal) closePatternModal();
   });
-  if (els.openSTL) els.openSTL.addEventListener('click', () => els.stlInput && els.stlInput.click());
+  // Import STL now loads the file as the sleeve template; flattening into artwork remains in the template panel.
+  if (els.openSTL) els.openSTL.addEventListener('click', () => typeof openTemplateUpload === 'function' ? openTemplateUpload() : els.stlInput && els.stlInput.click());
   if (els.stlInput) els.stlInput.addEventListener('change', () => {
     if (els.stlInput.files && els.stlInput.files[0]) importSTLFile(els.stlInput.files[0]);
   });

@@ -67,27 +67,51 @@ globalThis.SharpSleeve=(()=>{
   }
   // Collapse only sliver edges whose link has exactly two common neighbors.
   // This removes sub-resolution triangles without opening the surface.
-  let clean=indices,wallFaces=new Set(walls);
+  let clean=indices,wallFaces=new Set(walls);const micro=o.weldSafe?1e-4:0;
   const packed=new Float32Array(values);
   for(let pass=0;pass<24;pass++){
    const pairs=[];
    for(let f=0;f<clean.length;f+=3){
     const ia=clean[f],ib=clean[f+1],ic=clean[f+2],a=ia*3,b=ib*3,c=ic*3;
     const ux=packed[b]-packed[a],uy=packed[b+1]-packed[a+1],uz=packed[b+2]-packed[a+2],vx=packed[c]-packed[a],vy=packed[c+1]-packed[a+1],vz=packed[c+2]-packed[a+2];
-    const nx=uy*vz-uz*vy,ny=uz*vx-ux*vz,nz=ux*vy-uy*vx;if(nx*nx+ny*ny+nz*nz>=1e-12)continue;
-    const candidates=[];for(let j=0;j<3;j++){const x=clean[f+j],y=clean[f+(j+1)%3];if(amplitude[x]!==amplitude[y])continue;const length=Math.hypot(packed[x*3]-packed[y*3],packed[x*3+1]-packed[y*3+1],packed[x*3+2]-packed[y*3+2]);if(length<.05)candidates.push([Math.min(x,y),Math.max(x,y),length])}candidates.sort((a,b)=>a[2]-b[2]);for(const [a,b]of candidates)pairs.push([a,b]);
+    const nx=uy*vz-uz*vy,ny=uz*vx-ux*vz,nz=ux*vy-uy*vx,sliver=nx*nx+ny*ny+nz*nz<1e-12;
+    // With o.weldSafe (custom templates) also collapse edges under 0.1 µm: STL importers weld nearby vertices, which
+    // would fold such faces. Off for ETSYFOLGER, whose established exports have no such edges and stay unchanged.
+    const shortest=Math.min(ux*ux+uy*uy+uz*uz,vx*vx+vy*vy+vz*vz,(packed[c]-packed[b])**2+(packed[c+1]-packed[b+1])**2+(packed[c+2]-packed[b+2])**2);if(!sliver&&!(shortest<micro*micro))continue;const limit=sliver?.05:micro;
+    const candidates=[];for(let j=0;j<3;j++){const x=clean[f+j],y=clean[f+(j+1)%3];if(amplitude[x]!==amplitude[y])continue;const length=Math.hypot(packed[x*3]-packed[y*3],packed[x*3+1]-packed[y*3+1],packed[x*3+2]-packed[y*3+2]);if(length<limit)candidates.push([Math.min(x,y),Math.max(x,y),length])}candidates.sort((a,b)=>a[2]-b[2]);for(const [a,b]of candidates)pairs.push([a,b]);
    }
    if(!pairs.length)break;const wanted=new Set(pairs.flat()),neighbors=new Map([...wanted].map(i=>[i,new Set()]));
    for(let f=0;f<clean.length;f+=3)for(let j=0;j<3;j++){const a=clean[f+j];if(neighbors.has(a)){neighbors.get(a).add(clean[f+(j+1)%3]);neighbors.get(a).add(clean[f+(j+2)%3])}}
    const merges=new Map(),touched=new Set();for(const[a,b]of pairs){if(touched.has(a)||touched.has(b))continue;const common=[...neighbors.get(a)].filter(i=>neighbors.get(b).has(i));if(common.length!==2)continue;merges.set(b,a);touched.add(a);touched.add(b);for(const v of neighbors.get(a))touched.add(v);for(const v of neighbors.get(b))touched.add(v)}if(!merges.size)break;
    const next=[],nextWalls=new Set();for(let f=0;f<clean.length;f+=3){const ids=clean.slice(f,f+3).map(i=>merges.get(i)??i);if(new Set(ids).size<3)continue;if(wallFaces.has(f/3))nextWalls.add(next.length/3);next.push(...ids)}clean=next;wallFaces=nextWalls;
   }
+  clean=flipCollinear(packed,clean,wallFaces);
   return{positions:packed,indices:new Uint32Array(clean),amplitude:new Float32Array(amplitude),walls:new Uint32Array([...wallFaces]),info:{affected,affectedByDesign,clipped,maxSafeDepth:safe,peakDepth:depth,spacing:p.spacing,perimeter:p.chart.perimeter,sharp:true}};
+ }
+ // A face can still be collinear (a vertex lying on its opposite edge, all edges too long to collapse), which
+ // happens on flat, axis-aligned facets of CAD meshes. Flip that longest edge with the neighbouring face: the
+ // two faces cover exactly the same area afterwards, so the surface is unchanged but no face has zero area.
+ // Uses the export check's threshold, so meshes that already pass are returned untouched.
+ function flipCollinear(P,tris,wallFaces){
+  const area2=(i,j,k)=>{const ux=P[j*3]-P[i*3],uy=P[j*3+1]-P[i*3+1],uz=P[j*3+2]-P[i*3+2],vx=P[k*3]-P[i*3],vy=P[k*3+1]-P[i*3+1],vz=P[k*3+2]-P[i*3+2];return (uy*vz-uz*vy)**2+(uz*vx-ux*vz)**2+(ux*vy-uy*vx)**2};
+  const len2=(i,j)=>(P[i*3]-P[j*3])**2+(P[i*3+1]-P[j*3+1])**2+(P[i*3+2]-P[j*3+2])**2;
+  for(let pass=0;pass<8;pass++){
+   const bad=[];for(let f=0;f<tris.length;f+=3)if(!wallFaces.has(f/3)&&area2(tris[f],tris[f+1],tris[f+2])<1e-18)bad.push(f);if(!bad.length)break;
+   // For each bad face: its longest directed edge x->y and the opposite vertex c.
+   const want=new Map();for(const f of bad){let e=0,best=-1;for(let j=0;j<3;j++){const l=len2(tris[f+j],tris[f+(j+1)%3]);if(l>best){best=l;e=j}}want.set(tris[f+(e+1)%3]+','+tris[f+e],{f,x:tris[f+e],y:tris[f+(e+1)%3],c:tris[f+(e+2)%3]})}
+   const found=[],hub=new Map();for(const w of want.values()){hub.set(w.c,new Set())}
+   for(let g=0;g<tris.length;g+=3)for(let j=0;j<3;j++){const a=tris[g+j],b=tris[g+(j+1)%3],w=want.get(a+','+b);if(w&&w.f!==g&&!wallFaces.has(g/3))found.push({...w,g,d:tris[g+(j+2)%3]});if(hub.has(a)){hub.get(a).add(b);hub.get(a).add(tris[g+(j+2)%3])}}
+   const used=new Set();let flipped=0;
+   for(const {f,g,x,y,c,d}of found){if(used.has(f)||used.has(g)||hub.get(c).has(d)||area2(c,x,d)<1e-18||area2(d,y,c)<1e-18)continue;used.add(f);used.add(g);hub.get(c).add(d);
+    tris[f]=c;tris[f+1]=x;tris[f+2]=d;tris[g]=d;tris[g+1]=y;tris[g+2]=c;flipped++}
+   if(!flipped)break;
+  }
+  return tris;
  }
  function buildAdaptive(source,o){
   const requested=o.sharpSpacing||.22;let spacing=requested;
   for(;;){try{const result=build(source,{...o,sharpSpacing:spacing});result.info.requestedSpacing=requested;result.info.adapted=spacing>requested;return result;}catch(error){if(error.code!=='MESH_BUDGET'||spacing>=.5)throw error;spacing=Math.min(.5,spacing*1.3);}}
  }
- return{build,buildAdaptive,refine,contourField};
+ return{build,buildAdaptive,refine,contourField,flipCollinear};
 })();
 

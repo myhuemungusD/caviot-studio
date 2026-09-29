@@ -91,15 +91,17 @@ window.MeshCore = (function MeshCoreFactory() {
     return buffer;
   }
 
-  function exportOBJ(positions, indices) {
+  // digits: decimals per coordinate (4 = 0.1 µm). Custom templates pass 6 because contour slivers on
+  // flat CAD facets can round to zero area at 4 decimals.
+  function exportOBJ(positions, indices, digits = 4) {
     const lines = ['# iCaviot OBJ export', 'o iCaviot'];
     const vCount = positions.length / 3;
     for (let i = 0; i < vCount; i++) {
       lines.push(
         'v ' +
-          positions[i * 3].toFixed(4) + ' ' +
-          positions[i * 3 + 1].toFixed(4) + ' ' +
-          positions[i * 3 + 2].toFixed(4)
+          positions[i * 3].toFixed(digits) + ' ' +
+          positions[i * 3 + 1].toFixed(digits) + ' ' +
+          positions[i * 3 + 2].toFixed(digits)
       );
     }
     for (let i = 0; i < indices.length; i += 3) {
