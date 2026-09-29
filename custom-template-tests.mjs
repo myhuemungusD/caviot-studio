@@ -10,7 +10,7 @@ const replies=[];globalThis.self=globalThis;globalThis.postMessage=r=>replies.pu
 globalThis.importScripts=(...files)=>{for(const f of files)vm.runInThisContext(fs.readFileSync(new URL(f,dist),'utf8'),{filename:f})};
 vm.runInThisContext(fs.readFileSync(new URL('template-worker.js',dist),'utf8'),{filename:'template-worker.js'});
 vm.runInThisContext(fs.readFileSync(new URL('project-format.js',dist),'utf8'),{filename:'project-format.js'});
-const ctx=globalThis,{CustomTemplate,MeshCore,ProjectFormat}=globalThis;
+const ctx=globalThis,{CustomTemplate,MeshCore,ProjectFormat,SharpSleeve}=globalThis;
 async function worker(message){replies.length=0;await ctx.onmessage({data:message});return replies.filter(r=>!r.progress)}
 
 // ---------- Generated meshes ----------
@@ -40,7 +40,7 @@ await test('binary and ASCII parsing agree',()=>{
 await test('bad files give clear errors',()=>{
   assert.throws(()=>CustomTemplate.parseSTL(new ArrayBuffer(0)),/empty/);
   assert.throws(()=>CustomTemplate.parseSTL(Buffer.from('hello world, definitely not an stl file with enough bytes to look binary maybe........................')),/not a valid STL/);
-  const truncated=binarySTL(box(1,1,1)).subarray(0,300);assert.throws(()=>CustomTemplate.parseSTL(truncated),/not a valid STL/);
+  const truncated=binarySTL(box(1,1,1)).subarray(0,300);assert.throws(()=>CustomTemplate.parseSTL(truncated),/truncated/);
   assert.throws(()=>CustomTemplate.parseSTL(Buffer.from('solid x\nfacet normal 0 0 1\nouter loop\nvertex 0 0 0\nvertex 1 0 0\nendloop\nendfacet\nendsolid')),/truncated/);
   assert.throws(()=>CustomTemplate.parseSTL(Buffer.from('solid x\nendsolid x\n')),/no triangles/);
   const nan=binarySTL(box(1,1,1));nan.writeFloatLE(NaN,84+12);assert.throws(()=>CustomTemplate.parseSTL(nan),/invalid/i);
@@ -50,7 +50,8 @@ await test('binary quirks: "solid" header, trailing padding, chunked ASCII',()=>
   const h=CustomTemplate.parseSTL(bin);assert.equal(h.format,'binary');assert.equal(h.triangles,12);
   const padded=Buffer.concat([binarySTL(box(20,10,30)),Buffer.alloc(3)]);assert.equal(CustomTemplate.parseSTL(padded).triangles,12);
   // A short (truncated) binary file is rejected even when a big padding tolerance would otherwise apply.
-  assert.throws(()=>CustomTemplate.parseSTL(binarySTL(box(20,10,30)).subarray(0,84+11*50)),/truncated/);
+  assert.throws(()=>CustomTemplate.parseSTL(binarySTL(box(20,10,30)).subarray(0,84+11*50)),/truncated: it declares 12 triangles but only 11/);
+  assert.throws(()=>CustomTemplate.parseSTL(bin.subarray(0,84+11*50)),/truncated/,'a truncated binary with a "solid" header is not mistaken for ASCII');
   // ASCII larger than one 8 MB parse chunk: facets crossing chunk borders are not lost.
   const many=gridBox(50,70),big=asciiSTL(many);assert(big.length>8*1024*1024,'fixture spans chunks');
   const a=CustomTemplate.parseSTL(big);assert.equal(a.triangles,many.length);assert.equal(a.soup.length,many.length*9);
@@ -119,6 +120,16 @@ for(const [name,bytes,orientation,designs]of templates){
     const out=await worker({id:5,type:'export',format:'obj',template:{kind:'custom',key:key+'-fresh',base:ready.base},options:{designs:designs.slice(0,1),maxHeight:.4,negative:false,sharp:true}});assert(!out[0].error,out[0].error);assert(out[0].text.startsWith('# iCaviot'));
   });
 }
+await test('flat CAD facets: collinear contour faces are flipped so the export passes',async()=>{
+  // Regression: a 96-sided tube (flat vertical facets) with this logo left one collinear face and failed the mesh check.
+  const raw=zlib.gunzipSync(fs.readFileSync(new URL('./test-fixtures/design-mainline-square-mask.f32.gz',import.meta.url))),mask=new Float32Array(ab(raw));
+  const out=await worker({type:'custom-prepare',id:12,buffer:ab(binarySTL(tube(16,12.5,50,96))),orientation:{},skipPrint:true});const base=out.find(r=>r.stage==='ready').base;
+  const r=(await worker({id:13,type:'export',format:'stl',template:{kind:'custom',key:'facets',base},options:{designs:[design({heightmap:mask,rows:1024,cols:1024,designAngle:180,designY:25,designWidth:30,designHeight:30,maxHeight:.4,negative:true})],maxHeight:.4,negative:true,sharp:true}}))[0];
+  assert(!r.error,r.error);assert(CustomTemplate.load(r.buffer).report.closed);
+  // Unit check: a collinear face next to a normal one is flipped into two valid faces covering the same area.
+  const P=new Float32Array([0,0,0, 2,0,0, 1,0,0, 1,1,0]),tris=[0,1,2, 1,0,3];const flipped=SharpSleeve.flipCollinear(P,tris.slice(),new Set());
+  assert.deepEqual(flipped,[2,0,3, 3,1,2]);assert.deepEqual(SharpSleeve.flipCollinear(P,[1,0,3],new Set()),[1,0,3],'valid faces are untouched');
+});
 await test('open template: clear export error; Make template watertight fixes it',async()=>{
   const holed=gridBox(30,24);holed.splice(10,1);const out=await worker({type:'custom-prepare',id:6,buffer:ab(binarySTL(holed)),orientation:{up:'+z'},skipPrint:true});const ready=out.find(r=>r.stage==='ready');assert.equal(ready.report.closed,false);assert.equal(ready.report.boundary,3);
   const o={designs:[design({designY:15})],maxHeight:.5,negative:false,sharp:true};

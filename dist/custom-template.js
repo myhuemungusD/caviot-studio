@@ -26,8 +26,10 @@ globalThis.CustomTemplate=(()=>{
       }
       if(!count&&expected===buffer.byteLength)throw fail('The STL contains no triangles.','EMPTY');
     }
-    if(!/^\s*solid\b/i.test(head)){
-      if(buffer.byteLength>=84)throw fail('This is not a valid STL: the binary triangle count does not match the file size (the file may be truncated), and it is not ASCII STL.','BAD_FORMAT');
+    if(!looksAscii){
+      if(buffer.byteLength>=84){const count=view.getUint32(80,true);
+        if(count&&count<=MAX_TRIANGLES&&84+count*50>buffer.byteLength)throw fail('This STL is truncated: it declares '+count.toLocaleString()+' triangles but only '+Math.max(0,Math.floor((buffer.byteLength-84)/50)).toLocaleString()+' are present. Export or download it again.','BAD_FORMAT');
+        throw fail('This is not a valid STL: the binary triangle count does not match the file size, and it is not ASCII STL.','BAD_FORMAT')}
       throw fail('This is not a valid STL file.','BAD_FORMAT');
     }
     // ASCII: scan in chunks into a growing Float32Array (a plain number array would need ~4x the memory).
