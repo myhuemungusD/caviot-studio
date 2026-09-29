@@ -112,15 +112,27 @@ globalThis.CustomTemplate=(()=>{
   const upMaps={'+z':p=>[p[0],p[2],-p[1]],'-z':p=>[p[0],-p[2],p[1]],'+y':p=>[p[0],p[1],p[2]],'-y':p=>[p[0],-p[1],-p[2]],'+x':p=>[-p[1],p[0],p[2]],'-x':p=>[p[1],-p[0],p[2]]};
   function bounds(positions){const lo=[Infinity,Infinity,Infinity],hi=[-Infinity,-Infinity,-Infinity];for(let i=0;i<positions.length;i+=3)for(let a=0;a<3;a++){const v=positions[i+a];if(v<lo[a])lo[a]=v;if(v>hi[a])hi[a]=v}return{min:lo,max:hi}}
   function normalizeOrientation(o={}){return{up:UP_AXES.includes(o.up)?o.up:'auto',turn:TURNS.includes(Number(o.turn))?Number(o.turn):0,units:Object.hasOwn(UNITS,o.units)?o.units:'mm',autoAlign:o.autoAlign!==false}}
-  function slicePoints(positions,indices,y){const pts=[];for(let f=0;f<indices.length;f+=3)for(let e=0;e<3;e++){const a=indices[f+e]*3,b=indices[f+(e+1)%3]*3,ya=positions[a+1],yb=positions[b+1];if((ya<y)!==(yb<y)){const t=(y-ya)/(yb-ya);pts.push(positions[a]+t*(positions[b]-positions[a]),positions[a+2]+t*(positions[b+2]-positions[a+2]))}}return pts}
+  // Principal horizontal direction of the outline: second moments of the cross-section perimeter at three heights,
+  // integrated along each cut segment (length-weighted, so triangle density does not bias it). Heights are offset
+  // slightly so a slice never passes exactly through a vertex. Returns 0 for near-round outlines, keeping the file's
+  // own rotation instead of an arbitrary one.
+  function outlineAngle(positions,indices,b){
+    const h=b.max[1]-b.min[1];let L=0,sx=0,sz=0;const segs=[];
+    for(const t of [.3013,.5007,.7019]){const y=b.min[1]+h*t;
+      for(let f=0;f<indices.length;f+=3){const cut=[];for(let e=0;e<3;e++){const a=indices[f+e]*3,c=indices[f+(e+1)%3]*3,ya=positions[a+1],yc=positions[c+1];if((ya<y)!==(yc<y)){const k=(y-ya)/(yc-ya);cut.push(positions[a]+k*(positions[c]-positions[a]),positions[a+2]+k*(positions[c+2]-positions[a+2]))}}
+        if(cut.length===4){const l=Math.hypot(cut[2]-cut[0],cut[3]-cut[1]);if(l>0){segs.push(cut,l);L+=l;sx+=l*(cut[0]+cut[2])/2;sz+=l*(cut[1]+cut[3])/2}}}}
+    if(!(L>0))return 0;const mx=sx/L,mz=sz/L;let xx=0,xz=0,zz=0;
+    for(let i=0;i<segs.length;i+=2){const [px,pz,qx,qz]=segs[i].map((v,k)=>v-(k%2?mz:mx)),l=segs[i+1];xx+=l*(px*px+px*qx+qx*qx)/3;zz+=l*(pz*pz+pz*qz+qz*qz)/3;xz+=l*(2*px*pz+px*qz+qx*pz+2*qx*qz)/6}
+    const spread=Math.hypot(xx-zz,2*xz)/(xx+zz||1);return spread<.05?0:.5*Math.atan2(2*xz,xx-zz);
+  }
   function orient(source,orientation={}){
     const o=normalizeOrientation(orientation),src=source.positions,b0=bounds(src),ext=b0.max.map((v,a)=>v-b0.min[a]);
     let up=o.up;if(up==='auto'){const axis=ext[2]>=ext[0]&&ext[2]>=ext[1]?2:ext[1]>=ext[0]?1:0;up='+'+'xyz'[axis]}
     const map=upMaps[up],scale=UNITS[o.units],n=src.length/3,out=new Float32Array(src.length);
     for(let i=0;i<n;i++){const p=map([src[i*3],src[i*3+1],src[i*3+2]]);out[i*3]=p[0]*scale;out[i*3+1]=p[1]*scale;out[i*3+2]=p[2]*scale}
-    let b=bounds(out);const cx=(b.min[0]+b.max[0])/2,cz=(b.min[2]+b.max[2])/2,mid=(b.min[1]+b.max[1])/2;
+    let b=bounds(out);const cx=(b.min[0]+b.max[0])/2,cz=(b.min[2]+b.max[2])/2;
     let angle=0;
-    if(o.autoAlign){let pts=slicePoints(out,source.indices,mid);if(pts.length<6){pts=[];for(let i=0;i<n;i++)pts.push(out[i*3],out[i*3+2])}let xx=0,xz=0,zz=0;for(let i=0;i<pts.length;i+=2){const x=pts[i]-cx,z=pts[i+1]-cz;xx+=x*x;xz+=x*z;zz+=z*z}angle=.5*Math.atan2(2*xz,xx-zz)}
+    if(o.autoAlign)angle=outlineAngle(out,source.indices,b);
     // Rotate the widest horizontal axis to X (front faces +Z), then apply the user's quarter turn.
     const theta=-angle+o.turn*Math.PI/180,c=Math.cos(theta),s=Math.sin(theta);
     for(let i=0;i<n;i++){const x=out[i*3]-cx,z=out[i*3+2]-cz;out[i*3]=c*x-s*z;out[i*3+2]=s*x+c*z}

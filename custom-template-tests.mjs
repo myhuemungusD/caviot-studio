@@ -70,6 +70,10 @@ await test('orientation: auto up, flips, quarter turns, units',()=>{
   const z=CustomTemplate.orient(src,{up:'+z',autoAlign:true});assert(Math.abs(z.height-10)<1e-4);const w=z.bounds.max[0]-z.bounds.min[0],d=z.bounds.max[2]-z.bounds.min[2];assert(Math.abs(w-60)<1e-3&&Math.abs(d-20)<1e-3,'widest side faces front');
   const turned=CustomTemplate.orient(src,{up:'+z',turn:90});assert(Math.abs(turned.bounds.max[0]-turned.bounds.min[0]-20)<1e-3);
   const cm=CustomTemplate.orient(src,{up:'-z',units:'cm'});assert(Math.abs(cm.height-100)<1e-3);assert(Math.abs(cm.bounds.min[1])<1e-6);
+  // Widest-side alignment is exact for a 96-gon disc on edge (unbiased by fan triangles) and leaves round outlines unrotated.
+  const disc=[],R=45,N=96,Q=i=>[R*Math.cos(i/N*2*Math.PI),R*Math.sin(i/N*2*Math.PI)];for(let i=0;i<N;i++){const [x0,y0]=Q(i),[x1,y1]=Q(i+1);disc.push([[x0,y0,0],[x1,y1,0],[x1,y1,4]],[[x0,y0,0],[x1,y1,4],[x0,y0,4]],[[0,0,4],[x0,y0,4],[x1,y1,4]],[[0,0,0],[x1,y1,0],[x0,y0,0]])}
+  const standing=CustomTemplate.orient(CustomTemplate.load(binarySTL(disc)).source,{});assert(Math.abs(standing.bounds.max[2]-standing.bounds.min[2]-4)<1e-3,'disc faces the front squarely');
+  const round=CustomTemplate.orient(CustomTemplate.load(binarySTL(tube(17,13.5,60,96))).source,{up:'+z'});assert(Math.abs(round.bounds.max[0]-round.bounds.min[0]-34)<1e-4,'round outline keeps the file rotation');
   // Proper rotations keep outward winding.
   for(const up of ['+z','-z','+y','-y','+x','-x'])assert(CustomTemplate.signedVolume(CustomTemplate.orient(src,{up}).positions,src.indices)>0,up);
 });
