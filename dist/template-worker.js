@@ -41,7 +41,13 @@ self.onmessage=async({data})=>{
     if(data.type==='export'){
       if(data.repair){const repaired=MeshRepair.repair(result.positions,result.indices);if(!repaired.report.closed)throw Error('Repair could not close this mesh. Reduce relief depth or adjust placement.');result.positions=repaired.positions;result.indices=repaired.indices;}
       if((data.options.designs?.length||data.options.heightmap)&&result.info.affected===0)throw Error('The design is not on a printable surface. Move it, resize it, or check background removal.');
-      if(result.info.affectedByDesign?.some(n=>n===0))throw Error('One side has no artwork on a printable surface. Check its placement and background removal.');
+      const missing=result.info.affectedByDesign?.indexOf(0)??-1;
+      if(missing>=0){
+        // Name the bottom logo separately: its preview can succeed on the finer preview surface while a very
+        // dense custom template keeps its original (unrefined) underside triangles for export.
+        if(data.options.designs?.[missing]?.surface!=='underside')throw Error('One side has no artwork on a printable surface. Check its placement and background removal.');
+        throw Error(data.template?.kind==='custom'?'The bottom logo does not reach a printable part of this template\'s underside. Move or enlarge it, or use a simpler STL so the underside keeps more detail.':'The bottom logo is not on a printable surface. Check its placement.');
+      }
       const v=MeshCore.validateMesh(result.positions,result.indices);
       if(v.boundary||v.nonManifold||v.zeroArea)throw Error('Mesh check: '+v.zeroArea+' collapsed faces, '+v.boundary+' open edges, '+v.nonManifold+' non-manifold edges. Reduce depth or move the design.');
       // Export Z-up for slicers, preserving the template shape and millimeter scale.

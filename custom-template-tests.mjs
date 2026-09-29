@@ -155,6 +155,14 @@ await test('open template: clear export error; Make template watertight fixes it
   const rep=await worker({type:'custom-prepare',id:9,source:{positions:ready.source.positions,indices:ready.source.indices},report:ready.report,repair:true,orientation:{up:'+z'},skipPrint:true});const fixed=rep.find(r=>r.stage==='ready');assert(fixed.report.closed,'template repair closes the missing triangle');assert.equal(fixed.report.repairReport.filled,1);
   const good=await worker({id:8,type:'export',format:'stl',template:{kind:'custom',key:'fixed',base:fixed.base},options:o});assert(!good[0].error,good[0].error);assert(CustomTemplate.load(good[0].buffer).report.closed);
 });
+await test('export names the bottom logo when it misses the printable underside',async()=>{
+  const base=CustomTemplate.orient(CustomTemplate.load(binarySTL(tube(17,13.5,60,48,3))).source,{});
+  const side=design({designY:30}),bottom={...design({}),surface:'underside',centerX:200,centerZ:0,designWidth:10,designHeight:10,designY:0};
+  const out=await worker({id:18,type:'export',format:'stl',template:{kind:'custom',key:'bottom-miss',base},options:{designs:[side,bottom],maxHeight:.4,negative:false,sharp:true}});
+  assert.match(out[0].error,/bottom logo does not reach a printable part.*underside/);
+  const sideMiss=await worker({id:19,type:'export',format:'stl',template:{kind:'custom',key:'bottom-miss'},options:{designs:[design({designY:500})],maxHeight:.4,negative:false,sharp:true}});
+  assert.match(sideMiss[0].error,/not on a printable surface|One side has no artwork/);
+});
 await test('sharp-edge budget errors on custom templates explain what helps',async()=>{
   const original=SharpSleeve.buildAdaptive;SharpSleeve.buildAdaptive=()=>{const e=Error('Artwork needs more mesh detail than this browser can hold.');e.code='MESH_BUDGET';throw e};
   try{const base=CustomTemplate.orient(CustomTemplate.load(binarySTL(box(30,30,30))).source,{up:'+z'});const out=await worker({id:17,type:'export',format:'stl',template:{kind:'custom',key:'budget',base},options:{designs:[design({designY:15})],maxHeight:.4,negative:false,sharp:true}});
