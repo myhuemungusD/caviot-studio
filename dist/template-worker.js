@@ -51,5 +51,9 @@ self.onmessage=async({data})=>{
     }else{
       const indices=new Uint32Array(result.indices);postMessage({id:data.id,positions:result.positions,indices,amplitude:result.amplitude,walls:result.walls,info:result.info},[result.positions.buffer,indices.buffer,result.amplitude.buffer]);
     }
-  }catch(error){postMessage({id:data.id,error:error.message||'Template processing failed.'})}
+  }catch(error){
+    // For custom templates the usual cause is template density, not the artwork, so say what helps.
+    const message=error.code==='MESH_BUDGET'&&data.template?.kind==='custom'?'This template is too dense for Sharp edges with this artwork. Turn off Sharp edges (logos), make the artwork smaller, or simplify the STL.':error.message||'Template processing failed.';
+    postMessage({id:data.id,error:message});
+  }
 };

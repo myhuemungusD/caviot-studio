@@ -210,12 +210,13 @@ globalThis.CustomTemplate=(()=>{
     const predicted=s=>{let t=faces;for(let i=0;i<area.length;i++)if(longest[i]>s)t+=Math.max(0,22*area[i]/(s*s)-1);return t};
     let s=min;while(predicted(s)>Math.max(target,faces*1.3)&&s<1000)s*=1.15;return s;
   }
-  // Budget: 900k vertices, or the input plus 400k for already-dense meshes. If refinement still
-  // overflows after coarser retries, the surface is used unrefined (always within budget).
+  // Budget: 900k vertices, or the input plus 400k for already-dense meshes, capped at 1.1M so sharp-edge
+  // export (1.4M-vertex limit) keeps room for contours. If refinement still overflows after coarser retries,
+  // or the input alone is near the budget, the surface is used unrefined.
   function prepare(base,{spacing,quality='preview',onProgress=()=>{},maxPoints}={}){
     if(!spacing)spacing=chooseSpacing(base,quality);
-    const budget=maxPoints||Math.max(900000,base.positions.length/3+400000);
-    for(let attempt=0;attempt<4;attempt++){try{return prepareAt(base,spacing,onProgress,budget)}catch(e){if(e.code!=='DETAIL')throw e;spacing*=1.4;onProgress('Mesh too dense at this spacing; retrying at '+spacing.toFixed(2)+' mm')}}
+    const vertices=base.positions.length/3,budget=maxPoints||Math.min(1100000,Math.max(900000,vertices+400000));
+    for(let attempt=0;attempt<4&&vertices<budget*.9;attempt++){try{return prepareAt(base,spacing,onProgress,budget)}catch(e){if(e.code!=='DETAIL')throw e;spacing*=1.4;onProgress('Mesh too dense at this spacing; retrying at '+spacing.toFixed(2)+' mm')}}
     onProgress('Using the original triangles without refinement');return prepareAt(base,Infinity,onProgress,Infinity);
   }
   function prepareAt(base,spacing,onProgress,maxPoints){

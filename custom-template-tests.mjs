@@ -86,6 +86,7 @@ await test('dense meshes: coarser retries, then unrefined fallback, never a hard
   const p=CustomTemplate.prepare(base,{spacing:.3,maxPoints:base.positions.length/3+2000,onProgress:m=>msgs.push(m)});
   assert(msgs.some(m=>/retrying/.test(m)),'backs off to a coarser spacing');assert(p.stats.vertices<=base.positions.length/3+2000||p.spacing===Infinity);
   const tiny=CustomTemplate.prepare(base,{spacing:.3,maxPoints:10,onProgress:m=>msgs.push(m)});assert.equal(tiny.spacing,Infinity);assert(msgs.some(m=>/without refinement/.test(m)));
+  const near=[];CustomTemplate.prepare(base,{spacing:.3,maxPoints:Math.ceil(base.positions.length/3/.95),onProgress:m=>near.push(m)});assert(!near.some(m=>/retrying/.test(m))&&near.some(m=>/without refinement/.test(m)),'an input already near the budget skips refinement attempts');
   assert.equal(tiny.indices.length,base.indices.length);const v=MeshCore.validateMesh(tiny.positions,tiny.indices);assert.equal(v.boundary+v.nonManifold,0);
 });
 await test('wall-thickness rays capped at 4 mm on closed meshes give the same relief limits',()=>{
@@ -149,6 +150,11 @@ await test('open template: clear export error; Make template watertight fixes it
   const bad=await worker({id:7,type:'export',format:'stl',template:{kind:'custom',key:'open',base:ready.base},options:o});assert.match(bad[0].error,/open edges/);
   const rep=await worker({type:'custom-prepare',id:9,source:{positions:ready.source.positions,indices:ready.source.indices},report:ready.report,repair:true,orientation:{up:'+z'},skipPrint:true});const fixed=rep.find(r=>r.stage==='ready');assert(fixed.report.closed,'template repair closes the missing triangle');assert.equal(fixed.report.repairReport.filled,1);
   const good=await worker({id:8,type:'export',format:'stl',template:{kind:'custom',key:'fixed',base:fixed.base},options:o});assert(!good[0].error,good[0].error);assert(CustomTemplate.load(good[0].buffer).report.closed);
+});
+await test('sharp-edge budget errors on custom templates explain what helps',async()=>{
+  const original=SharpSleeve.buildAdaptive;SharpSleeve.buildAdaptive=()=>{const e=Error('Artwork needs more mesh detail than this browser can hold.');e.code='MESH_BUDGET';throw e};
+  try{const base=CustomTemplate.orient(CustomTemplate.load(binarySTL(box(30,30,30))).source,{up:'+z'});const out=await worker({id:17,type:'export',format:'stl',template:{kind:'custom',key:'budget',base},options:{designs:[design({designY:15})],maxHeight:.4,negative:false,sharp:true}});
+    assert.match(out[0].error,/too dense for Sharp edges.*Turn off Sharp edges \(logos\)/)}finally{SharpSleeve.buildAdaptive=original}
 });
 await test('worker reports parse errors',async()=>{const out=await worker({type:'custom-prepare',id:10,buffer:ab(Buffer.from('solid x\nendsolid x\n')),orientation:{}});assert.match(out[0].error,/no triangles/)});
 
