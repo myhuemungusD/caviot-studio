@@ -58,14 +58,14 @@ document.getElementById('projectFile').onchange=async e=>{
     if(projectDirty&&!confirm('Replace this unsaved design? Cancel to save it first.'))return;
     clearTimeout(AppState.rebuildTimer);AppState.rebuildTimer=null;
     if (!Object.hasOwn(p.settings,'templateId')) p.settings.templateId='parametric';
-    if(typeof restoreProjectTemplate==='function')await restoreProjectTemplate(p);
+    const templateNotice=typeof restoreProjectTemplate==='function'?await restoreProjectTemplate(p):'';
     loadSettings(p.settings);AppState.text='';AppState.textRenderId++;els.textInput.value='';
     document.getElementById('projectName').value=p.name||'Untitled design';
     if(img){AppState.image=img;AppState.imageName=p.source;AppState.sourceLabel=p.source;els.fileName.textContent=p.source;els.fileName.style.display='';setEmptyState(false)}
     else{AppState.image=null;AppState.heightmap=null;AppState.lastValidation=null;AppState.sourceLabel='—';AppState.hmRows=0;AppState.hmCols=0;els.fileName.style.display='none';if(meshObj){scene.remove(meshObj);meshObj.geometry.dispose();disposeMaterial(meshObj.material);meshObj=null}setEmptyState(true);drawHeightmapPreview()}
     restoreBottomBrand(p.bottomBrand);
     if(p.version>=3)restoreDesignLayers(p.layers,layerImages,p.activeSide,p.selectedIds);else restoreDesignSides(p.version===2?p.sides:null,sideImages,p.activeSide||0);linkedSideSettings=p.version>=2&&!!p.linkSides;$('linkDesignSettings').checked=linkedSideSettings;
-    projectStateToUI();updateDevicePresetTip(AppState.preset);if(img)scheduleRebuild(true);else if(templateActive())renderTemplateBlank();updateStats();saveSettings();clean();if(typeof resetEditHistory==='function')resetEditHistory();toast('Project opened','success');
+    projectStateToUI();updateDevicePresetTip(AppState.preset);if(img)scheduleRebuild(true);else if(templateActive())renderTemplateBlank();updateStats();saveSettings();clean();if(typeof resetEditHistory==='function')resetEditHistory();toast(templateNotice?'Project opened. '+templateNotice:'Project opened',/could not|too large/.test(templateNotice)?'error':'success');
   }catch(error){toast('Could not open: '+error.message,'error')}
 };
 document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='s'){e.preventDefault();saveProject()}});

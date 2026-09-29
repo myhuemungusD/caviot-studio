@@ -156,7 +156,7 @@ function reorientCustomTemplate(repair=false){
   if(!customTemplate)return;const previous=customTemplate,orientation=customOrientationFromUI();customStatus(repair?'Repairing…':'Re-orienting…');
   prepareCustomTemplate({source:previous.source,report:previous.report,name:previous.name,orientation,repair,repaired:previous.repaired||repair}).then(t=>{
     installCustomTemplate(t,AppState.templateId==='custom-stl');
-    if(repair){const r=t.report.repairReport;toast(t.report.closed?'Template is now watertight':'Template still has problems — see the template panel',t.report.closed?'success':'error');}
+    if(repair){toast(t.report.closed?'Template is now watertight':'Template still has problems — see the template panel',t.report.closed?'success':'error');}
     dirty();
   }).catch(error=>{if(isCancelled(error))return;customStatus((repair?'Repair failed: ':'Could not re-orient: ')+error.message,'bad');customOrientationToUI(CustomTemplate.normalizeOrientation(previous.orientation))});
 }
@@ -167,7 +167,12 @@ $('removeTemplateBtn').onclick=()=>{cancelCustomPreparation();const wasActive=Ap
 // ---------- Persistence: project files and this browser ----------
 function blobToDataURL(blob){return new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=()=>reject(r.error);r.readAsDataURL(blob)})}
 async function gzipBytes(buffer){const stream=new Blob([buffer]).stream().pipeThrough(new CompressionStream('gzip'));return new Uint8Array(await new Response(stream).arrayBuffer())}
-async function gunzipBytes(bytes){const stream=new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'));return await new Response(stream).arrayBuffer()}
+// Decompress with the same 100 MB cap as uploads, so a damaged or hostile project cannot exhaust memory.
+async function gunzipBytes(bytes,limit=CustomTemplate.MAX_BYTES){
+  const reader=new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip')).getReader(),chunks=[];let total=0;
+  for(;;){const {done,value}=await reader.read();if(done)break;total+=value.byteLength;if(total>limit){reader.cancel().catch(()=>{});throw Error('The embedded template is larger than 100 MB.')}chunks.push(value)}
+  const out=new Uint8Array(total);let offset=0;for(const c of chunks){out.set(c,offset);offset+=c.byteLength}return out.buffer;
+}
 async function encodeCustomTemplate(t){
   const gz=await gzipBytes(CustomTemplate.toBinarySTL(t.source.positions,t.source.indices,'Caviot custom template: '+t.name.slice(0,50)));
   // Skip building a data URL that could never be embedded (base64 is 4/3 of the bytes plus the prefix).
@@ -180,15 +185,17 @@ function customTemplateProjectEntry(){
   if(!customTemplate.embed.dataUrl)toast('The template STL is too large to embed ('+(customTemplate.embed.bytes/1048576).toFixed(1)+' MB compressed). Keep the STL file; you will be asked to upload it when reopening.','error');
   return{kind:'custom-stl',name:customTemplate.name,triangles:customTemplate.report.triangles,repaired:!!customTemplate.repaired,orientation:CustomTemplate.normalizeOrientation(customTemplate.orientation),mesh:customTemplate.embed.dataUrl};
 }
+// Returns a notice for the "Project opened" toast (a separate toast would be replaced by it at once).
 async function restoreProjectTemplate(p){
   const t=p.version===4?p.template:null;
   if(t&&t.mesh){
     try{const bytes=new Uint8Array(await (await fetch(t.mesh)).arrayBuffer()),buffer=await gunzipBytes(bytes);await useCustomTemplateBuffer(buffer,t.name,t.orientation,{activate:false,repaired:t.repaired,quiet:true});p.settings.templateId='custom-stl';AppState.templateId='custom-stl';setActiveTemplateBase(customTemplate.display||customTemplate.base);ensureCustomPrint();setTimeout(()=>templateView('front'),50);return}
-    catch(error){if(isCancelled(error))throw Error('Another template was loaded while opening the project. Open it again.');toast('The embedded template could not be loaded: '+error.message+' Using ETSYFOLGER instead.','error');p.settings.templateId='etsyfolger-v1';activateBuiltinTemplate();return}
+    catch(error){if(isCancelled(error))throw Error('Another template was loaded while opening the project. Open it again.');p.settings.templateId='etsyfolger-v1';activateBuiltinTemplate();return 'The embedded template could not be loaded: '+error.message+' Using ETSYFOLGER instead.'}
   }
-  if(t&&!t.mesh){if(customTemplate&&customTemplate.name===t.name){p.settings.templateId='custom-stl';AppState.templateId='custom-stl';setActiveTemplateBase(customTemplate.display||customTemplate.base);ensureCustomPrint();toast('Using the loaded template '+t.name+'. Check that it is the same STL.','success');return}toast('This project used the custom template "'+t.name+'", which was too large to embed. Upload that STL with Import STL template.','error');p.settings.templateId='etsyfolger-v1';}
+  if(t&&!t.mesh){if(customTemplate&&customTemplate.name===t.name){p.settings.templateId='custom-stl';AppState.templateId='custom-stl';setActiveTemplateBase(customTemplate.display||customTemplate.base);ensureCustomPrint();return 'Using the loaded template '+t.name+'; check that it is the same STL.'}p.settings.templateId='etsyfolger-v1';activateBuiltinTemplate();return 'This project used the custom template "'+t.name+'", which was too large to embed. Upload that STL with Import STL template.'}
   if(p.settings.templateId==='custom-stl'&&!t)p.settings.templateId='etsyfolger-v1';
   if(p.settings.templateId==='etsyfolger-v1')activateBuiltinTemplate();
+  return '';
 }
 function openCustomDB(){return new Promise((resolve,reject)=>{if(!self.indexedDB)return reject(Error('No IndexedDB'));const r=indexedDB.open(CUSTOM_DB,1);r.onupgradeneeded=()=>r.result.createObjectStore(CUSTOM_STORE);r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)})}
 // One record ('current'); every helper closes its connection when the transaction settles. Storage is best-effort.
