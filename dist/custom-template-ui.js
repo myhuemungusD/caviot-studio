@@ -1,7 +1,7 @@
 'use strict';
 /* Upload any STL as the sleeve template. Heavy work (parse, weld, orientation,
    surface preparation) runs in template-worker.js; this file wires the UI. */
-let customTemplate=null,customPrepWorker=null,customPrepSeq=0,customLoading=false;
+let customTemplate=null,customPrepWorker=null,customPrepCancel=null,customPrepSeq=0,customLoading=false,storedCustomRecord=null;
 const CUSTOM_EMBED_LIMIT=24*1024*1024,CUSTOM_DB='icaviot.templates.v1',CUSTOM_STORE='templates';
 const customDefaults={up:'auto',turn:0,units:'mm',autoAlign:true};
 
@@ -26,29 +26,35 @@ const customInput=$('templateStlInput');
 function openTemplateUpload(){customInput.value='';customInput.click()}
 $('uploadTemplateBtn').onclick=openTemplateUpload;
 $('flattenStlBtn').onclick=()=>els.stlInput&&els.stlInput.click();
-customInput.onchange=()=>{const file=customInput.files?.[0];if(file)loadCustomTemplateFile(file)};
+// Errors are already shown in the panel and a toast by useCustomTemplateBuffer.
+customInput.onchange=()=>{const file=customInput.files?.[0];if(file)loadCustomTemplateFile(file).catch(()=>{})};
+const isCancelled=error=>error?.code==='CANCELLED';
 function customStatus(message,level=''){const el=$('customTemplateStatus');el.textContent=message;el.classList.toggle('error',level==='warn');el.classList.toggle('bad',level==='bad')}
 function customOrientationFromUI(){return CustomTemplate.normalizeOrientation({up:$('customUp').value,turn:Number($('customTurn').value),units:$('customUnits').value,autoAlign:$('customAutoAlign').checked})}
 function customOrientationToUI(o){$('customUp').value=o.up;$('customTurn').value=String(o.turn);$('customUnits').value=o.units;$('customAutoAlign').checked=o.autoAlign}
 function syncCustomPanel(){
-  const option=$('templateChoice').querySelector('option[value="custom-stl"]');option.textContent=customTemplate?'Custom STL · '+customTemplate.name.slice(0,40):'Custom STL · upload…';
+  const option=$('templateChoice').querySelector('option[value="custom-stl"]');const name=customTemplate?.name||storedCustomRecord?.name;option.textContent=name?'Custom STL · '+name.slice(0,40):'Custom STL · upload…';
   $('customTemplatePanel').hidden=!customTemplate;
   for(const id of ['customUp','customTurn','customUnits','customAutoAlign','repairTemplateBtn','removeTemplateBtn','uploadTemplateBtn'])$(id).disabled=customLoading&&id!=='removeTemplateBtn'||exportBusy;
   if(customTemplate){const b=customTemplate.base.bounds,dims=[b.max[0]-b.min[0],b.max[2]-b.min[2],b.max[1]-b.min[1]].map(v=>v.toFixed(1)).join(' × ');$('customTemplateInfo').textContent=customTemplate.name+' · '+dims+' mm · '+customTemplate.report.triangles.toLocaleString()+' triangles';}
 }
 
 // ---------- Worker orchestration ----------
+// Only one preparation runs at a time; starting another (or removing the template) cancels
+// the previous one, whose promise rejects with code CANCELLED so callers can ignore it.
+function cancelCustomPreparation(){if(customPrepCancel)customPrepCancel()}
 function prepareCustomTemplate(job){
-  if(customPrepWorker)customPrepWorker.terminate();
+  cancelCustomPreparation();
   const id=++customPrepSeq,worker=new Worker('template-worker.js');customPrepWorker=worker;customLoading=true;syncCustomPanel();
   return new Promise((resolve,reject)=>{
     let ready=null;
-    const end=()=>{worker.terminate();if(customPrepWorker===worker){customPrepWorker=null;customLoading=false}syncCustomPanel()};
-    worker.onerror=e=>{end();const error=Error('The template worker stopped'+(e.message?': '+e.message:'')+'. The mesh may be too large for this browser.');if(!ready)reject(error);else customStatus(error.message,'warn')};
+    const end=()=>{worker.terminate();if(customPrepWorker===worker){customPrepWorker=null;customPrepCancel=null;customLoading=false}syncCustomPanel()};
+    customPrepCancel=()=>{end();const error=Error('Template preparation was cancelled.');error.code='CANCELLED';reject(error)};
+    worker.onerror=e=>{e.preventDefault?.();end();reject(Error('The template worker stopped'+(e.message?': '+e.message:'')+'. The mesh may be too large for this browser; try a simplified STL.'))};
     worker.onmessage=({data})=>{
       if(data.id!==id)return;
       if(data.progress){if(!ready){templateStatus('Loading template: '+data.progress+'…');customStatus('Loading: '+data.progress+'…')}return}
-      if(data.error){end();const error=Error(data.error);if(!ready)reject(error);else{customStatus('Print surface could not be prepared: '+data.error+' Export will try again.','warn')}return}
+      if(data.error){end();reject(Error(data.error));return}
       if(data.stage==='ready'){
         const source=data.source||job.source,t={key:'custom-'+Date.now()+'-'+id,name:job.name,source,report:data.report,orientation:data.base.orientation,base:data.base,display:data.display,preview:data.preview,print:null,repaired:!!(job.repaired||job.repair||data.report.repaired),embed:null};
         ready=t;end();resolve(t);
@@ -63,7 +69,7 @@ function ensureCustomPrint(t=customTemplate){
   if(!t||t.print||t.printWorker)return;const worker=new Worker('template-worker.js');t.printWorker=worker;
   const done=()=>{worker.terminate();t.printWorker=null};
   worker.onmessage=({data})=>{if(data.progress)return;done();if(data.error){if(customTemplate===t)customStatus('Print surface could not be prepared in advance: '+data.error+' Export will try again.','warn');return}t.print=data.print;if(customTemplate===t){const s=customSummary(t);customStatus(s.text,s.level)}};
-  worker.onerror=()=>{done();if(customTemplate===t)customStatus('Print surface could not be prepared in advance; export will prepare it.','warn')};
+  worker.onerror=e=>{e.preventDefault?.();done();if(customTemplate===t)customStatus('Print surface could not be prepared in advance; export will prepare it.','warn')};
   worker.postMessage({type:'custom-print',id:1,base:t.base});
   if(customTemplate===t){const s=customSummary(t);customStatus(s.text,s.level)}
 }
@@ -82,15 +88,14 @@ function customSummary(t){
   else if(s.thinVertices/s.outerVertices>.5){level=level||'warn';notes.push('Most outside walls are thinner than 1.6 mm, so relief is suppressed there.')}
   if(t.display)notes.push('Large mesh: preview uses a simplified '+(t.display.indices.length/3).toLocaleString()+'-triangle copy; export uses all '+r.triangles.toLocaleString()+' triangles.');
   else if(r.triangles>250000)notes.push('Large mesh: previews and exports may be slow.');
-  notes.push(t.print?'Print surface ready ('+t.print.spacing.toFixed(2)+' mm spacing).':t.printWorker?'Preparing the print surface in the background…':'The print surface is prepared when you use this template.');
+  notes.push(t.print?'Print surface ready ('+(Number.isFinite(t.print.spacing)?t.print.spacing.toFixed(2)+' mm spacing':'original triangles, already dense')+').':t.printWorker?'Preparing the print surface in the background…':'The print surface is prepared when you use this template.');
   if(!issues.length&&!r.nonOrientable)notes.unshift('Closed, manifold mesh.');
   if(r.repairReport){const x=r.repairReport;notes.unshift('Make template watertight: welded '+x.welded+' vertices, removed '+x.removed+' faces, patched '+x.filled+' tiny holes'+(issues.length?'; larger holes remain.':'.'))}
   return{text:notes.join(' '),level};
 }
 async function loadCustomTemplateFile(file){
   if(exportBusy){toast('Wait for the export to finish.','error');return}
-  if(!/\.stl$/i.test(file.name)&&!/stl/i.test(file.type))toast('This file does not end in .stl; trying anyway.','error');
-  if(file.size>CustomTemplate.MAX_BYTES){toast('STL is larger than 100 MB. Simplify it first.','error');customStatus('STL is larger than 100 MB. Simplify it first.','bad');return}
+  if(file.size>CustomTemplate.MAX_BYTES){const message='Could not use '+file.name+': the STL is larger than 100 MB. Simplify it in your mesh tool first.';toast(message,'error');$('customTemplatePanel').hidden=!customTemplate;customStatus(message,'bad');return}
   const buffer=await file.arrayBuffer();return useCustomTemplateBuffer(buffer,file.name.replace(/\.stl$/i,'').slice(0,120)||'Custom STL',customDefaults,{activate:true});
 }
 async function useCustomTemplateBuffer(buffer,name,orientation,{activate=true,repaired=false,quiet=false}={}){
@@ -99,6 +104,7 @@ async function useCustomTemplateBuffer(buffer,name,orientation,{activate=true,re
     const t=await prepareCustomTemplate({buffer,name,orientation,repaired});
     installCustomTemplate(t,activate);if(!quiet)toast('Template ready: '+name,'success');return t;
   }catch(error){
+    if(isCancelled(error))throw error;
     const message='Could not use this STL: '+error.message;customStatus(message,'bad');templateStatus(message,true);if(!quiet)toast(message,'error');
     if(!customTemplate)$('customTemplatePanel').hidden=true;else syncCustomPanel();
     throw error;
@@ -118,7 +124,11 @@ function activateCustomTemplate(){
 function activateBuiltinTemplate(){if(builtinTemplateBase&&templateBase!==builtinTemplateBase)setActiveTemplateBase(builtinTemplateBase)}
 // Called by the template selector before it switches.
 function beforeTemplateChoice(value){
-  if(value==='custom-stl'){if(!customTemplate){openTemplateUpload();return false}setActiveTemplateBase(customTemplate.display||customTemplate.base);ensureCustomPrint();setTimeout(()=>templateView('front'));return true}
+  if(value==='custom-stl'){
+    // Remembered template: prepare it now (it is not prepared on every page load).
+    if(!customTemplate&&storedCustomRecord){loadStoredRecord(storedCustomRecord,true);return false}
+    // Keyboard users change selects with arrow keys, so never pop a file dialog from here.
+    if(!customTemplate){$('customTemplatePanel').hidden=true;templateStatus('Upload an STL first with Upload STL template.',true);$('uploadTemplateBtn').focus();return false}setActiveTemplateBase(customTemplate.display||customTemplate.base);ensureCustomPrint();setTimeout(()=>templateView('front'));return true}
   if(value==='etsyfolger-v1'){if(!builtinTemplateBase){toast(builtinTemplateError?builtinTemplateError.message:'The ETSYFOLGER template is still loading.','error');return false}activateBuiltinTemplate();setTimeout(()=>templateView('front'));}
   return true;
 }
@@ -144,11 +154,11 @@ function reorientCustomTemplate(repair=false){
     installCustomTemplate(t,AppState.templateId==='custom-stl');
     if(repair){const r=t.report.repairReport;toast(t.report.closed?'Template is now watertight':'Template still has problems — see the template panel',t.report.closed?'success':'error');}
     dirty();
-  }).catch(error=>{customStatus((repair?'Repair failed: ':'Could not re-orient: ')+error.message,'bad');customOrientationToUI(CustomTemplate.normalizeOrientation(previous.orientation))});
+  }).catch(error=>{if(isCancelled(error))return;customStatus((repair?'Repair failed: ':'Could not re-orient: ')+error.message,'bad');customOrientationToUI(CustomTemplate.normalizeOrientation(previous.orientation))});
 }
 for(const id of ['customUp','customTurn','customUnits','customAutoAlign'])$(id).addEventListener('change',e=>{e.stopPropagation();reorientCustomTemplate(false)});
 $('repairTemplateBtn').onclick=()=>reorientCustomTemplate(true);
-$('removeTemplateBtn').onclick=()=>{if(customPrepWorker){customPrepWorker.terminate();customPrepWorker=null}const wasActive=AppState.templateId==='custom-stl';dropCustomPrint(customTemplate);customTemplate=null;deleteStoredCustomTemplate();syncCustomPanel();if(wasActive){AppState.templateId='etsyfolger-v1';activateBuiltinTemplate();projectStateToUI();if(templateBase){if(AppState.image)scheduleRebuild(true);else renderTemplateBlank();templateView('front')}saveSettings()}toast('Custom template removed','success');dirty()};
+$('removeTemplateBtn').onclick=()=>{cancelCustomPreparation();const wasActive=AppState.templateId==='custom-stl';dropCustomPrint(customTemplate);customTemplate=null;storedCustomRecord=null;deleteStoredCustomTemplate();syncCustomPanel();if(wasActive){AppState.templateId='etsyfolger-v1';activateBuiltinTemplate();projectStateToUI();if(templateBase){if(AppState.image)scheduleRebuild(true);else renderTemplateBlank();templateView('front')}saveSettings()}toast('Custom template removed','success');dirty()};
 
 // ---------- Persistence: project files and this browser ----------
 function blobToDataURL(blob){return new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=()=>reject(r.error);r.readAsDataURL(blob)})}
@@ -168,23 +178,38 @@ async function restoreProjectTemplate(p){
   const t=p.version===4?p.template:null;
   if(t&&t.mesh){
     try{const bytes=new Uint8Array(await (await fetch(t.mesh)).arrayBuffer()),buffer=await gunzipBytes(bytes);await useCustomTemplateBuffer(buffer,t.name,t.orientation,{activate:false,repaired:t.repaired,quiet:true});p.settings.templateId='custom-stl';AppState.templateId='custom-stl';setActiveTemplateBase(customTemplate.display||customTemplate.base);ensureCustomPrint();setTimeout(()=>templateView('front'),50);return}
-    catch(error){toast('The embedded template could not be loaded: '+error.message+' Using ETSYFOLGER instead.','error');p.settings.templateId='etsyfolger-v1';activateBuiltinTemplate();return}
+    catch(error){if(isCancelled(error))throw Error('Another template was loaded while opening the project. Open it again.');toast('The embedded template could not be loaded: '+error.message+' Using ETSYFOLGER instead.','error');p.settings.templateId='etsyfolger-v1';activateBuiltinTemplate();return}
   }
   if(t&&!t.mesh){if(customTemplate&&customTemplate.name===t.name){p.settings.templateId='custom-stl';AppState.templateId='custom-stl';setActiveTemplateBase(customTemplate.display||customTemplate.base);ensureCustomPrint();toast('Using the loaded template '+t.name+'. Check that it is the same STL.','success');return}toast('This project used the custom template "'+t.name+'", which was too large to embed. Upload that STL with Import STL template.','error');p.settings.templateId='etsyfolger-v1';}
   if(p.settings.templateId==='custom-stl'&&!t)p.settings.templateId='etsyfolger-v1';
   if(p.settings.templateId==='etsyfolger-v1')activateBuiltinTemplate();
 }
 function openCustomDB(){return new Promise((resolve,reject)=>{if(!self.indexedDB)return reject(Error('No IndexedDB'));const r=indexedDB.open(CUSTOM_DB,1);r.onupgradeneeded=()=>r.result.createObjectStore(CUSTOM_STORE);r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)})}
-async function storeCustomTemplate(t,embed){try{if(embed.bytes>60*1024*1024)return;const db=await openCustomDB();db.transaction(CUSTOM_STORE,'readwrite').objectStore(CUSTOM_STORE).put({name:t.name,gz:embed.gz,orientation:CustomTemplate.normalizeOrientation(t.orientation),repaired:!!t.repaired},'current')}catch{}}
-async function deleteStoredCustomTemplate(){try{const db=await openCustomDB();db.transaction(CUSTOM_STORE,'readwrite').objectStore(CUSTOM_STORE).delete('current')}catch{}}
-async function readStoredCustomTemplate(){const db=await openCustomDB();return await new Promise((resolve,reject)=>{const r=db.transaction(CUSTOM_STORE).objectStore(CUSTOM_STORE).get('current');r.onsuccess=()=>resolve(r.result||null);r.onerror=()=>reject(r.error)})}
+// One record ('current'); every helper closes its connection when the transaction settles. Storage is best-effort.
+async function customDB(mode,action){const db=await openCustomDB();try{return await new Promise((resolve,reject)=>{const tx=db.transaction(CUSTOM_STORE,mode),r=action(tx.objectStore(CUSTOM_STORE));tx.oncomplete=()=>resolve(r.result);tx.onerror=tx.onabort=()=>reject(tx.error)})}finally{db.close()}}
+async function storeCustomTemplate(t,embed){if(customTemplate!==t||embed.bytes>60*1024*1024)return;try{await customDB('readwrite',store=>store.put({name:t.name,gz:embed.gz,orientation:CustomTemplate.normalizeOrientation(t.orientation),repaired:!!t.repaired},'current'))}catch{}}
+async function deleteStoredCustomTemplate(){try{await customDB('readwrite',store=>store.delete('current'))}catch{}}
+async function readStoredCustomTemplate(){return (await customDB('readonly',store=>store.get('current')))||null}
 function fallbackToBuiltin(){if(AppState.templateId!=='custom-stl')return;AppState.templateId='etsyfolger-v1';if(builtinTemplateBase){activateBuiltinTemplate();projectStateToUI();if(AppState.image)scheduleRebuild(true);else renderTemplateBlank();templateView('front')}else projectStateToUI()}
+async function loadStoredRecord(record,activate){
+  if(activate)templateStatus('Restoring your custom template '+record.name+'…');
+  try{const buffer=await gunzipBytes(record.gz);await useCustomTemplateBuffer(buffer,record.name,record.orientation,{activate,repaired:record.repaired,quiet:!activate});storedCustomRecord=null}
+  catch(error){if(isCancelled(error))return;storedCustomRecord=null;syncCustomPanel();if(activate)fallbackToBuiltin()}
+}
+// On start-up the remembered template is only prepared if it was the active one; otherwise it
+// waits in storedCustomRecord until chosen in the template list.
 async function restoreStoredCustomTemplate(){
   const wanted=AppState.templateId==='custom-stl';let record=null;
   try{record=await readStoredCustomTemplate()}catch{}
   if(!record){fallbackToBuiltin();return}
-  if(wanted)templateStatus('Restoring your custom template '+record.name+'…');
-  try{const buffer=await gunzipBytes(record.gz);await useCustomTemplateBuffer(buffer,record.name,record.orientation,{activate:wanted,repaired:record.repaired,quiet:true})}
-  catch{fallbackToBuiltin()}
+  if(customTemplate)return; // the user already uploaded or opened one
+  storedCustomRecord=record;syncCustomPanel();
+  if(wanted&&AppState.templateId==='custom-stl')await loadStoredRecord(record,true);
 }
+// Keep the displayed surface in step with templateId whenever settings are reloaded (undo/redo, project open).
+function syncTemplateBaseToState(){
+  if(AppState.templateId==='custom-stl'){if(customTemplate){const base=customTemplate.display||customTemplate.base;if(templateBase!==base){setActiveTemplateBase(base);ensureCustomPrint()}}else if(storedCustomRecord&&!customLoading&&builtinTemplateBase){const record=storedCustomRecord;AppState.templateId='etsyfolger-v1';activateBuiltinTemplate();loadStoredRecord(record,true)}else if(builtinTemplateBase&&!storedCustomRecord&&!customLoading){AppState.templateId='etsyfolger-v1';activateBuiltinTemplate()}}
+  else if(AppState.templateId==='etsyfolger-v1')activateBuiltinTemplate();
+}
+const customOriginalLoadSettings=loadSettings;loadSettings=function(...args){customOriginalLoadSettings(...args);syncTemplateBaseToState()};
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{syncCustomPanel();restoreStoredCustomTemplate()});else{syncCustomPanel();restoreStoredCustomTemplate()}

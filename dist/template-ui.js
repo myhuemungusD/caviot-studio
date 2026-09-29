@@ -6,13 +6,15 @@ function templateActive(){return TEMPLATE_IDS.includes(AppState.templateId)&&App
 // Overridden by custom-template-ui.js; the built-in template needs no extra job data.
 function templateJobData(worker,quality){return undefined}
 function templateInfo(){return{label:'ETSYFOLGER',file:'ETSYFOLGER',description:'Original cavity, openings and dimensions preserved.',surface:'ETSYFOLGER · curved surface',stats:'Original STL · '+(templateBase?Math.round(templateBase.height):89)+' mm tall',ready:'Your original sleeve is ready. Add an image, pattern or text.'}}
-function placementLimit(id,min,max){if(!templateBase)return max;if(id==='designY')return Math.ceil(templateBase.height);if(id==='designHeight')return Math.max(min,Math.ceil(templateBase.height));if(id==='designWidth')return Math.max(160,Math.ceil(Math.min(3000,templateBase.chart?.perimeter||SleeveTemplate.profile(templateBase).perimeter)));return max}
+// Custom templates can be larger than the built-in sleeve; the built-in keeps its original slider ranges.
+function placementLimit(id,min,max){if(!templateBase||AppState.templateId!=='custom-stl')return max;if(id==='designY')return Math.ceil(templateBase.height);if(id==='designHeight')return Math.max(min,Math.ceil(templateBase.height));if(id==='designWidth')return Math.max(160,Math.ceil(Math.min(3000,templateBase.chart?.perimeter||SleeveTemplate.profile(templateBase).perimeter)));return max}
 function syncPlacementLimits(){for(const[id,,min,max]of placementSpecs){const lim=placementLimit(id,min,max);for(const suffix of ['Range','Number']){const el=$(id+suffix);if(el)el.max=String(lim)}}}
 function setActiveTemplateBase(base){
   templateBase=base;templateRevision++;templatePending=null;
   if(templatePreviewWorker){templatePreviewWorker.terminate();templatePreviewWorker=null;templatePreviewRunning=false}
-  if(templateRayMesh){templateRayMesh.geometry.dispose();templateRayMesh=null}
-  if(typeof placementMesh!=='undefined'&&placementMesh){scene?.remove(placementMesh);placementMesh.geometry.dispose();placementMesh=null;placementAtlasKey='';placementAtlasEntries=[]}
+  if(templateRayMesh){templateRayMesh.geometry.dispose();templateRayMesh.material.dispose();templateRayMesh=null}
+  // Release the placement overlay's GPU resources; ensurePlacementMesh rebuilds them for the new surface.
+  if(typeof placementMesh!=='undefined'&&placementMesh){scene?.remove(placementMesh);placementMesh.geometry.dispose();placementMesh.material.dispose();placementUniforms.arc.value?.dispose();placementTexture?.dispose();placementOtherTexture?.dispose();placementMesh=null;placementAtlasKey='';placementAtlasEntries=[];placementImageMap=null}
   if(base){templateRayMesh=new THREE.Mesh(MC.toThreeGeometry(base,THREE),new THREE.MeshBasicMaterial({side:THREE.DoubleSide}));templateRayMesh.updateMatrixWorld()}
   syncPlacementLimits();
 }
@@ -48,7 +50,7 @@ function ensurePreviewWorker(){
 function dispatchPreview(){if(templatePreviewRunning||!templatePending)return;ensurePreviewWorker();templatePreviewRunning=true;const job=templatePending;templatePending=null;job.template=templateJobData(templatePreviewWorker,'preview');templatePreviewWorker.postMessage(job)}
 function requestTemplatePreview(){if(!templateBase||!templateActive())return;if(!hasSleeveArtwork()){renderTemplateBlank();return}const id=++templateRevision;templatePending={id,type:'preview',options:templateOptions()};templateStatus('Forming your design along the sleeve…');syncTemplateUI();dispatchPreview()}
 function setTemplateMove(value){templateMove=!!value&&templateActive();$('moveDesign').setAttribute('aria-pressed',String(templateMove));$('moveDesign').textContent=templateMove?'Moving design · click to orbit':'Move design on sleeve';document.body.classList.toggle('moving-template-design',templateMove);if(controls)controls.enabled=!templateMove}
-function templateView(which){if(!camera||!controls||!templateBase)return;const target=new THREE.Vector3(0,templateBase.height/2,0),d=({front:[0,0,1],back:[0,0,-1],left:[-1,0,0],right:[1,0,0]})[which];const dist=Math.max(155,2.2*Math.max(templateBase.height,templateBase.bounds?Math.max(templateBase.bounds.max[0]-templateBase.bounds.min[0],templateBase.bounds.max[2]-templateBase.bounds.min[2]):0));camera.position.set(target.x+d[0]*dist,target.y+d[1]*dist,target.z+d[2]*dist);controls.target.copy(target);camera.lookAt(target);controls.update()}
+function templateView(which){if(!camera||!controls||!templateBase)return;const target=new THREE.Vector3(0,templateBase.height/2,0),d=({front:[0,0,1],back:[0,0,-1],left:[-1,0,0],right:[1,0,0]})[which];const dist=AppState.templateId==='custom-stl'&&templateBase.bounds?Math.max(155,2.2*Math.max(templateBase.height,templateBase.bounds.max[0]-templateBase.bounds.min[0],templateBase.bounds.max[2]-templateBase.bounds.min[2])):155;camera.position.set(target.x+d[0]*dist,target.y+d[1]*dist,target.z+d[2]*dist);controls.target.copy(target);camera.lookAt(target);controls.update()}
 let templateGrabOffset=null,wheelGrabRestoreMove=null;
 function templateSurfaceHit(e){
  if(!templateRayMesh||!camera)return null;const rect=renderer.domElement.getBoundingClientRect(),ray=new THREE.Raycaster();ray.setFromCamera(new THREE.Vector2((e.clientX-rect.left)/rect.width*2-1,-(e.clientY-rect.top)/rect.height*2+1),camera);const hit=ray.intersectObject(templateRayMesh,false)[0];if(!hit)return null;const p=hit.point,n=hit.face.normal,radial=new THREE.Vector3(p.x,0,p.z).normalize();return n.dot(radial)<.25||Math.abs(n.y)>.78?null:p;
