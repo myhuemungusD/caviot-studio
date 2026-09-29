@@ -86,7 +86,11 @@ await test('dense meshes: coarser retries, then unrefined fallback, never a hard
   const p=CustomTemplate.prepare(base,{spacing:.3,maxPoints:base.positions.length/3+2000,onProgress:m=>msgs.push(m)});
   assert(msgs.some(m=>/retrying/.test(m)),'backs off to a coarser spacing');assert(p.stats.vertices<=base.positions.length/3+2000||p.spacing===Infinity);
   const tiny=CustomTemplate.prepare(base,{spacing:.3,maxPoints:10,onProgress:m=>msgs.push(m)});assert.equal(tiny.spacing,Infinity);assert(msgs.some(m=>/without refinement/.test(m)));
-  const near=[];CustomTemplate.prepare(base,{spacing:.3,maxPoints:Math.ceil(base.positions.length/3/.95),onProgress:m=>near.push(m)});assert(!near.some(m=>/retrying/.test(m))&&near.some(m=>/without refinement/.test(m)),'an input already near the budget skips refinement attempts');
+  // Long slivers on the side, big fan triangles on the caps: when full refinement cannot fit, only the caps are refined.
+  const cyl=[],CP=(i,z)=>[10*Math.cos(i/400*2*Math.PI),10*Math.sin(i/400*2*Math.PI),z];for(let i=0;i<400;i++){const j=(i+1)%400;for(let k=0;k<10;k++)cyl.push([CP(i,k*2),CP(j,k*2),CP(j,k*2+2)],[CP(i,k*2),CP(j,k*2+2),CP(i,k*2+2)]);cyl.push([[0,0,0],CP(j,0),CP(i,0)],[[0,0,20],CP(i,20),CP(j,20)])}
+  const slivers=CustomTemplate.orient(CustomTemplate.load(binarySTL(cyl)).source,{up:'+z'}),V=slivers.positions.length/3;
+  for(const maxPoints of [V+2000,Math.ceil(V/.95)]){const g=CustomTemplate.prepare(slivers,{spacing:.5,maxPoints});let bottom=0;for(let i=0;i<g.stats.vertices;i++)if(g.outer[i]&&g.positions[i*3+1]<1e-3&&g.distance[i]>1.2)bottom++;
+    assert(Number.isFinite(g.spacing)&&g.stats.vertices<=maxPoints,'area-gated refinement fits the budget');assert(bottom>100,'the bottom cap gets interior vertices for relief (unrefined it has 1): '+bottom)}
   assert.equal(tiny.indices.length,base.indices.length);const v=MeshCore.validateMesh(tiny.positions,tiny.indices);assert.equal(v.boundary+v.nonManifold,0);
 });
 await test('wall-thickness rays capped at 4 mm on closed meshes give the same relief limits',()=>{

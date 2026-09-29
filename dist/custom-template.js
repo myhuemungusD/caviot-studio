@@ -211,15 +211,21 @@ globalThis.CustomTemplate=(()=>{
     let s=min;while(predicted(s)>Math.max(target,faces*1.3)&&s<1000)s*=1.15;return s;
   }
   // Budget: 900k vertices, or the input plus 400k for already-dense meshes, capped at 1.1M so sharp-edge
-  // export (1.4M-vertex limit) keeps room for contours. If refinement still overflows after coarser retries,
-  // or the input alone is near the budget, the surface is used unrefined.
+  // export (1.4M-vertex limit) keeps room for contours. If full refinement overflows after coarser retries
+  // (or the input alone is near the budget), only faces that are large in both directions are refined:
+  // that still gives big caps and bottoms vertices for relief without multiplying long slivers. The last
+  // resort is the unrefined surface.
   function prepare(base,{spacing,quality='preview',onProgress=()=>{},maxPoints}={}){
     if(!spacing)spacing=chooseSpacing(base,quality);
-    const vertices=base.positions.length/3,budget=maxPoints||Math.min(1100000,Math.max(900000,vertices+400000));
-    for(let attempt=0;attempt<4&&vertices<budget*.9;attempt++){try{return prepareAt(base,spacing,onProgress,budget)}catch(e){if(e.code!=='DETAIL')throw e;spacing*=1.4;onProgress('Mesh too dense at this spacing; retrying at '+spacing.toFixed(2)+' mm')}}
+    const vertices=base.positions.length/3,budget=maxPoints||Math.min(1100000,Math.max(900000,vertices+400000)),first=spacing;
+    const retry=(e,s)=>{if(e.code!=='DETAIL')throw e;onProgress('Mesh too dense at this spacing; retrying at '+s.toFixed(2)+' mm')};
+    for(let attempt=0;attempt<4&&vertices<budget*.9;attempt++){try{return prepareAt(base,spacing,onProgress,budget)}catch(e){spacing*=1.4;retry(e,spacing)}}
+    spacing=first;
+    for(let attempt=0;attempt<6;attempt++){try{return prepareAt(base,spacing,onProgress,budget,spacing*spacing)}catch(e){spacing*=1.4;retry(e,spacing)}}
     onProgress('Using the original triangles without refinement');return prepareAt(base,Infinity,onProgress,Infinity);
   }
-  function prepareAt(base,spacing,onProgress,maxPoints){
+  // minArea (optional): only split faces with at least this area (skips long thin slivers).
+  function prepareAt(base,spacing,onProgress,maxPoints,minArea=0){
     const P0=base.positions,I0=base.indices,faces0=I0.length/3,{outer:faceOuter,fn}=classify(P0,I0);
     let nPts=P0.length/3,cap=Math.max(nPts*2,1024);let P=new Float64Array(cap*3),N=new Float64Array(cap*3);P.set(P0);
     for(let f=0;f<faces0;f++)if(faceOuter[f])for(let j=0;j<3;j++){const i=I0[f*3+j],pj=I0[f*3+(j+1)%3],pk=I0[f*3+(j+2)%3];let ux=P[pj*3]-P[i*3],uy=P[pj*3+1]-P[i*3+1],uz=P[pj*3+2]-P[i*3+2],vx=P[pk*3]-P[i*3],vy=P[pk*3+1]-P[i*3+1],vz=P[pk*3+2]-P[i*3+2];const lu=Math.hypot(ux,uy,uz)||1,lv=Math.hypot(vx,vy,vz)||1;const angle=Math.acos(Math.max(-1,Math.min(1,(ux*vx+uy*vy+uz*vz)/(lu*lv))));for(let a=0;a<3;a++)N[i*3+a]+=fn[f*3+a]*angle}
@@ -227,10 +233,10 @@ globalThis.CustomTemplate=(()=>{
     onProgress('Indexing surface');const tree=buildBVH(P0,I0);
     let tris=new Uint32Array(I0),tags=Uint8Array.from(faceOuter);
     const grow=need=>{if(need<=cap)return;cap=Math.max(need,cap*2);const p=new Float64Array(cap*3);p.set(P);P=p;const n=new Float64Array(cap*3);n.set(N);N=n};
-    const s2=spacing*spacing;
+    const s2=spacing*spacing,triArea=f=>{const a=tris[f*3]*3,b=tris[f*3+1]*3,c=tris[f*3+2]*3,ux=P[b]-P[a],uy=P[b+1]-P[a+1],uz=P[b+2]-P[a+2],vx=P[c]-P[a],vy=P[c+1]-P[a+1],vz=P[c+2]-P[a+2];return Math.hypot(uy*vz-uz*vy,uz*vx-ux*vz,ux*vy-uy*vx)/2};
     for(let pass=0;pass<24;pass++){
       const split=new Map(),key=(a,b)=>a<b?a*4294967296+b:b*4294967296+a;const nf=tris.length/3;
-      for(let f=0;f<nf;f++){if(!tags[f])continue;let longest=s2,edge=-1;for(let e=0;e<3;e++){const a=tris[f*3+e]*3,b=tris[f*3+(e+1)%3]*3,l=(P[a]-P[b])**2+(P[a+1]-P[b+1])**2+(P[a+2]-P[b+2])**2;if(l>longest){longest=l;edge=e}}if(edge<0)continue;
+      for(let f=0;f<nf;f++){if(!tags[f]||minArea&&triArea(f)<minArea)continue;let longest=s2,edge=-1;for(let e=0;e<3;e++){const a=tris[f*3+e]*3,b=tris[f*3+(e+1)%3]*3,l=(P[a]-P[b])**2+(P[a+1]-P[b+1])**2+(P[a+2]-P[b+2])**2;if(l>longest){longest=l;edge=e}}if(edge<0)continue;
         const a=tris[f*3+edge],b=tris[f*3+(edge+1)%3],k=key(a,b);if(split.has(k))continue;grow(nPts+1);const m=nPts++;split.set(k,m);for(let x=0;x<3;x++){P[m*3+x]=(P[a*3+x]+P[b*3+x])/2;N[m*3+x]=N[a*3+x]+N[b*3+x]}const l=Math.hypot(N[m*3],N[m*3+1],N[m*3+2]);if(l>1e-12)for(let x=0;x<3;x++)N[m*3+x]/=l}
       if(!split.size)break;if(nPts>maxPoints)throw fail('Template detail is too high for spacing '+spacing.toFixed(2)+' mm.','DETAIL');
       const next=[],nextTags=[];
