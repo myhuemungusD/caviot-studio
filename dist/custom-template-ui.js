@@ -2,6 +2,8 @@
 /* Upload any STL as the sleeve template. Heavy work (parse, weld, orientation,
    surface preparation) runs in template-worker.js; this file wires the UI. */
 let customTemplate=null,customPrepWorker=null,customPrepCancel=null,customPrepSeq=0,customLoading=false,storedCustomRecord=null;
+// True while an upload/restore that should switch to the template is running; choosing another template clears it.
+let customActivatePending=false;
 const CUSTOM_EMBED_LIMIT=24*1024*1024,CUSTOM_DB='icaviot.templates.v1',CUSTOM_STORE='templates';
 const customDefaults={up:'auto',turn:0,units:'mm',autoAlign:true};
 
@@ -101,11 +103,12 @@ async function loadCustomTemplateFile(file){
 async function useCustomTemplateBuffer(buffer,name,orientation,{activate=true,repaired=false,quiet=false}={}){
   $('customTemplatePanel').hidden=false;$('customTemplateInfo').textContent=name;customStatus('Reading '+name+'…');templateStatus('Loading template '+name+'…');
   try{
+    if(activate)customActivatePending=true;
     const t=await prepareCustomTemplate({buffer,name,orientation,repaired});
-    installCustomTemplate(t,activate);if(!quiet)toast('Template ready: '+name,'success');return t;
+    installCustomTemplate(t,activate&&customActivatePending);customActivatePending=false;if(!quiet)toast('Template ready: '+name,'success');return t;
   }catch(error){
-    if(isCancelled(error))throw error;
-    const message='Could not use this STL: '+error.message;customStatus(message,'bad');templateStatus(message,true);if(!quiet)toast(message,'error');
+    if(isCancelled(error))throw error; // the newer preparation owns customActivatePending
+    customActivatePending=false;const message='Could not use this STL: '+error.message;customStatus(message,'bad');templateStatus(message,true);if(!quiet)toast(message,'error');
     if(!customTemplate)$('customTemplatePanel').hidden=true;else syncCustomPanel();
     throw error;
   }
@@ -124,6 +127,7 @@ function activateCustomTemplate(){
 function activateBuiltinTemplate(){if(builtinTemplateBase&&templateBase!==builtinTemplateBase)setActiveTemplateBase(builtinTemplateBase)}
 // Called by the template selector before it switches.
 function beforeTemplateChoice(value){
+  if(value!=='custom-stl')customActivatePending=false; // a template still loading must not take over
   if(value==='custom-stl'){
     // Remembered template: prepare it now (it is not prepared on every page load).
     if(!customTemplate&&storedCustomRecord){loadStoredRecord(storedCustomRecord,true);return false}
@@ -166,7 +170,9 @@ async function gzipBytes(buffer){const stream=new Blob([buffer]).stream().pipeTh
 async function gunzipBytes(bytes){const stream=new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'));return await new Response(stream).arrayBuffer()}
 async function encodeCustomTemplate(t){
   const gz=await gzipBytes(CustomTemplate.toBinarySTL(t.source.positions,t.source.indices,'Caviot custom template: '+t.name.slice(0,50)));
-  const dataUrl=await blobToDataURL(new Blob([gz],{type:'application/gzip'}));return{gz,dataUrl:dataUrl.length<=CUSTOM_EMBED_LIMIT?dataUrl:null,bytes:gz.byteLength};
+  // Skip building a data URL that could never be embedded (base64 is 4/3 of the bytes plus the prefix).
+  const fits=Math.ceil(gz.byteLength/3)*4+64<=CUSTOM_EMBED_LIMIT,dataUrl=fits?await blobToDataURL(new Blob([gz],{type:'application/gzip'})):null;
+  return{gz,dataUrl:dataUrl&&dataUrl.length<=CUSTOM_EMBED_LIMIT?dataUrl:null,bytes:gz.byteLength};
 }
 function customTemplateProjectEntry(){
   if(!customTemplate||AppState.templateId!=='custom-stl')return null;
