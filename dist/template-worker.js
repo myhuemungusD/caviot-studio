@@ -32,12 +32,37 @@ function customPrepare(data){
   progress('Preparing print surface');const print=CustomTemplate.prepare(base,{quality:'print',onProgress:progress});
   postMessage({id:data.id,stage:'print',print},transferPrepared(print));
 }
+const buildWith=(prepared,options,data)=>options.sharp?SharpSleeve.buildAdaptive(prepared,{...options,sharpSpacing:data.type==='export'?.14:.24,weldSafe:data.template?.kind==='custom'}):SleeveTemplate.build(prepared,options);
+// Textured custom templates (bumps, discs, knurling): embossed side designs become raised pads above the texture
+// (CustomTemplate.buildTexturePads) instead of being draped over it, which would break them into fragments.
+// Everything else - deboss, bottom logos, and all ETSYFOLGER jobs - takes the normal path unchanged.
+function buildRelief(prepared,data){
+  const options=data.options,list=options.designs;
+  if(data.template?.kind!=='custom'||!prepared.texture?.textured||!list?.length)return buildWith(prepared,options,data);
+  if(data.template.raiseOnTexture===false)return noteDeboss(buildWith(prepared,options,data),list,options);
+  const raise=list.map(d=>!!d.heightmap&&!d.surface&&!(d.negative??options.negative));
+  if(!raise.includes(true))return noteDeboss(buildWith(prepared,options,data),list,options);
+  const rest=list.filter((d,i)=>!raise[i]),picked=list.filter((d,i)=>raise[i]).map(d=>({...d,sharp:d.sharp??options.sharp,maxHeight:d.maxHeight??options.maxHeight}));
+  const base=buildWith(prepared,{...options,designs:rest,heightmap:null},data);
+  const pads=CustomTemplate.buildTexturePads(prepared,picked,{spacing:data.type==='export'?.14:.24});
+  const nb=base.positions.length/3,fb=base.indices.length/3,positions=new Float32Array(base.positions.length+pads.positions.length),indices=new Uint32Array(base.indices.length+pads.indices.length);
+  positions.set(base.positions);positions.set(pads.positions,base.positions.length);indices.set(base.indices);for(let i=0;i<pads.indices.length;i++)indices[base.indices.length+i]=pads.indices[i]+nb;
+  // Pads carry full relief colour in the preview; their side walls are listed like sharp-edge walls.
+  const amplitude=new Float32Array(positions.length/3);amplitude.set(base.amplitude.subarray(0,nb));amplitude.fill(1,nb);
+  const walls=new Uint32Array((base.walls?.length||0)+pads.walls.length);if(base.walls)walls.set(base.walls);for(let i=0;i<pads.walls.length;i++)walls[(base.walls?.length||0)+i]=pads.walls[i]+fb;
+  const byRest=base.info.affectedByDesign||rest.map(()=>base.info.affected?1:0);let r=0,k=0;
+  const affectedByDesign=list.map((d,i)=>raise[i]?pads.counts[k++]:byRest[r++]??0),padCount=pads.counts.reduce((a,b)=>a+b,0);
+  return noteDeboss({positions,indices,amplitude,walls,info:{...base.info,affected:(base.info.affected||0)+padCount,affectedByDesign,raised:pads.counts.filter(Boolean).length,textureDepth:prepared.texture.depth}},list,options);
+}
+// Deboss cannot be carved through bumps without a boolean cut, so on a textured surface it reaches only the
+// smooth patches (often nothing). Count those designs so preview and export can say why.
+function noteDeboss(result,list,options){const n=list.filter(d=>d.heightmap&&!d.surface&&(d.negative??options.negative)).length;if(n)result.info.textureDeboss=n;return result}
 self.onmessage=async({data})=>{
   try{
     if(data.type==='custom-prepare'){customPrepare(data);return}
     if(data.type==='custom-print'){const print=CustomTemplate.prepare(data.base,{quality:'print',onProgress:message=>postMessage({id:data.id,progress:message})});postMessage({id:data.id,stage:'print',print},transferPrepared(print));return}
     const prepared=await resolveTemplate(data,data.type==='export'?'print':'preview');
-    const result=data.options.sharp?SharpSleeve.buildAdaptive(prepared,{...data.options,sharpSpacing:data.type==='export'?.14:.24,weldSafe:data.template?.kind==='custom'}):SleeveTemplate.build(prepared,data.options);
+    const result=buildRelief(prepared,data);
     if(data.type==='export'){
       if(data.repair){const repaired=MeshRepair.repair(result.positions,result.indices);if(!repaired.report.closed)throw Error('Repair could not close this mesh. Reduce relief depth or adjust placement.');result.positions=repaired.positions;result.indices=repaired.indices;}
       if((data.options.designs?.length||data.options.heightmap)&&result.info.affected===0)throw Error('The design is not on a printable surface. Move it, resize it, or check background removal.');
@@ -45,6 +70,7 @@ self.onmessage=async({data})=>{
       if(missing>=0){
         // Name the bottom logo separately: its preview can succeed on the finer preview surface while a very
         // dense custom template keeps its original (unrefined) underside triangles for export.
+        if(result.info.textureDeboss&&(data.options.designs?.[missing]?.negative??data.options.negative))throw Error('Deboss cannot be cut into this template\'s textured surface. Use Emboss for that side; embossed designs are raised above the texture.');
         if(data.options.designs?.[missing]?.surface!=='underside')throw Error('One side has no artwork on a printable surface. Check its placement and background removal.');
         throw Error(data.template?.kind==='custom'?'The bottom logo does not reach a printable part of this template\'s underside. Move or enlarge it, or use a simpler STL so the underside keeps more detail.':'The bottom logo is not on a printable surface. Check its placement.');
       }
