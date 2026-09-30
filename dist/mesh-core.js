@@ -603,7 +603,9 @@ window.MeshCore = (function MeshCoreFactory() {
   function toThreeGeometry(mesh, THREE) {
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.BufferAttribute(mesh.positions, 3));
-    geo.setIndex(mesh.indices);
+    // three r128 only wraps plain arrays; a typed array (custom templates) must be wrapped here or every render
+    // that uploads this geometry throws "onUploadCallback is not a function".
+    geo.setIndex(ArrayBuffer.isView(mesh.indices)?new THREE.BufferAttribute(mesh.indices,1):mesh.indices);
     geo.computeVertexNormals();
     return geo;
   }

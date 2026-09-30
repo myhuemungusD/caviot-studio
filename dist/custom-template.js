@@ -111,7 +111,7 @@ globalThis.CustomTemplate=(()=>{
   // ---------- Orientation ----------
   const upMaps={'+z':p=>[p[0],p[2],-p[1]],'-z':p=>[p[0],-p[2],p[1]],'+y':p=>[p[0],p[1],p[2]],'-y':p=>[p[0],-p[1],-p[2]],'+x':p=>[-p[1],p[0],p[2]],'-x':p=>[p[1],-p[0],p[2]]};
   function bounds(positions){const lo=[Infinity,Infinity,Infinity],hi=[-Infinity,-Infinity,-Infinity];for(let i=0;i<positions.length;i+=3)for(let a=0;a<3;a++){const v=positions[i+a];if(v<lo[a])lo[a]=v;if(v>hi[a])hi[a]=v}return{min:lo,max:hi}}
-  function normalizeOrientation(o={}){return{up:UP_AXES.includes(o.up)?o.up:'auto',turn:TURNS.includes(Number(o.turn))?Number(o.turn):0,units:Object.hasOwn(UNITS,o.units)?o.units:'mm',autoAlign:o.autoAlign!==false}}
+  function normalizeOrientation(o={}){return{up:UP_AXES.includes(o.up)?o.up:'auto',turn:TURNS.includes(Number(o.turn))?Number(o.turn):0,units:Object.hasOwn(UNITS,o.units)?o.units:'mm',autoAlign:o.autoAlign!==false,raiseOnTexture:o.raiseOnTexture!==false}}
   // Principal horizontal direction of the outline: second moments of the cross-section perimeter at three heights,
   // integrated along each cut segment (length-weighted, so triangle density does not bias it). Heights are offset
   // slightly so a slice never passes exactly through a vertex. Returns 0 for near-round outlines, keeping the file's
@@ -151,7 +151,17 @@ globalThis.CustomTemplate=(()=>{
     let any=false;for(let i=0;i<count;i++)if(radii[i])any=true;
     if(!any){const r=Math.max(1,Math.hypot(base.bounds.max[0]-base.bounds.min[0],base.bounds.max[2]-base.bounds.min[2])/2);radii.fill(r)}
     for(let i=0;i<count;i++)if(!radii[i]){let a=1,b=1;while(!radii[(i-a+count)%count]&&a<count)a++;while(!radii[(i+b)%count]&&b<count)b++;radii[i]=(radii[(i-a+count)%count]*b+radii[(i+b)%count]*a)/(a+b)}
-    const arc=new Float32Array(count+1);for(let i=1;i<=count;i++){const a=(i-1)/count*Math.PI*2,b=i/count*Math.PI*2,ra=radii[i-1],rb=radii[i%count];arc[i]=arc[i-1]+Math.hypot(ra*Math.cos(a)-rb*Math.cos(b),ra*Math.sin(a)-rb*Math.sin(b))}
+    const arcOf=r=>{const arc=new Float32Array(count+1);for(let i=1;i<=count;i++){const a=(i-1)/count*Math.PI*2,b=i/count*Math.PI*2,ra=r[i-1],rb=r[i%count];arc[i]=arc[i-1]+Math.hypot(ra*Math.cos(a)-rb*Math.cos(b),ra*Math.sin(a)-rb*Math.sin(b))}return arc};
+    let arc=arcOf(radii);
+    // A textured outside (discs, knurls, ribs) makes the cross-section zigzag: every bump edge adds its height to
+    // the arc length, so artwork would be squeezed over bump flanks and a width in mm would cover far too little
+    // of the sleeve. Measure along a smooth envelope instead (highs within ~3 mm, then averaged) when the
+    // outline is much longer than that envelope. Smooth outlines, corners included, stay on their exact outline.
+    const sorted=Float32Array.from(radii).sort(),half=Math.max(1,Math.round(3/Math.max(sorted[count>>1],1e-3)/(Math.PI*2)*count));
+    const spread=new Float32Array(count),envelope=new Float32Array(count);
+    for(let i=0;i<count;i++){let m=0;for(let d=-half;d<=half;d++)m=Math.max(m,radii[(i+d+count)%count]);spread[i]=m}
+    for(let i=0;i<count;i++){let sum=0;for(let d=-half;d<=half;d++)sum+=spread[(i+d+count)%count];envelope[i]=sum/(2*half+1)}
+    const smooth=arcOf(envelope);if(smooth[count]*1.1<arc[count])return{arc:smooth,radii:envelope,perimeter:smooth[count],textured:true};
     return{arc,radii,perimeter:arc[count]};
   }
   // Vertex clustering for the interactive preview of very dense meshes. Export uses the full mesh.
@@ -400,7 +410,115 @@ globalThis.CustomTemplate=(()=>{
     const thickness=new Float32Array(nPts),uv=new Float32Array(nPts),chart=base.chart||profile(base);let outerCount=0,thin=0;
     for(let i=0;i<nPts;i++){uv[i]=SleeveTemplateArc(chart,Math.atan2(P[i*3+2],P[i*3]));if(membership[i]===1&&distance[i]>.001){outerCount++;const t=rayNearest(tree,P[i*3],P[i*3+1],P[i*3+2],-N[i*3],-N[i*3+1],-N[i*3+2],rayLimit);thickness[i]=t;if(!(t>=1.6))thin++}
       if(i&&i%100000===0)onProgress('Measuring wall thickness: '+Math.round(i/nPts*100)+'%')}
-    return{positions:Float32Array.from(P.subarray(0,nPts*3)),normals:Float32Array.from(N.subarray(0,nPts*3)),indices:tris,distance,thickness,uv,outer:Uint8Array.from(membership,x=>x&1),chart,height:base.height,spacing,stats:{outerVertices:outerCount,thinVertices:thin,triangles:nf,vertices:nPts}};
+    return{positions:Float32Array.from(P.subarray(0,nPts*3)),normals:Float32Array.from(N.subarray(0,nPts*3)),indices:tris,distance,thickness,uv,outer:Uint8Array.from(membership,x=>x&1),chart,height:base.height,spacing,texture:textureMap(P,tris,tags,thickness,chart,base.height),stats:{outerVertices:outerCount,thinVertices:thin,triangles:nf,vertices:nPts}};
+  }
+  // ---------- Textured surfaces ----------
+  // Templates whose outside is covered in bumps (domes, discs, knurling, ribs) break a draped relief into pieces:
+  // every bump edge counts as a rim (keep-out band), steep bump walls face sideways or up/down and get no relief,
+  // and thin walls in the recesses suppress it too. So for textured templates an embossed design is built as a
+  // separate raised "pad" instead: its top follows the smooth envelope over the bumps (plus the design depth),
+  // its bottom is sunk below the recesses, and the two are joined by vertical walls along the artwork contour.
+  // The pad is a closed shell that overlaps the template; slicers merge overlapping shells of one object.
+  // textureMap() samples the outer skin on a grid over (arc length, height); buildTexturePads() uses it.
+  const TEXTURE_CELL=.5,TEXTURE_MIN_DEPTH=.5,PAD_KEEP_OUT=1.2,PAD_EMBED=.3,PAD_MAX_POINTS=600000;
+  // Separable sliding filters on a cols×rows grid; columns wrap around the sleeve, rows are clamped.
+  function gridFilter(src,cols,rows,radius,op){
+    const k=Math.max(0,Math.round(radius/TEXTURE_CELL)),tmp=new Float32Array(src.length),out=new Float32Array(src.length);if(!k){out.set(src);return out}
+    const pick=op==='max'?Math.max:op==='min'?Math.min:null;
+    for(let y=0;y<rows;y++)for(let x=0;x<cols;x++){let v=pick?src[y*cols+x]:0;for(let d=-k;d<=k;d++){const s=src[y*cols+((x+d)%cols+cols)%cols];v=pick?pick(v,s):v+s}tmp[y*cols+x]=pick?v:v/(2*k+1)}
+    for(let y=0;y<rows;y++)for(let x=0;x<cols;x++){let v=pick?tmp[y*cols+x]:0,n=0;for(let d=-k;d<=k;d++){const yy=y+d;if(yy<0||yy>=rows)continue;const s=tmp[yy*cols+x];v=pick?pick(v,s):v+s;n++}out[y*cols+x]=pick?v:v/n}
+    return out;
+  }
+  function textureMap(P,tris,tags,thickness,chart,height){
+    const cell=TEXTURE_CELL,cols=Math.max(3,Math.ceil(chart.perimeter/cell)),rows=Math.max(3,Math.ceil(height/cell)+1),n=cols*rows;
+    const env=new Float32Array(n).fill(-Infinity),floor=new Float32Array(n).fill(Infinity),inner=new Float32Array(n).fill(-Infinity);
+    // Sample every outer side face densely (not just its vertices), so coarse meshes - a box is 12 triangles -
+    // fill the grid evenly. Up/down-facing faces (ends, flange tops, undersides) are skipped.
+    const step=cell*.5;
+    for(let f=0;f<tris.length/3;f++){
+      if(!tags[f])continue;const a=tris[f*3],b=tris[f*3+1],c=tris[f*3+2];
+      const ux=P[b*3]-P[a*3],uy=P[b*3+1]-P[a*3+1],uz=P[b*3+2]-P[a*3+2],vx=P[c*3]-P[a*3],vy=P[c*3+1]-P[a*3+1],vz=P[c*3+2]-P[a*3+2];
+      const nx=uy*vz-uz*vy,ny=uz*vx-ux*vz,nz=ux*vy-uy*vx,len=Math.hypot(nx,ny,nz);if(!(len>1e-12)||Math.abs(ny/len)>=.78)continue;
+      const edge=Math.sqrt(Math.max(ux*ux+uy*uy+uz*uz,vx*vx+vy*vy+vz*vz,(vx-ux)**2+(vy-uy)**2+(vz-uz)**2)),m=Math.min(64,Math.max(1,Math.ceil(edge/step)));
+      const ta=thickness[a],tb=thickness[b],tc=thickness[c],known=ta>0&&tb>0&&tc>0&&Number.isFinite(ta+tb+tc);
+      for(let i=0;i<=m;i++)for(let j=0;j<=m-i;j++){const wb=i/m,wc=j/m,wa=1-wb-wc,x=P[a*3]+ux*wb+vx*wc,y=P[a*3+1]+uy*wb+vy*wc,z=P[a*3+2]+uz*wb+vz*wc;
+        const gx=Math.min(cols-1,Math.floor(SleeveTemplateArc(chart,Math.atan2(z,x))/cell)),gy=Math.min(rows-1,Math.max(0,Math.floor(y/cell))),k=gy*cols+gx,r=Math.hypot(x,z);
+        if(r>env[k])env[k]=r;if(r<floor[k])floor[k]=r;if(known){const q=r-(ta*wa+tb*wb+tc*wc);if(q>inner[k])inner[k]=q}}
+    }
+    // Close pinholes (bins that fall between the vertices of a coarse surface) from their neighbours.
+    for(let pass=0;pass<3;pass++){let filled=0;const e0=env.slice(),f0=floor.slice(),i0=inner.slice();
+      for(let y=0;y<rows;y++)for(let x=0;x<cols;x++){const k=y*cols+x;if(e0[k]>-Infinity)continue;let e=-Infinity,f=Infinity,q=-Infinity;
+        for(const [dx,dy]of [[1,0],[-1,0],[0,1],[0,-1]]){const yy=y+dy;if(yy<0||yy>=rows)continue;const j=yy*cols+((x+dx)%cols+cols)%cols;if(e0[j]>e)e=e0[j];if(f0[j]<f)f=f0[j];if(i0[j]>q)q=i0[j]}
+        if(e>-Infinity){env[k]=e;floor[k]=f;inner[k]=q;filled++}}
+      if(!filled)break}
+    // Distance (mm) from each bin to the nearest bin without skin - openings, rims and the ends of the template.
+    const valid=new Float32Array(n);for(let k=0;k<n;k++)valid[k]=env[k]>-Infinity?1e6:0;
+    const diag=cell*Math.SQRT2;
+    for(let pass=0;pass<2;pass++){
+      for(let y=0;y<rows;y++)for(let xi=0;xi<2*cols;xi++){const x=xi%cols,k=y*cols+x,l=y*cols+(x+cols-1)%cols;let v=Math.min(valid[k],valid[l]+cell);if(y){const u=(y-1)*cols;v=Math.min(v,valid[u+x]+cell,valid[u+(x+cols-1)%cols]+diag,valid[u+(x+1)%cols]+diag)}valid[k]=v}
+      for(let y=rows-1;y>=0;y--)for(let xi=2*cols-1;xi>=0;xi--){const x=xi%cols,k=y*cols+x,l=y*cols+(x+1)%cols;let v=Math.min(valid[k],valid[l]+cell);if(y<rows-1){const u=(y+1)*cols;v=Math.min(v,valid[u+x]+cell,valid[u+(x+cols-1)%cols]+diag,valid[u+(x+1)%cols]+diag)}valid[k]=v}
+    }
+    for(let k=0;k<n;k++){if(!(env[k]>-Infinity)){env[k]=0;floor[k]=0;inner[k]=0}else if(!(inner[k]>-Infinity))inner[k]=floor[k]-4;const yc=(Math.floor(k/cols)+.5)*cell;valid[k]=Math.max(0,Math.min(valid[k]-cell/2,yc,height-yc))}
+    // Texture depth: spread between the skin's highs and lows within 3 mm, minus the same spread of a 4 mm
+    // average, so slopes and corners of a smooth wall (a box, a tapered or oval sleeve) do not count. Taken as the median over the usable area, so a
+    // few features on an otherwise smooth template (a flange, a handle, a molded label) do not make it "textured".
+    // It must also agree with the cross-section (profile(): the outline zigzags, see chart.textured), which rules
+    // out plates and other shapes whose radius swings widely without any surface texture.
+    const trend=gridFilter(env,cols,rows,4,'mean'),hi=gridFilter(env,cols,rows,3,'max'),lo=gridFilter(floor,cols,rows,3,'min'),trendHi=gridFilter(trend,cols,rows,3,'max'),trendLo=gridFilter(trend,cols,rows,3,'min');
+    const spread=[];for(let k=0;k<n;k++)if(valid[k]>3)spread.push(hi[k]-lo[k]-(trendHi[k]-trendLo[k]));spread.sort((a,b)=>a-b);const depth=spread.length?spread[Math.floor(spread.length*.5)]:0;
+    // Pad top: the skin's highs spread 3.5 mm then averaged over 1.5 mm, which stays at or above every bump within
+    // 2 mm while bridging the recesses. Capped at the local lows plus the texture depth, so a flange or handle next
+    // to the design cannot lift the pad. Pad bottom: the local lows minus the embed, but clear of the cavity.
+    const lows=gridFilter(floor,cols,rows,3.5,'min'),capped=gridFilter(env,cols,rows,3.5,'max').map((v,k)=>Math.min(v,lows[k]+depth+.2));
+    const top=gridFilter(capped,cols,rows,1.5,'mean'),near=gridFilter(floor,cols,rows,1,'min'),cavity=gridFilter(inner,cols,rows,1,'max');
+    const bottom=near.map((v,k)=>Math.max(v-PAD_EMBED,Math.min(v-.05,cavity[k]+.3)));
+    return{cell,cols,rows,perimeter:chart.perimeter,height,depth,textured:!!chart.textured&&depth>=TEXTURE_MIN_DEPTH,top,bottom,valid};
+  }
+  function sampleGrid(t,field,s,y){
+    const gx=(((s/t.cell-.5)%t.cols)+t.cols)%t.cols,gy=Math.max(0,Math.min(t.rows-1,y/t.cell-.5)),x0=Math.floor(gx),y0=Math.floor(gy),x1=(x0+1)%t.cols,y1=Math.min(t.rows-1,y0+1),fx=gx-x0,fy=gy-y0;
+    return (field[y0*t.cols+x0]*(1-fx)+field[y0*t.cols+x1]*fx)*(1-fy)+(field[y1*t.cols+x0]*(1-fx)+field[y1*t.cols+x1]*fx)*fy;
+  }
+  // Builds one closed pad shell per design. Returns {positions,indices,walls,counts} where counts[j] is the
+  // number of pad-top grid points of design j (0 = the design is not on a usable part of the surface).
+  function buildTexturePads(prepared,designs,{spacing=.24,maxHeight=.4}={}){
+    const t=prepared.texture,chart=prepared.chart,S=globalThis.SharpSleeve,T=globalThis.SleeveTemplate;
+    const positions=[],indices=[],walls=[],counts=[];
+    for(const source of designs){
+      const w=Math.max(2,Math.min(chart.perimeter,source.designWidth||30)),h=Math.max(2,Math.min(prepared.height,source.designHeight||30)),depth=Math.max(0,Math.min(3,source.maxHeight??maxHeight));
+      const d={...source,designWidth:w,designHeight:h,contour:S.contourField(source.sharp===false?{...source,designWidth:w,designHeight:h,heightmap:Float32Array.from(source.heightmap,v=>Math.min(1,v*500))}:{...source,designWidth:w,designHeight:h})};
+      const rot=(source.designRotation||0)*Math.PI/180,c=Math.cos(rot),s=Math.sin(rot),centerS=T.arcAt(chart,(source.designAngle||0)*Math.PI/180+Math.PI/2),centerY=source.designY??prepared.height/2;
+      const g=Math.max(spacing,Math.sqrt(w*h/PAD_MAX_POINTS)),nx=Math.max(2,Math.ceil(w/g))+1,ny=Math.max(2,Math.ceil(h/g))+1,gx=w/(nx-1),gy=h/(ny-1);
+      // Grid point (i,j) -> sleeve coordinates; x runs against arc length (the artwork's left is at larger arc).
+      const where=(x,y)=>{const dx=x*c-y*s,dy=x*s+y*c;return[centerS-dx,centerY+dy]};
+      const strength=(u,v)=>{if(source.sharp!==false)return 1;const hm=source.heightmap,X=Math.max(0,Math.min(1,u))*(source.cols-1),Y=Math.max(0,Math.min(1,v))*(source.rows-1),a=Math.floor(X),b=Math.floor(Y),a1=Math.min(a+1,source.cols-1),b1=Math.min(b+1,source.rows-1),fx=X-a,fy=Y-b;return (hm[b*source.cols+a]*(1-fx)+hm[b*source.cols+a1]*fx)*(1-fy)+(hm[b1*source.cols+a]*(1-fx)+hm[b1*source.cols+a1]*fx)*fy};
+      const field=new Float32Array(nx*ny);let inside=0;
+      for(let j=0;j<ny;j++)for(let i=0;i<nx;i++){const x=-w/2+i*gx,y=-h/2+j*gy,[sa,yy]=where(x,y);
+        // Signed distance (mm, positive inside) to the artwork contour, limited by the keep-out around rims and openings.
+        let f=S.sampleDistance(d,x/w+.5,.5-y/h);const keep=yy<0||yy>prepared.height?-1:sampleGrid(t,t.valid,sa,yy)-PAD_KEEP_OUT;f=Math.min(f,keep);if(Math.abs(f)<1e-7)f=1e-7;field[j*nx+i]=f;if(f>0)inside++}
+      counts.push(inside);if(!inside)continue;
+      // Marching triangles over the grid: inside points and edge crossings become pad-top vertices.
+      const px=[],py=[],ph=[],gridTop=new Int32Array(nx*ny).fill(-1),cut=new Map();
+      const addPoint=(x,y)=>{px.push(x);py.push(y);const u=x/w+.5,v=.5-y/h;ph.push(depth*strength(u,v));return px.length-1};
+      const topOf=k=>{if(gridTop[k]<0)gridTop[k]=addPoint(-w/2+(k%nx)*gx,-h/2+Math.floor(k/nx)*gy);return gridTop[k]};
+      const cutOf=(a,b)=>{const key=a<b?a*nx*ny+b:b*nx*ny+a;let id=cut.get(key);if(id===undefined){const fa=field[a],fb=field[b],q=Math.max(.05,Math.min(.95,fa/(fa-fb)));id=addPoint(-w/2+((a%nx)+((b%nx)-(a%nx))*q)*gx,-h/2+(Math.floor(a/nx)+(Math.floor(b/nx)-Math.floor(a/nx))*q)*gy);cut.set(key,id)}return id};
+      const faces=[],segs=[];
+      const tri=(a,b,e)=>{const ids=[a,b,e],inn=ids.map(k=>field[k]>0);if(!inn[0]&&!inn[1]&&!inn[2])return;const poly=[];
+        for(let q=0;q<3;q++){const p=ids[q],r=ids[(q+1)%3];if(inn[q])poly.push({id:topOf(p),cut:false});if(inn[q]!==inn[(q+1)%3])poly.push({id:cutOf(p,r),cut:true})}
+        for(let q=1;q<poly.length-1;q++)faces.push(poly[0].id,poly[q].id,poly[q+1].id);
+        for(let q=0;q<poly.length;q++){const A=poly[q],B=poly[(q+1)%poly.length];if(A.cut&&B.cut)segs.push(A.id,B.id)}};
+      for(let j=0;j<ny-1;j++)for(let i=0;i<nx-1;i++){const k=j*nx+i;tri(k,k+1,k+nx+1);tri(k,k+nx+1,k+nx)}
+      // Emit top and bottom vertices in sleeve space.
+      const base=positions.length/3,count=px.length;
+      for(let pass=0;pass<2;pass++)for(let q=0;q<count;q++){const [sa,yy]=where(px[q],py[q]),angle=T.angleAt(chart,sa),r=pass?sampleGrid(t,t.bottom,sa,yy):sampleGrid(t,t.top,sa,yy)+ph[q];positions.push(r*Math.cos(angle),yy,r*Math.sin(angle))}
+      // Orientation: the design grid is mirrored relative to the sleeve, so choose the winding whose top faces point outward.
+      const shell=[];for(let q=0;q<faces.length;q+=3)shell.push(base+faces[q],base+faces[q+1],base+faces[q+2],base+count+faces[q],base+count+faces[q+2],base+count+faces[q+1]);
+      const wallStart=[];for(let q=0;q<segs.length;q+=2){const A=base+segs[q],B=base+segs[q+1];wallStart.push(shell.length/3);shell.push(B,A,A+count,B,A+count,B+count)}
+      const a=shell[0]*3,b=shell[1]*3,e=shell[2]*3,ux=positions[b]-positions[a],uy=positions[b+1]-positions[a+1],uz=positions[b+2]-positions[a+2],vx=positions[e]-positions[a],vy=positions[e+1]-positions[a+1],vz=positions[e+2]-positions[a+2];
+      const outward=(uy*vz-uz*vy)*positions[a]+(ux*vy-uy*vx)*positions[a+2]>0;
+      if(!outward)for(let q=0;q<shell.length;q+=3){const x=shell[q+1];shell[q+1]=shell[q+2];shell[q+2]=x}
+      const first=indices.length/3;for(const f of wallStart)walls.push(first+f,first+f+1);for(const v of shell)indices.push(v);
+    }
+    return{positions:new Float32Array(positions),indices:new Uint32Array(indices),walls:new Uint32Array(walls),counts};
   }
   function SleeveTemplateArc(chart,angle){const tau=Math.PI*2,t=((angle%tau)+tau)%tau/tau*(chart.arc.length-1),i=Math.floor(t);return chart.arc[i]+(chart.arc[Math.min(i+1,chart.arc.length-1)]-chart.arc[i])*(t-i)}
 
@@ -417,5 +535,5 @@ globalThis.CustomTemplate=(()=>{
     if(r.zeroArea)issues.push(r.zeroArea.toLocaleString()+' collapsed faces');
     return issues;
   }
-  return{MAX_BYTES,MAX_TRIANGLES,DISPLAY_TRIANGLES,UP_AXES,TURNS,UNITS,parseSTL,remeshUnderside,weld,edgeTable,fixOrientation,analyze,load,orient,profile,decimate,chooseSpacing,prepare,bounds,normalizeOrientation,toBinarySTL,describeProblems,signedVolume};
+  return{MAX_BYTES,MAX_TRIANGLES,DISPLAY_TRIANGLES,UP_AXES,TURNS,UNITS,parseSTL,remeshUnderside,weld,edgeTable,fixOrientation,analyze,load,orient,profile,decimate,chooseSpacing,prepare,bounds,normalizeOrientation,toBinarySTL,describeProblems,signedVolume,textureMap,buildTexturePads,TEXTURE_MIN_DEPTH};
 })();

@@ -20,6 +20,7 @@ customPanel.innerHTML=`<div class="custom-template-actions"><button class="btn b
   <label for="customUnits">File units</label><select id="customUnits"><option value="mm">millimetres</option><option value="cm">centimetres</option><option value="in">inches</option><option value="m">metres</option></select>
  </div>
  <label class="check"><input type="checkbox" id="customAutoAlign" checked><span>Face the widest side to the front</span></label>
+ <label class="check" id="customRaiseRow" hidden title="This template's surface is covered in bumps or ridges. Draped over them, embossed artwork would break into pieces; raised, it sits on a smooth pad just above the texture."><input type="checkbox" id="customRaise" checked><span>Raise embossed designs above the surface texture</span></label>
  <div class="custom-template-actions"><button class="btn btn-ghost btn-sm" id="repairTemplateBtn" type="button">Make template watertight</button><button class="btn btn-ghost btn-sm" id="removeTemplateBtn" type="button">Remove template</button></div>
 </div>`;
 $('templateDescription').after(customPanel);
@@ -32,12 +33,12 @@ $('flattenStlBtn').onclick=()=>els.stlInput&&els.stlInput.click();
 customInput.onchange=()=>{const file=customInput.files?.[0];if(file)loadCustomTemplateFile(file).catch(()=>{})};
 const isCancelled=error=>error?.code==='CANCELLED';
 function customStatus(message,level=''){const el=$('customTemplateStatus');el.textContent=message;el.classList.toggle('error',level==='warn');el.classList.toggle('bad',level==='bad')}
-function customOrientationFromUI(){return CustomTemplate.normalizeOrientation({up:$('customUp').value,turn:Number($('customTurn').value),units:$('customUnits').value,autoAlign:$('customAutoAlign').checked})}
-function customOrientationToUI(o){$('customUp').value=o.up;$('customTurn').value=String(o.turn);$('customUnits').value=o.units;$('customAutoAlign').checked=o.autoAlign}
+function customOrientationFromUI(){return CustomTemplate.normalizeOrientation({up:$('customUp').value,turn:Number($('customTurn').value),units:$('customUnits').value,autoAlign:$('customAutoAlign').checked,raiseOnTexture:$('customRaise').checked})}
+function customOrientationToUI(o){$('customUp').value=o.up;$('customTurn').value=String(o.turn);$('customUnits').value=o.units;$('customAutoAlign').checked=o.autoAlign;$('customRaise').checked=o.raiseOnTexture}
 function syncCustomPanel(){
   const option=$('templateChoice').querySelector('option[value="custom-stl"]');const name=customTemplate?.name||storedCustomRecord?.name;option.textContent=name?'Custom STL · '+name.slice(0,40):'Custom STL · upload…';
-  $('customTemplatePanel').hidden=!customTemplate;
-  for(const id of ['customUp','customTurn','customUnits','customAutoAlign','repairTemplateBtn','removeTemplateBtn','uploadTemplateBtn'])$(id).disabled=customLoading&&id!=='removeTemplateBtn'||exportBusy;
+  $('customTemplatePanel').hidden=!customTemplate;$('customRaiseRow').hidden=!customTemplate?.preview?.texture?.textured;
+  for(const id of ['customUp','customTurn','customUnits','customAutoAlign','customRaise','repairTemplateBtn','removeTemplateBtn','uploadTemplateBtn'])$(id).disabled=customLoading&&id!=='removeTemplateBtn'||exportBusy;
   if(customTemplate){const b=customTemplate.base.bounds,dims=[b.max[0]-b.min[0],b.max[2]-b.min[2],b.max[1]-b.min[1]].map(v=>v.toFixed(1)).join(' × ');$('customTemplateInfo').textContent=customTemplate.name+' · '+dims+' mm · '+customTemplate.report.triangles.toLocaleString()+' triangles';}
 }
 
@@ -138,8 +139,9 @@ function beforeTemplateChoice(value){
 }
 templateJobData=function(worker,quality){
   if(AppState.templateId!=='custom-stl'||!customTemplate)return undefined;const key=customTemplate.key;
-  if(quality==='preview'){if(worker.customTemplateKey===key)return{kind:'custom',key};worker.customTemplateKey=key;return{kind:'custom',key,prepared:customTemplate.preview}}
-  return customTemplate.print?{kind:'custom',key,prepared:customTemplate.print}:{kind:'custom',key,base:customTemplate.base};
+  const raiseOnTexture=CustomTemplate.normalizeOrientation(customTemplate.orientation).raiseOnTexture;
+  if(quality==='preview'){if(worker.customTemplateKey===key)return{kind:'custom',key,raiseOnTexture};worker.customTemplateKey=key;return{kind:'custom',key,raiseOnTexture,prepared:customTemplate.preview}}
+  return customTemplate.print?{kind:'custom',key,raiseOnTexture,prepared:customTemplate.print}:{kind:'custom',key,raiseOnTexture,base:customTemplate.base};
 };
 const customOriginalInfo=templateInfo;templateInfo=function(){
   if(AppState.templateId!=='custom-stl'||!customTemplate)return customOriginalInfo();
@@ -161,6 +163,8 @@ function reorientCustomTemplate(repair=false){
   }).catch(error=>{if(isCancelled(error))return;customStatus((repair?'Repair failed: ':'Could not re-orient: ')+error.message,'bad');customOrientationToUI(CustomTemplate.normalizeOrientation(previous.orientation))});
 }
 for(const id of ['customUp','customTurn','customUnits','customAutoAlign'])$(id).addEventListener('change',e=>{e.stopPropagation();reorientCustomTemplate(false)});
+// Raising is a build option, not a geometry change: keep the prepared surfaces and just rebuild the relief.
+$('customRaise').addEventListener('change',e=>{e.stopPropagation();if(!customTemplate)return;const t=customTemplate;t.orientation={...t.orientation,raiseOnTexture:e.target.checked};if(t.embed)storeCustomTemplate(t,t.embed);if(AppState.templateId==='custom-stl'){if(AppState.image)scheduleRebuild(true);else renderTemplateBlank()}dirty()});
 $('repairTemplateBtn').onclick=()=>reorientCustomTemplate(true);
 $('removeTemplateBtn').onclick=()=>{cancelCustomPreparation();const wasActive=AppState.templateId==='custom-stl';dropCustomPrint(customTemplate);customTemplate=null;storedCustomRecord=null;deleteStoredCustomTemplate();syncCustomPanel();if(wasActive){AppState.templateId='etsyfolger-v1';activateBuiltinTemplate();projectStateToUI();if(templateBase){if(AppState.image)scheduleRebuild(true);else renderTemplateBlank();templateView('front')}saveSettings()}toast('Custom template removed','success');dirty()};
 

@@ -26,9 +26,9 @@ globalThis.ProjectFormat={
     if(p.bottomBrand!==undefined){const b=p.bottomBrand;if(!b||typeof b.enabled!=='boolean'||!['underside','inside'].includes(b.surface))throw Error('Invalid bottom branding.');for(const [k,lo,hi]of [['width',4,60],['height',4,36],['centerX',-32,32],['centerZ',-20,20]])if(typeof b[k]!=='number'||!Number.isFinite(b[k])||b[k]<lo||b[k]>hi)throw Error('Invalid bottom branding size or position.');const depthMm=b.depthMm??Math.min(3,Math.max(.01,p.settings.depthMm||.6)),relief=b.relief??(p.settings.relief||'raised');if(typeof depthMm!=='number'||!Number.isFinite(depthMm)||depthMm<.01||depthMm>3||!['raised','carved'].includes(relief))throw Error('Invalid bottom finish.');p.bottomBrand={depthMm,relief,enabled:b.enabled,surface:b.surface,width:b.width,height:b.height,centerX:b.centerX,centerZ:b.centerZ};}
     if(p.version===4&&p.template!==undefined&&p.template!==null){const t=p.template,o=t&&t.orientation;
       if(!t||typeof t!=='object'||t.kind!=='custom-stl'||typeof t.name!=='string'||t.name.length>120||!Number.isInteger(t.triangles)||t.triangles<1||t.triangles>2000000||typeof t.repaired!=='boolean')throw Error('Invalid custom template.');
-      if(!o||!['auto','+z','-z','+y','-y','+x','-x'].includes(o.up)||![0,90,180,270].includes(o.turn)||!['mm','cm','in','m'].includes(o.units)||typeof o.autoAlign!=='boolean')throw Error('Invalid custom template orientation.');
+      if(!o||!['auto','+z','-z','+y','-y','+x','-x'].includes(o.up)||![0,90,180,270].includes(o.turn)||!['mm','cm','in','m'].includes(o.units)||typeof o.autoAlign!=='boolean'||(o.raiseOnTexture!==undefined&&typeof o.raiseOnTexture!=='boolean'))throw Error('Invalid custom template orientation.');
       if(t.mesh!==null&&(typeof t.mesh!=='string'||t.mesh.length>30*1024*1024||!/^data:application\/gzip;base64,[A-Za-z0-9+/]+=*$/.test(t.mesh)))throw Error('Custom template mesh must be an embedded gzip STL.');
-      p.template={kind:t.kind,name:t.name,triangles:t.triangles,repaired:t.repaired,orientation:{up:o.up,turn:o.turn,units:o.units,autoAlign:o.autoAlign},mesh:t.mesh};}
+      p.template={kind:t.kind,name:t.name,triangles:t.triangles,repaired:t.repaired,orientation:{up:o.up,turn:o.turn,units:o.units,autoAlign:o.autoAlign,...(o.raiseOnTexture===false?{raiseOnTexture:false}:{})},mesh:t.mesh};}
     return p;
   }
 };

@@ -112,6 +112,6 @@ globalThis.SharpSleeve=(()=>{
   const requested=o.sharpSpacing||.22;let spacing=requested;
   for(;;){try{const result=build(source,{...o,sharpSpacing:spacing});result.info.requestedSpacing=requested;result.info.adapted=spacing>requested;return result;}catch(error){if(error.code!=='MESH_BUDGET'||spacing>=.5)throw error;spacing=Math.min(.5,spacing*1.3);}}
  }
- return{build,buildAdaptive,refine,contourField,flipCollinear};
+ return{build,buildAdaptive,refine,contourField,sampleDistance,flipCollinear};
 })();
 
