@@ -93,6 +93,26 @@ function autoDetectBgColor(img, state = AppState) {
   if(state===AppState)updateBgSwatch();
 }
 
+// Pixel-art and nearest-neighbour enlargements keep the original pixel grid: nearly every alpha edge then falls on
+// a multiple of the block size. Sharp outlines smooth staircases of that size, so report it (1 when not blocky).
+function blockPixelSize(source) {
+  const w = source.width, h = source.height;
+  if (!w || !h || w * h > 8e6) return 1;
+  let data;
+  try {
+    const c = document.createElement('canvas'); c.width = w; c.height = h;
+    const ctx = c.getContext('2d'); ctx.drawImage(source, 0, 0); data = ctx.getImageData(0, 0, w, h).data;
+  } catch (_) { return 1; }
+  const hist = Array.from({ length: 9 }, (_, p) => new Uint32Array(p));
+  let total = 0;
+  const edge = (pos) => { total++; for (let p = 2; p <= 8; p++) hist[p][pos % p]++; };
+  for (let y = 0; y < h; y++) for (let x = 1; x < w; x++) if ((data[(y * w + x) * 4 + 3] >= 128) !== (data[(y * w + x - 1) * 4 + 3] >= 128)) edge(x);
+  for (let y = 1; y < h; y++) for (let x = 0; x < w; x++) if ((data[(y * w + x) * 4 + 3] >= 128) !== (data[((y - 1) * w + x) * 4 + 3] >= 128)) edge(y);
+  if (total < 200) return 1;
+  for (let p = 8; p >= 2; p--) if (Math.max(...hist[p]) >= total * 0.85) return p;
+  return 1;
+}
+
 function buildHeightmapAtDetail(targetSize, image, state = AppState) {
   const img = image || state.image;
   if (!img) return null;
@@ -182,7 +202,10 @@ function buildHeightmapAtDetail(targetSize, image, state = AppState) {
     }
   }
 
-  return { hm, rows, cols, alphaMap, mask, toastMsg };
+  // Map pixels per source pixel: sharp outlines simplify away staircases of this size.
+  const sharpTemplate = templateActive() && state.uniformDepth && crispMode;
+  const sourceScale = Math.max(cols / Math.max(1, img.width), rows / Math.max(1, img.height)) * imgScalePct * (sharpTemplate ? blockPixelSize(sourceCanvas) : 1);
+  return { hm, rows, cols, alphaMap, mask, toastMsg, sourceScale };
 }
 
 // ---------- Three.js preview ----------
