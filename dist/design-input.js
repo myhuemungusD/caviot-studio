@@ -191,7 +191,9 @@ function setDesignImage(img, label) {
 function loadImageFile(file) {
   if (!file) return;
   const uploadSide=typeof activeDesignSide==='number'&&templateActive()?activeDesignSide:null;
-  if (!/^image\/(png|jpe?g)$/i.test(file.type || '')) {
+  // Accept any image the browser can decode (PNG, JPG, WebP, GIF, HEIC on Safari); camera photos arrive as JPEG.
+  const looksLikeImage = /^image\//i.test(file.type || '') || (!file.type && /\.(png|jpe?g|webp|gif|heic|heif|avif|bmp)$/i.test(file.name || ''));
+  if (!looksLikeImage) {
     toast('Use a PNG or JPG image', 'error');
     return;
   }
@@ -202,17 +204,37 @@ function loadImageFile(file) {
   const url = URL.createObjectURL(file);
   const img = new Image();
   img.onload = () => {
-    if (img.width * img.height > MAX_IMAGE_PIXELS) {
-      URL.revokeObjectURL(url);
-      toast('Image dimensions are too large — use 24 megapixels or less', 'error');
+    URL.revokeObjectURL(url);
+    const deliver = (image) => {
+      if(uploadSide!==null&&typeof receiveSideUpload==='function')receiveSideUpload(image,file.name||'image',uploadSide);else setDesignImage(image,file.name||'image');
+    };
+    // Phones and tablets: large camera photos are scaled down instead of refused (iOS cannot draw canvases over
+    // ~16 megapixels, and phones run short of memory well before that). Desktop keeps the 24 MP limit.
+    const mobile = typeof CaviotDevice !== 'undefined' && (CaviotDevice.touch || CaviotDevice.tier === 'light') && (CaviotDevice.iOS || CaviotDevice.android || CaviotDevice.phone);
+    const limit = mobile ? Math.min(MAX_IMAGE_PIXELS, CaviotDevice.limits.maxImagePixels) : MAX_IMAGE_PIXELS;
+    if (img.width * img.height > limit) {
+      if (!mobile) {
+        toast('Image dimensions are too large — use 24 megapixels or less', 'error');
+        return;
+      }
+      const scale = Math.sqrt(limit / (img.width * img.height)) * 0.999;
+      const c = document.createElement('canvas');
+      c.width = Math.max(1, Math.floor(img.width * scale));
+      c.height = Math.max(1, Math.floor(img.height * scale));
+      const ctx = c.getContext('2d');
+      if (!ctx) { toast('Not enough memory to read this photo — try a smaller image', 'error'); return; }
+      ctx.drawImage(img, 0, 0, c.width, c.height);
+      const out = new Image();
+      out.onload = () => { toast('Large photo scaled to ' + c.width + '×' + c.height + ' for this device', 'success'); deliver(out); };
+      out.onerror = () => toast('Not enough memory to read this photo — try a smaller image', 'error');
+      out.src = c.toDataURL('image/png');
       return;
     }
-    URL.revokeObjectURL(url);
-    if(uploadSide!==null&&typeof receiveSideUpload==='function')receiveSideUpload(img,file.name||'image',uploadSide);else setDesignImage(img,file.name||'image');
+    deliver(img);
   };
   img.onerror = () => {
     URL.revokeObjectURL(url);
-    toast('Could not load image', 'error');
+    toast('Could not read this image — use a PNG or JPG', 'error');
   };
   img.src = url;
 }

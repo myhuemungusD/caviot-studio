@@ -56,12 +56,14 @@ function renderTemplateBlank(){hidePlacementPreview();if(!templateActive()||!tem
 function ensurePreviewWorker(){
   if(templatePreviewWorker)return;templatePreviewWorker=new Worker('template-worker.js');
   templatePreviewWorker.onmessage=({data})=>{templatePreviewRunning=false;if(data.id===templateRevision&&templateActive()){if(typeof reportBottomPreview==='function')reportBottomPreview(data);if(data.error){templatePreviewValid=false;templateStatus(data.error,true)}else{templatePreviewValid=true;replaceTemplateMesh(data.positions,data.indices,data.amplitude,data.walls);AppState.lastValidation={triCount:data.indices.length/3,boundary:0,nonManifold:0,zeroArea:0};const extra=(data.info.raised?' Embossed designs are raised above the surface texture.':'')+(data.info.textureDeboss?' Deboss only reaches the smooth parts of this textured surface; use Emboss for a continuous design.':'')+(data.info.sharp?' Clean contours enabled.':'')+(data.info.clipped?' Parts near rims or openings are protected.':'');templateStatus(data.info.affected?`Designs follow the sleeve surface with their own depth and finish.${extra}`:data.info.textureDeboss?'Deboss cannot be cut into this textured surface. Use Emboss; embossed designs are raised above the texture.':'No relief is on the sleeve. Move the design or adjust background removal.',!data.info.affected||!!data.info.textureDeboss);updateStats()}}dispatchPreview()};
-  templatePreviewWorker.onerror=()=>{templatePreviewRunning=false;templatePreviewWorker.terminate();templatePreviewWorker=null;templatePreviewValid=false;templateStatus('Preview could not finish. Change a setting to retry.',true)};
+  // A worker that crashed (often out of memory on phones) is replaced on the next request.
+  const worker=templatePreviewWorker;worker.onerror=e=>{e?.preventDefault?.();console.warn('Preview worker failed:',e?.message||'unknown error');worker.terminate();if(templatePreviewWorker!==worker)return;templatePreviewRunning=false;templatePreviewWorker=null;templatePreviewValid=false;templateStatus('Preview could not finish. Change a setting to retry.',true)};
 }
 function dispatchPreview(){if(templatePreviewRunning||!templatePending)return;ensurePreviewWorker();templatePreviewRunning=true;const job=templatePending;templatePending=null;job.template=templateJobData(templatePreviewWorker,'preview');templatePreviewWorker.postMessage(job)}
 function requestTemplatePreview(){if(!templateBase||!templateActive())return;if(!hasSleeveArtwork()){renderTemplateBlank();return}const id=++templateRevision;templatePending={id,type:'preview',options:templateOptions()};templateStatus('Forming your design along the sleeve…');syncTemplateUI();dispatchPreview()}
 function setTemplateMove(value){templateMove=!!value&&templateActive();$('moveDesign').setAttribute('aria-pressed',String(templateMove));$('moveDesign').textContent=templateMove?'Moving design · click to orbit':'Move design on sleeve';document.body.classList.toggle('moving-template-design',templateMove);if(controls)controls.enabled=!templateMove}
-function templateView(which){if(!camera||!controls||!templateBase)return;const target=new THREE.Vector3(0,templateBase.height/2,0),d=({front:[0,0,1],back:[0,0,-1],left:[-1,0,0],right:[1,0,0]})[which];const dist=AppState.templateId==='custom-stl'&&templateBase.bounds?Math.max(155,2.2*Math.max(templateBase.height,templateBase.bounds.max[0]-templateBase.bounds.min[0],templateBase.bounds.max[2]-templateBase.bounds.min[2])):155;camera.position.set(target.x+d[0]*dist,target.y+d[1]*dist,target.z+d[2]*dist);controls.target.copy(target);camera.lookAt(target);controls.update()}
+function templateView(which){if(!camera||!controls||!templateBase)return;const target=new THREE.Vector3(0,templateBase.height/2,0),d=({front:[0,0,1],back:[0,0,-1],left:[-1,0,0],right:[1,0,0]})[which];let dist=AppState.templateId==='custom-stl'&&templateBase.bounds?Math.max(155,2.2*Math.max(templateBase.height,templateBase.bounds.max[0]-templateBase.bounds.min[0],templateBase.bounds.max[2]-templateBase.bounds.min[2])):155;dist*=Math.max(1,Math.min(1.6,.9/(camera.aspect||1)));// narrow (portrait phone) views back off so the sleeve fits
+ camera.position.set(target.x+d[0]*dist,target.y+d[1]*dist,target.z+d[2]*dist);controls.target.copy(target);camera.lookAt(target);controls.update()}
 let templateGrabOffset=null,wheelGrabRestoreMove=null;
 function templateSurfaceHit(e){
  if(!templateRayMesh||!camera)return null;const rect=renderer.domElement.getBoundingClientRect(),ray=new THREE.Raycaster();ray.setFromCamera(new THREE.Vector2((e.clientX-rect.left)/rect.width*2-1,-(e.clientY-rect.top)/rect.height*2+1),camera);const hit=ray.intersectObject(templateRayMesh,false)[0];if(!hit)return null;const p=hit.point,n=hit.face.normal,radial=new THREE.Vector3(p.x,0,p.z).normalize();return n.dot(radial)<.25||Math.abs(n.y)>.78?null:p;
@@ -72,19 +74,35 @@ function placeFromPointer(e){
  if(templateGrabOffset){const chart=templateGrabOffset.chart;angle=SleeveTemplate.angleAt(chart,SleeveTemplate.arcAt(chart,angle)+templateGrabOffset.arc);y+=templateGrabOffset.y;}
  AppState.designAngle=((angle*180/Math.PI-90+540)%360)-180;AppState.designY=Math.max(0,Math.min(templateBase.height,y));for(const id of ['designAngle','designY']){$(id+'Range').value=String(AppState[id]);$(id+'Number').value=String(Math.round(AppState[id]*10)/10)}updatePlacement();dirty();return true;
 }
+// Touch: dragging the selected design moves it (the touch version of the middle-button grab); a drag anywhere
+// else orbits, two fingers pinch-zoom and pan. A second finger during a grab that has not moved yet cancels it,
+// so a pinch that happens to start on the design still zooms.
+let templateGrabTouch=false,templateGrabMoved=false,templateGrabStart={x:0,y:0};
 function installLogoPointerControls(canvas){
  canvas.addEventListener('pointerdown',e=>{
-  if(e.button===1&&templateActive()&&!exportBusy){
+  if(templateActivePointer!==null&&templateGrabTouch&&e.pointerId!==templateActivePointer){
+   if(!templateGrabMoved){cancelTouchGrab(canvas);return}
+   e.preventDefault();e.stopImmediatePropagation();return;
+  }
+  const touchGrab=e.pointerType!=='mouse'&&e.isPrimary&&e.button===0&&!templateMove&&typeof touchHitsSelectedDesign==='function'&&templateActive()&&!exportBusy&&touchHitsSelectedDesign(e);
+  if((e.button===1||touchGrab)&&templateActive()&&!exportBusy){
    const priorMove=templateMove;
    if(!selectLogoAtPointer(e,false))return;const p=templateSurfaceHit(e);if(!p)return;ensurePlacementMesh();const chart=placementMesh.userData.chart;
    templateGrabOffset={chart,arc:SleeveTemplate.arcAt(chart,(AppState.designAngle||0)*Math.PI/180+Math.PI/2)-SleeveTemplate.arcAt(chart,Math.atan2(p.z,p.x)),y:AppState.designY-p.y};wheelGrabRestoreMove=priorMove;
-   e.preventDefault();e.stopImmediatePropagation();setTemplateMove(true);templateActivePointer=e.pointerId;canvas.setPointerCapture(e.pointerId);templateStatus('Moving logo · release the scroll wheel to place it.');return;
+   templateGrabTouch=!!touchGrab;templateGrabMoved=false;templateGrabStart={x:e.clientX,y:e.clientY,t:e.timeStamp||0};
+   e.preventDefault();e.stopImmediatePropagation();setTemplateMove(true);templateActivePointer=e.pointerId;canvas.setPointerCapture(e.pointerId);templateStatus(touchGrab?'Moving design · lift your finger to place it.':'Moving logo · release the scroll wheel to place it.');return;
   }
-  if(!templateMove||e.button!==0||exportBusy)return;e.preventDefault();e.stopImmediatePropagation();if(placeFromPointer(e)){templateActivePointer=e.pointerId;canvas.setPointerCapture(e.pointerId)}else templateStatus('Place the design on the outside wall of the sleeve.',true);
+  if(!templateMove||e.button!==0||exportBusy)return;e.preventDefault();e.stopImmediatePropagation();if(templateActivePointer!==null)return;if(placeFromPointer(e)){templateActivePointer=e.pointerId;templateGrabTouch=false;canvas.setPointerCapture(e.pointerId)}else templateStatus('Place the design on the outside wall of the sleeve.',true);
  },true);
- canvas.addEventListener('pointermove',e=>{if(!templateMove||templateActivePointer!==e.pointerId)return;e.preventDefault();e.stopImmediatePropagation();queuePlacementPointer(e);},true);
- const end=e=>{if(templateActivePointer!==e.pointerId)return;e.preventDefault?.();e.stopImmediatePropagation?.();flushPlacementPointer();templateActivePointer=null;templateGrabOffset=null;const prior=wheelGrabRestoreMove;wheelGrabRestoreMove=null;if(prior!==null)setTemplateMove(prior);if(canvas.hasPointerCapture(e.pointerId))canvas.releasePointerCapture(e.pointerId);};
+ canvas.addEventListener('pointermove',e=>{if(!templateMove||templateActivePointer!==e.pointerId)return;e.preventDefault();e.stopImmediatePropagation();if(templateGrabTouch&&!templateGrabMoved&&Math.hypot(e.clientX-templateGrabStart.x,e.clientY-templateGrabStart.y)<6)return;templateGrabMoved=true;queuePlacementPointer(e);},true);
+ const end=e=>{if(templateActivePointer!==e.pointerId)return;e.preventDefault?.();e.stopImmediatePropagation?.();
+  // A touch that never moved is a tap on the selected design: nothing to place, so no detailed rebuild either.
+  if(templateGrabTouch&&!templateGrabMoved){if(placementFrame!==null)cancelAnimationFrame(placementFrame);placementFrame=null;placementPointer=null;templateStatus('Drag the selected design to move it · drag elsewhere to orbit.');if(e.clientX!==undefined&&typeof selectedDesignTapped==='function')selectedDesignTapped(e,templateGrabStart.t||undefined)}else flushPlacementPointer();
+  templateActivePointer=null;templateGrabOffset=null;templateGrabTouch=false;const prior=wheelGrabRestoreMove;wheelGrabRestoreMove=null;if(prior!==null)setTemplateMove(prior);if(canvas.hasPointerCapture(e.pointerId))canvas.releasePointerCapture(e.pointerId);};
+ const cancelTouchGrab=canvas=>{const id=templateActivePointer;templateGrabMoved=false;end({pointerId:id});};
  canvas.addEventListener('pointerup',end,true);canvas.addEventListener('pointercancel',end,true);canvas.addEventListener('lostpointercapture',end);
+ // While a design is held, the browser must not turn the finger into a scroll, zoom or orbit gesture.
+ canvas.addEventListener('touchmove',e=>{if(templateActivePointer!==null&&templateMove)e.preventDefault();},{passive:false,capture:true});
  canvas.addEventListener('auxclick',e=>{if(e.button===1)e.preventDefault();});
  window.addEventListener('blur',()=>{if(templateActivePointer!==null)end({pointerId:templateActivePointer});});
 }

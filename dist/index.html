@@ -2,12 +2,20 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Caviot Studio 2026.09.21 — Design it. Print it.</title>
 <meta name="description" content="Turn your images, patterns and lettering into custom 3D-printable sleeves and reliefs. Design locally, calibrate your fit, and export STL or OBJ." />
 <meta name="theme-color" content="#101114" />
+<link rel="manifest" href="manifest.webmanifest" />
+<link rel="icon" type="image/png" sizes="32x32" href="branding/icons/favicon-32.png" />
+<link rel="apple-touch-icon" href="branding/icons/apple-touch-icon.png" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-title" content="Caviot Studio" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="format-detection" content="telephone=no" />
 <link rel="stylesheet" href="studio.css" />
-<link rel="stylesheet" href="product.css" /><link rel="stylesheet" href="template.css" />
+<link rel="stylesheet" href="product.css" /><link rel="stylesheet" href="template.css" /><link rel="stylesheet" href="mobile.css" />
 
 
 
@@ -37,7 +45,7 @@
 
   <div class="app">
     <aside class="sidebar" id="appSidebar">
-      <input type="file" id="fileInput" accept="image/png, image/jpeg, image/jpg" hidden />
+      <input type="file" id="fileInput" accept="image/*" hidden />
       <input type="file" id="stlInput" accept=".stl,model/stl" hidden />
       <input type="file" id="fontInput" accept=".ttf,.otf,.woff,.woff2,font/ttf,font/otf,font/woff,font/woff2" multiple hidden />
       <input type="file" id="fontFolderInput" accept=".ttf,.otf,.woff,.woff2,font/ttf,font/otf,font/woff,font/woff2" webkitdirectory directory multiple hidden />
@@ -50,7 +58,7 @@
         <div id="uploadBtn" class="drop" role="button" tabindex="0">
           <span class="glyph">▣</span>
           <strong>Drop or click image</strong>
-          <small>PNG · JPG · Ctrl+V paste</small>
+          <small>PNG · JPG<span class="desktop-only"> · Ctrl+V paste</span><span class="touch-only"> · photos or camera</span></small>
         </div>
         <div id="fileName" class="filename" style="display:none"></div>
         <div class="img-tools" id="imgTools" hidden>
@@ -121,7 +129,7 @@
         </div>
       </section>
 
-      <section class="panel" id="templatePlacement"><div class="panel-label">03 / Place on the sleeve</div><button class="btn btn-ghost" id="moveDesign" aria-pressed="false" type="button">Move design on sleeve</button><p class="muted-tip">Hold the scroll wheel on a logo and drag to move it. Or turn this button on for left-button dragging.</p><label class="check"><input id="uniformDepth" type="checkbox" checked><span>Even depth (logos)</span></label><p class="muted-tip">Uses the artwork silhouette. Remove the background to isolate your logo.</p><div class="source-actions"><button class="btn btn-ghost btn-sm" id="centerDesign" type="button">Center on front</button><button class="btn btn-ghost btn-sm" id="clearDesign" type="button">Clear design</button></div><p id="templateStatus" role="status" aria-live="polite">Loading your sleeve…</p></section>
+      <section class="panel" id="templatePlacement"><div class="panel-label">03 / Place on the sleeve</div><button class="btn btn-ghost" id="moveDesign" aria-pressed="false" type="button">Move design on sleeve</button><p class="muted-tip"><span class="desktop-only">Hold the scroll wheel on a logo and drag to move it. Or turn this button on for left-button dragging.</span><span class="touch-only">Tap a design to select it, then drag it with one finger. Drag anywhere else to orbit; pinch to zoom; two fingers to pan.</span></p><label class="check"><input id="uniformDepth" type="checkbox" checked><span>Even depth (logos)</span></label><p class="muted-tip">Uses the artwork silhouette. Remove the background to isolate your logo.</p><div class="source-actions"><button class="btn btn-ghost btn-sm" id="centerDesign" type="button">Center on front</button><button class="btn btn-ghost btn-sm" id="clearDesign" type="button">Clear design</button></div><p id="templateStatus" role="status" aria-live="polite">Loading your sleeve…</p></section>
       <!-- DEVICE (lighter / vape) -->
       <section class="panel" id="sleevePanel">
         <div class="panel-label">03 / Size &amp; fit</div>
@@ -364,6 +372,7 @@
   </div>
 </div>
 
+<script src="device-tier.js"></script>
 <script src="vendor/three.min.js"></script>
 <script src="vendor/OrbitControls.js"></script>
 
@@ -379,5 +388,7 @@
 <script src="app.js"></script>
 <script src="product.js"></script><script src="template-core.js"></script><script src="fonts/catalog.js"></script><script src="builtin-fonts.js"></script><script src="template-render.js"></script><script src="placement-preview.js"></script><script src="template-ui.js"></script><script src="design-sides.js"></script><script src="bottom-brand.js"></script><script src="repair-ui.js"></script><script src="editor-tools.js"></script><script src="custom-template.js"></script><script src="custom-template-ui.js"></script>
 <script src="tool-layout.js"></script>
+<script src="mobile.js"></script>
+<script src="pwa.js"></script>
 </body>
 </html>

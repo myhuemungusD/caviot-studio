@@ -202,7 +202,7 @@ globalThis.SharpSleeve=(()=>{
     if(best<=.5){const d0=distanceToContour(t0),d1=distanceToContour(t1),d2=distanceToContour(t2);if(Math.min(d0,d1,d2)>best*1.5+spacing)continue}
     const i=p.length/3;if(a<b)splits.set(a,b,i);else splits.set(b,a,i);touched[a]=touched[b]=1;for(let k=0;k<3;k++){p.push((p[a*3+k]+p[b*3+k])/2);n.push((n[a*3+k]+n[b*3+k])/2)}const length=Math.hypot(n[i*3],n[i*3+1],n[i*3+2])||1;for(let k=0;k<3;k++)n[i*3+k]/=length;let du=uv[b]-uv[a];du-=Math.round(du/perimeter)*perimeter;uv.push((uv[a]+du/2+perimeter)%perimeter);distance.push(Math.min(distance[a],distance[b]));thickness.push(Math.min(thickness[a],thickness[b]));outer.push(outer[a]&&outer[b]?1:0);
    }
-   if(!splits.size)break;if(p.length/3>1400000){const error=Error('Artwork needs more mesh detail than this browser can hold.');error.code='MESH_BUDGET';throw error;}// Faces go into a growable typed buffer (same order as before) instead of millions of Array pushes.
+   if(!splits.size)break;if(p.length/3>(o.meshBudget||1400000)){const error=Error('Artwork needs more mesh detail than this browser can hold.');error.code='MESH_BUDGET';throw error;}// Faces go into a growable typed buffer (same order as before) instead of millions of Array pushes.
    let next=new Uint32Array(tris.length+splits.size*12+64),len=0;const T=(x,y,z)=>{if(len+3>next.length){const g=new Uint32Array(next.length*2);g.set(next);next=g}next[len]=x;next[len+1]=y;next[len+2]=z;len+=3};
    for(let f=0;f<tris.length;f+=3){const a=tris[f],b=tris[f+1],c=tris[f+2];
     // A split edge has both ends touched; faces with fewer touched corners skip the table lookups.

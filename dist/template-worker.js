@@ -32,7 +32,9 @@ function customPrepare(data){
   progress('Preparing print surface');const print=CustomTemplate.prepare(base,{quality:'print',onProgress:progress});
   postMessage({id:data.id,stage:'print',print},transferPrepared(print));
 }
-const buildWith=(prepared,options,data)=>options.sharp?SharpSleeve.buildAdaptive(prepared,{...options,sharpSpacing:data.type==='export'?.14:.24,weldSafe:data.template?.kind==='custom'}):SleeveTemplate.build(prepared,options);
+// Contour spacing: desktop defaults, or the lighter phone limits the page sends (options.exportSpacing/previewSpacing).
+const jobSpacing=data=>data.type==='export'?data.options?.exportSpacing||.14:data.options?.previewSpacing||.24;
+const buildWith=(prepared,options,data)=>options.sharp?SharpSleeve.buildAdaptive(prepared,{...options,sharpSpacing:jobSpacing(data),weldSafe:data.template?.kind==='custom'}):SleeveTemplate.build(prepared,options);
 // Textured custom templates (bumps, discs, knurling): embossed side designs become raised pads above the texture
 // (CustomTemplate.buildTexturePads) instead of being draped over it, which would break them into fragments.
 // Everything else - deboss, bottom logos, and all ETSYFOLGER jobs - takes the normal path unchanged.
@@ -44,7 +46,7 @@ function buildRelief(prepared,data){
   if(!raise.includes(true))return noteDeboss(buildWith(prepared,options,data),list,options);
   const rest=list.filter((d,i)=>!raise[i]),picked=list.filter((d,i)=>raise[i]).map(d=>({...d,sharp:d.sharp??options.sharp,maxHeight:d.maxHeight??options.maxHeight}));
   const base=buildWith(prepared,{...options,designs:rest,heightmap:null},data);
-  const pads=CustomTemplate.buildTexturePads(prepared,picked,{spacing:data.type==='export'?.14:.24});
+  const pads=CustomTemplate.buildTexturePads(prepared,picked,{spacing:jobSpacing(data)});
   const nb=base.positions.length/3,fb=base.indices.length/3,positions=new Float32Array(base.positions.length+pads.positions.length),indices=new Uint32Array(base.indices.length+pads.indices.length);
   positions.set(base.positions);positions.set(pads.positions,base.positions.length);indices.set(base.indices);for(let i=0;i<pads.indices.length;i++)indices[base.indices.length+i]=pads.indices[i]+nb;
   // Pads carry full relief colour in the preview; their side walls are listed like sharp-edge walls.
@@ -63,7 +65,7 @@ self.onmessage=async({data})=>{
     if(data.type==='custom-print'){const print=CustomTemplate.prepare(data.base,{quality:'print',onProgress:message=>postMessage({id:data.id,progress:message})});postMessage({id:data.id,stage:'print',print},transferPrepared(print));return}
     // Exports report their stage so the UI can show progress (and knows the worker is alive) on long jobs.
     const stage=data.type==='export'?message=>postMessage({id:data.id,progress:message,exportStage:true}):()=>{};
-    stage('Loading template');const prepared=await resolveTemplate(data,data.type==='export'?'print':'preview');
+    stage('Loading template');const prepared=await resolveTemplate(data,data.type==='export'&&data.options?.exportSurface!=='preview'?'print':'preview');
     stage('Forming relief');const result=buildRelief(prepared,data);
     if(data.type==='export'){
       // Repair validates its own output, so its report doubles as the export mesh check below.
@@ -90,7 +92,7 @@ self.onmessage=async({data})=>{
     }
   }catch(error){
     // For custom templates the usual cause is template density, not the artwork, so say what helps.
-    const message=error.code==='MESH_BUDGET'&&data.template?.kind==='custom'?'This template is too dense for Sharp edges with this artwork. Turn off Sharp edges (logos), make the artwork smaller, or simplify the STL.':error.message||'Template processing failed.';
+    const message=error.code==='MESH_BUDGET'&&data.template?.kind==='custom'?'This template is too dense for Sharp edges with this artwork. Turn off Sharp edges (logos), make the artwork smaller, or simplify the STL.':error.code==='MESH_BUDGET'&&data.options?.meshBudget?'This design needs more mesh detail than is safe on this device. Make the artwork smaller or simpler, or export it on a computer.':error.message||'Template processing failed.';
     postMessage({id:data.id,error:message});
   }
 };

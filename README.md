@@ -129,3 +129,34 @@ Validation: `node custom-template-tests.mjs` checks binary/ASCII parsing (includ
 `node textured-template-tests.mjs` builds a synthetic textured sleeve (12.7 mm radius, 1.35 mm wall, 2.2 mm discs on a 3.6 mm hex pitch, generated in the test) and a plain one: texture detection and envelope perimeter, pad top above every bump and bottom embedded but clear of the cavity, one closed pad shell per connected design (the old draped result is fragmented), sharp and smooth exports that pass the mesh check and re-import closed, multiple sides with deboss reported, the option off and plain templates unchanged, the option saved in project format 4, and typed index arrays in `MeshCore.toThreeGeometry` (custom templates previously threw `onUploadCallback is not a function` on every frame while the placement overlay was shown).
 
 `node custom-template-ui-tests.mjs` runs the template panel logic in a stubbed DOM: a newer upload or Remove cancels the running preparation, choosing another template while one loads keeps that choice, the empty Custom STL entry never opens a file dialog, worker crashes give readable errors, embedded templates are decompressed with a 100 MB cap, project-open notices are returned, and undo/redo keeps the displayed surface in step with the template.
+
+## Phones, tablets and offline (PWA) — October 1
+
+Caviot Studio now works on phones (iOS Safari, Android Chrome) and installs as an app.
+
+- **Phone layout** (portrait up to 760 px wide, or a phone in landscape): full-screen 3D view, a compact top bar
+  (project name, undo/redo, ⋮ menu with Save / Open / Export OBJ / Import STL template / Reset view / Guide) and a
+  bottom bar with **Tools** and **Export STL**. Tools open as a bottom sheet (drag the handle up for full height,
+  swipe down or Done to close); in landscape they open as a side sheet. Safe-area insets are respected. Desktop
+  and tablet layouts are unchanged.
+- **Touch**: one finger orbits, pinch zooms, two fingers pan. Tap a design to select it; drag the selected
+  design to move it (a drag anywhere else still orbits; a pinch that starts on the design still zooms). Double-tap
+  a design to open its settings. The "Move design on sleeve" toggle still makes every drag place the design.
+- **Images**: the picker accepts any image (camera roll or camera). Phones scale very large photos down to
+  12 MP instead of refusing them. Paste and drag-and-drop still work on desktop.
+- **Downloads**: desktop and Android save directly. On iOS a "file ready" sheet offers Save or share (Files,
+  AirDrop, slicer apps), Download (Files › Downloads) or Open in new tab.
+- **Phone-safe limits** (`dist/device-tier.js`): phones and low-memory devices use 0.20 mm outline spacing,
+  a 900k-vertex budget and the lighter sleeve surface for sharp-edged designs (same sleeve shape; roughly 400k
+  instead of 1.2M triangles), a 0.30 mm preview, export detail ≤ 250 for flat modes, and a 1.5× pixel-ratio cap.
+  "Export quality on this device" in the tools sheet switches to full computer quality, with a warning before
+  heavy exports. `?tier=light` / `?tier=full` overrides detection for testing.
+- **Offline**: `dist/sw.js` caches the app, the sleeve template and the default font; other fonts and the print
+  surface are cached on first use. Every file is stored under its content hash and verified, so an update can
+  never mix old and new files; new versions install in the background and apply when you press Reload.
+  **After changing anything in `dist/`, run `node build-sw.mjs`** (`pwa-tests.mjs` fails while `sw.js` is stale).
+  The worker only registers on HTTPS, so the local launcher always serves the files on disk (`?sw=1` enables it
+  locally for testing).
+- **Hosting**: `vercel.json` serves `dist/` as a static site with no build step.
+- **Tests**: `node pwa-tests.mjs`; browser checks in `e2e/` (`mobile-e2e.mjs` for iPhone 14 / SE, Pixel 7 and iPad
+  with real touch input, `pwa-e2e.mjs` for offline and updates; both need `playwright-core` and Chrome).
