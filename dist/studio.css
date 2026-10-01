@@ -580,16 +580,6 @@
     cursor: grab;
   }
   #threeContainer:active { cursor: grabbing; }
-  .canvas-empty {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--t3);
-    font-size: 13px;
-    pointer-events: none;
-  }
   .canvas-meta {
     position: absolute;
     top: 14px;
@@ -971,52 +961,6 @@
   font-weight: 600;
 }
 .fit-ring-btn:hover { border-color: var(--accent); background: rgba(255,107,0,0.28); }
-.onboarding {
-  max-width: 340px;
-  text-align: left;
-  padding: 20px 22px;
-  background: var(--s2);
-  border: 1px solid var(--b2);
-  border-radius: 12px;
-  box-shadow: 0 12px 40px rgba(0,0,0,0.45);
-}
-.onboarding h2 {
-  font-family: var(--display);
-  font-size: 28px;
-  letter-spacing: 0.02em;
-  margin: 0 0 6px;
-  color: var(--t1);
-}
-.onboarding .sub { color: var(--t2); font-size: 12px; margin: 0 0 16px; }
-.onboarding ol { margin: 0; padding: 0; list-style: none; counter-reset: step; }
-.onboarding li {
-  counter-increment: step;
-  display: flex;
-  gap: 12px;
-  align-items: flex-start;
-  padding: 10px 0;
-  border-top: 1px solid var(--b1);
-  color: var(--t2);
-  font-size: 12.5px;
-  line-height: 1.4;
-}
-.onboarding li::before {
-  content: counter(step);
-  flex: 0 0 22px;
-  height: 22px;
-  border-radius: 50%;
-  background: var(--accent-soft);
-  color: var(--accent);
-  font-family: var(--mono);
-  font-size: 11px;
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-top: 1px;
-}
-.onboarding li strong { color: var(--t1); display: block; font-weight: 600; margin-bottom: 2px; }
-.canvas-empty { display: flex; align-items: center; justify-content: center; }
 details.adv {
   border-top: 1px solid var(--b1);
   margin-top: 8px;

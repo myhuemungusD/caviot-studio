@@ -1,5 +1,6 @@
 // Custom template UI orchestration in a stubbed DOM: cancellation, keeping the user's template choice,
-// the empty Custom STL entry, worker errors, capped decompression and project-open notices.
+// the empty Custom STL entry, worker errors, capped decompression, project-open notices, and start-up
+// (always ETSYFOLGER: no remembered custom template, no start card).
 import fs from 'node:fs';import vm from 'node:vm';import zlib from 'node:zlib';import assert from 'node:assert/strict';
 const dist=new URL('./dist/',import.meta.url);
 const elements={},el=id=>elements[id]||(elements[id]={id,value:'',checked:false,disabled:false,hidden:false,textContent:'',clicks:0,classList:{toggle(){}},focus(){c.document.activeElement=this},click(){this.clicks++},after(){},appendChild(){},addEventListener(){},querySelector:()=>el(id+'-option')});
@@ -54,5 +55,20 @@ await test('project-open notices are returned for the Project opened toast',asyn
 await test('loadSettings (undo/redo, project open) keeps the displayed surface in step with templateId',async()=>{
   const p=ui.useCustomTemplateBuffer(new ArrayBuffer(8),'again',undefined,{quiet:true});ready(workers.at(-1));const t=await p;c.AppState.templateId='custom-stl';c.templateBase=builtin;const before=settingsLoads;c.loadSettings({});assert.equal(settingsLoads,before+1);assert.equal(c.templateBase,t.base);
   c.AppState.templateId='etsyfolger-v1';c.loadSettings({});assert.equal(c.templateBase,builtin);
+});
+await test('start-up: settings that ended on a custom template open ETSYFOLGER, delete the old stored-template database, start no worker',async()=>{
+  const deleted=[],before=workers.length,starts=[];
+  const c2=vm.createContext({...c,AppState:{templateId:'custom-stl',mode:'sleeve'},self:{indexedDB:{deleteDatabase:name=>deleted.push(name),open(){throw Error('nothing may be read back')}}},templateStatus:m=>starts.push(m),setActiveTemplateBase(b){c2.templateBase=b},templateBase:null});
+  vm.runInContext(fs.readFileSync(new URL('custom-template-ui.js',dist),'utf8'),c2);
+  assert.equal(c2.AppState.templateId,'etsyfolger-v1');assert.equal(c2.templateBase,builtin);assert.deepEqual(deleted,['icaviot.templates.v1']);assert.equal(workers.length,before);
+  assert(!starts.some(m=>/Restoring/.test(m)));assert.equal(el('templateChoice-option').textContent,'Custom STL · upload…');
+  // No IndexedDB at all (private windows, old browsers) is fine too.
+  vm.runInContext(fs.readFileSync(new URL('custom-template-ui.js',dist),'utf8'),vm.createContext({...c,AppState:{templateId:'custom-stl',mode:'sleeve'},self:{}}));
+});
+await test('no start card or onboarding overlay over the canvas, and nothing references them',()=>{
+  const html=fs.readFileSync(new URL('index.html',dist),'utf8');for(const gone of ['templateStart','templateUpload','templateSample','threeEmpty','onboarding','Try lettering','Your sleeve. Your design.'])assert(!html.includes(gone),gone+' in index.html');
+  for(const f of fs.readdirSync(dist).filter(f=>/\.(js|css)$/.test(f))){const t=fs.readFileSync(new URL(f,dist),'utf8');for(const gone of ['templateStart','templateSample','templateUpload','threeEmpty','template-start','onboarding','canvas-empty','icaviot.templates.v1'])if(!(gone==='icaviot.templates.v1'&&f==='custom-template-ui.js'))assert(!t.includes(gone),gone+' in '+f)}
+  // The panel still offers upload and Text.
+  for(const id of ['fileInput','textInput'])assert(html.includes('id="'+id+'"'),id);
 });
 console.log(passed+' custom template UI checks passed');

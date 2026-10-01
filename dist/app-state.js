@@ -193,7 +193,6 @@ const els = {
   tipsContent: $('tipsContent'),
   // canvas
   threeContainer: $('threeContainer'),
-  threeEmpty: $('threeEmpty'),
   heightmapCanvas: $('heightmapCanvas'),
   hmEmpty: $('hmEmpty'),
   hmInfo: $('hmInfo'),

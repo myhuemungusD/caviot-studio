@@ -1,7 +1,7 @@
-// Textured custom templates (bumps/discs over the whole outside, like the "circlesthin" sleeve):
-// texture detection, raised emboss pads (closed, above the bumps, continuous), export checks, and the
-// unchanged paths (plain templates, deboss, the option turned off). A synthetic sleeve stands in for
-// the real 30 MB STL: 12.7 mm radius, 1.35 mm wall, 2.2 mm discs on a 3.6 mm hex pitch.
+// Textured custom templates (bumps/discs over the whole outside): texture detection, raised emboss pads
+// (closed, above the bumps, continuous), export checks, and the unchanged paths (plain templates, deboss,
+// the option turned off). The sleeve is generated here: 12.7 mm radius, 1.35 mm wall, 2.2 mm discs on a
+// 3.6 mm hex pitch; nothing in the app is tuned to these numbers.
 import fs from 'node:fs';import vm from 'node:vm';import assert from 'node:assert/strict';
 const dist=new URL('./dist/',import.meta.url);
 let count=0;const test=async(name,fn)=>{const t=Date.now();await fn();count++;console.log('PASS '+name+' ('+(Date.now()-t)+' ms)')};
