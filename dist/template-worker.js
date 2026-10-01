@@ -61,10 +61,14 @@ self.onmessage=async({data})=>{
   try{
     if(data.type==='custom-prepare'){customPrepare(data);return}
     if(data.type==='custom-print'){const print=CustomTemplate.prepare(data.base,{quality:'print',onProgress:message=>postMessage({id:data.id,progress:message})});postMessage({id:data.id,stage:'print',print},transferPrepared(print));return}
-    const prepared=await resolveTemplate(data,data.type==='export'?'print':'preview');
-    const result=buildRelief(prepared,data);
+    // Exports report their stage so the UI can show progress (and knows the worker is alive) on long jobs.
+    const stage=data.type==='export'?message=>postMessage({id:data.id,progress:message,exportStage:true}):()=>{};
+    stage('Loading template');const prepared=await resolveTemplate(data,data.type==='export'?'print':'preview');
+    stage('Forming relief');const result=buildRelief(prepared,data);
     if(data.type==='export'){
-      if(data.repair){const repaired=MeshRepair.repair(result.positions,result.indices);if(!repaired.report.closed)throw Error('Repair could not close this mesh. Reduce relief depth or adjust placement.');result.positions=repaired.positions;result.indices=repaired.indices;}
+      // Repair validates its own output, so its report doubles as the export mesh check below.
+      let checked=null;
+      if(data.repair){stage('Making watertight');const repaired=MeshRepair.repair(result.positions,result.indices);if(!repaired.report.closed)throw Error('Repair could not close this mesh. Reduce relief depth or adjust placement.');result.positions=repaired.positions;result.indices=repaired.indices;const r=repaired.report;checked={triCount:r.triCount,zeroArea:r.zeroArea,boundary:r.boundary,nonManifold:r.nonManifold};}
       if((data.options.designs?.length||data.options.heightmap)&&result.info.affected===0)throw Error('The design is not on a printable surface. Move it, resize it, or check background removal.');
       const missing=result.info.affectedByDesign?.indexOf(0)??-1;
       if(missing>=0){
@@ -74,10 +78,11 @@ self.onmessage=async({data})=>{
         if(data.options.designs?.[missing]?.surface!=='underside')throw Error('One side has no artwork on a printable surface. Check its placement and background removal.');
         throw Error(data.template?.kind==='custom'?'The bottom logo does not reach a printable part of this template\'s underside. Move or enlarge it, or use a simpler STL so the underside keeps more detail.':'The bottom logo is not on a printable surface. Check its placement.');
       }
-      const v=MeshCore.validateMesh(result.positions,result.indices);
+      if(!checked)stage('Checking mesh');const v=checked||MeshCore.validateMesh(result.positions,result.indices);
       if(v.boundary||v.nonManifold||v.zeroArea)throw Error('Mesh check: '+v.zeroArea+' collapsed faces, '+v.boundary+' open edges, '+v.nonManifold+' non-manifold edges. Reduce depth or move the design.');
       // Export Z-up for slicers, preserving the template shape and millimeter scale.
       const positions=result.positions;for(let i=0;i<positions.length;i+=3){const y=positions[i+1];positions[i+1]=-positions[i+2];positions[i+2]=y}
+      stage('Writing '+(data.format==='obj'?'OBJ':'STL'));
       if(data.format==='obj')postMessage({id:data.id,validation:v,info:result.info,text:MeshCore.exportOBJ(positions,result.indices,data.template?.kind==='custom'?6:4)});
       else{const buffer=MeshCore.exportSTL(positions,result.indices);postMessage({id:data.id,validation:v,info:result.info,buffer},[buffer])}
     }else{

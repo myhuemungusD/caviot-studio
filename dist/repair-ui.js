@@ -15,7 +15,7 @@ repairButton.onclick=()=>{
  const r=data.report;repairOnExport=true;
  // Keep the original appearance when no geometry changed.
  if(r.welded||r.removed||r.filled){replaceTemplateMesh(data.positions,data.indices);dirty()}
- repairStatus.textContent=(r.closed?'Closed mesh: no open edges or non-manifold edges/vertices.':`Remaining: ${r.boundary} open edges, ${r.nonManifold} non-manifold edges, ${r.nonManifoldVertices} non-manifold vertices, ${r.winding} winding conflicts.`)+` Welded ${r.welded}; removed ${r.removed} faces; patched ${r.filled} tiny holes. Repair also runs at export resolution. Self-intersections are not checked.`;
+ repairStatus.textContent=r.alreadyClosed?'Already watertight: no open edges, non-manifold edges/vertices or winding conflicts, so nothing was changed. Export checks again at full resolution and repairs only if needed. Self-intersections are not checked.':(r.closed?'Closed mesh: no open edges or non-manifold edges/vertices.':`Remaining: ${r.boundary} open edges, ${r.nonManifold} non-manifold edges, ${r.nonManifoldVertices} non-manifold vertices, ${r.winding} winding conflicts.`)+` Welded ${r.welded}; removed ${r.removed} faces; patched ${r.filled} tiny holes. Repair also runs at export resolution. Self-intersections are not checked.`;
  };
  worker.postMessage({positions:source.positions,indices:source.indices});
 };

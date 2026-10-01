@@ -38,20 +38,30 @@ window.MeshCore = (function MeshCoreFactory() {
       // Preserve valid microscopic contour triangles; reject collapsed geometry.
       if ((nx * nx + ny * ny + nz * nz) < 1e-18) zeroArea++;
     }
-    const edges = new Map();
-    const addEdge = (u, v) => {
-      const key = u < v ? u + ',' + v : v + ',' + u;
-      edges.set(key, (edges.get(key) || 0) + 1);
-    };
-    for (let i = 0; i < indices.length; i += 3) {
-      const a = indices[i], b = indices[i + 1], c = indices[i + 2];
-      addEdge(a, b); addEdge(b, c); addEdge(c, a);
-    }
+    // Count undirected edge uses with per-vertex buckets (CSR): much faster than a string-keyed Map on
+    // million-face meshes, same counts. Falls back to strings for non-integer or negative indices.
+    let maxIndex = -1, integral = true;
+    for (let i = 0; i < indices.length; i++) { const v = indices[i]; if (v > maxIndex) maxIndex = v; if (!(v >= 0) || v !== Math.floor(v)) integral = false; }
+    const N = maxIndex + 1;
     let boundary = 0, nonManifold = 0;
-    edges.forEach((count) => {
-      if (count === 1) boundary++;
-      else if (count > 2) nonManifold++;
-    });
+    if (integral && N < 2147483647) {
+      const corners = indices.length - indices.length % 3, start = new Int32Array(N + 1);
+      for (let i = 0; i < corners; i += 3) for (let j = 0; j < 3; j++) { const a = indices[i + j], b = indices[i + (j + 1) % 3]; start[(a < b ? a : b) + 1]++; }
+      for (let v = 0; v < N; v++) start[v + 1] += start[v];
+      const fill = new Int32Array(N), hiOf = new Int32Array(corners), uses = new Int32Array(corners);
+      for (let i = 0; i < corners; i += 3) for (let j = 0; j < 3; j++) {
+        const a = indices[i + j], b = indices[i + (j + 1) % 3], lo = a < b ? a : b, hi = a < b ? b : a, s0 = start[lo], end = s0 + fill[lo];
+        let k = s0; while (k < end && hiOf[k] !== hi) k++;
+        if (k === end) { hiOf[end] = hi; fill[lo]++; }
+        uses[k]++;
+      }
+      for (let v = 0; v < N; v++) for (let k = start[v], end = start[v] + fill[v]; k < end; k++) { if (uses[k] === 1) boundary++; else if (uses[k] > 2) nonManifold++; }
+    } else {
+      const edges = new Map();
+      const addEdge = (u, v) => { const key = u < v ? u + ',' + v : v + ',' + u; edges.set(key, (edges.get(key) || 0) + 1); };
+      for (let i = 0; i < indices.length; i += 3) { const a = indices[i], b = indices[i + 1], c = indices[i + 2]; addEdge(a, b); addEdge(b, c); addEdge(c, a); }
+      edges.forEach((count) => { if (count === 1) boundary++; else if (count > 2) nonManifold++; });
+    }
     return { triCount, zeroArea, boundary, nonManifold };
   }
 

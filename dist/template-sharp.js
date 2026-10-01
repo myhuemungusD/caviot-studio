@@ -1,6 +1,15 @@
 'use strict';
 globalThis.SharpSleeve=(()=>{
- const key=(a,b)=>a<b?a+','+b:b+','+a;
+ // Numeric undirected edge key (vertex ids stay far below 2^26, so the key is an exact integer).
+ const key=(a,b)=>a<b?a*67108864+b:b*67108864+a;
+ // Growable open-addressing map from an ordered pair of non-negative int32 ids to an int32 value (-1 = absent).
+ // Far faster than a Map with string or large-number keys on million-edge meshes.
+ function pairTable(expected){
+  let size=16,count=0;while(size<expected*2.5)size*=2;let mask=size-1,ka=new Int32Array(size),kb=new Int32Array(size),values=new Int32Array(size).fill(-1);
+  const slot=(a,b)=>{let h=Math.imul(a,-1640531535)+b|0;h^=h>>>16;h=Math.imul(h,-2048144789);h^=h>>>13;h=Math.imul(h,-1028477387);h=(h^h>>>16)&mask;for(;;){if(values[h]<0||(ka[h]===a&&kb[h]===b))return h;h=(h+1)&mask}};
+  const grow=()=>{const oa=ka,ob=kb,ov=values;size*=2;mask=size-1;ka=new Int32Array(size);kb=new Int32Array(size);values=new Int32Array(size).fill(-1);for(let i=0;i<ov.length;i++)if(ov[i]>=0){const h=slot(oa[i],ob[i]);ka[h]=oa[i];kb[h]=ob[i];values[h]=ov[i]}};
+  return{get(a,b){return values[slot(a,b)]},set(a,b,v){let h=slot(a,b);if(values[h]<0){if(++count>size*.5){grow();h=slot(a,b)}ka[h]=a;kb[h]=b}values[h]=v},clear(){values.fill(-1);count=0},get size(){return count}};
+ }
  // Interpolate distance to the silhouette, not saturated alpha. Binary alpha
  // gives every crossed mesh edge a midpoint, creating mesh-sized sawteeth.
  function contourField(o){
@@ -25,22 +34,30 @@ globalThis.SharpSleeve=(()=>{
   return ((h[b*d.cols+a]*(1-tx)+h[b*d.cols+a+1]*tx)*(1-ty)+(h[(b+1)*d.cols+a]*(1-tx)+h[(b+1)*d.cols+a+1]*tx)*ty-.5)*pixel;
  }
  function refine(source,o,spacing){
-  const p=Array.from(source.positions),n=Array.from(source.normals),uv=Array.from(source.uv),distance=Array.from(source.distance),thickness=Array.from(source.thickness),outer=Array.from(source.outer);let tris=Array.from(source.indices);
+  const p=Array.from(source.positions),n=Array.from(source.normals),uv=Array.from(source.uv),distance=Array.from(source.distance),thickness=Array.from(source.thickness),outer=Array.from(source.outer);let tris=source.indices;
   const perimeter=source.chart.perimeter,regions=(o.designs||[o]).map(d=>{const rot=(d.designRotation||0)*Math.PI/180;return {...d,center:SleeveTemplate.arcAt(source.chart,(d.designAngle||0)*Math.PI/180+Math.PI/2),c:Math.cos(rot),s:Math.sin(rot)}});
-  const near=i=>outer[i]&&regions.some(d=>{const xy=SleeveTemplate.artworkPoint({positions:p,normals:n,uv,chart:source.chart,height:source.height},i,d);if(!xy)return false;const [dx,dy]=xy;return Math.abs(dx*d.c+dy*d.s)<d.designWidth/2+2&&Math.abs(-dx*d.s+dy*d.c)<d.designHeight/2+2});
+  // p, n and uv only grow (existing vertices never change), so one view object and a per-vertex memo are exact.
+  const view={positions:p,normals:n,uv,chart:source.chart,height:source.height},nearMemo=[];
+  const near=i=>{const m=nearMemo[i];if(m!==undefined)return m;return nearMemo[i]=nearTest(i)};
+  const nearTest=i=>!!outer[i]&&regions.some(d=>{const xy=SleeveTemplate.artworkPoint(view,i,d);if(!xy)return false;const [dx,dy]=xy;return Math.abs(dx*d.c+dy*d.s)<d.designWidth/2+2&&Math.abs(-dx*d.s+dy*d.c)<d.designHeight/2+2});
   const edgeDistance=[];
-  const distanceToContour=i=>{if(edgeDistance[i]!==undefined)return edgeDistance[i];let nearest=Infinity;for(const d of regions){if(!d.contour)return 0;const xy=SleeveTemplate.artworkPoint({positions:p,normals:n,uv,chart:source.chart,height:source.height},i,d);if(!xy)continue;const [dx,dy]=xy;nearest=Math.min(nearest,Math.abs(sampleDistance(d,(dx*d.c+dy*d.s)/d.designWidth+.5,.5-(-dx*d.s+dy*d.c)/d.designHeight)))}return edgeDistance[i]=nearest;};
+  const distanceToContour=i=>{if(edgeDistance[i]!==undefined)return edgeDistance[i];let nearest=Infinity;for(const d of regions){if(!d.contour)return 0;const xy=SleeveTemplate.artworkPoint(view,i,d);if(!xy)continue;const [dx,dy]=xy;nearest=Math.min(nearest,Math.abs(sampleDistance(d,(dx*d.c+dy*d.s)/d.designWidth+.5,.5-(-dx*d.s+dy*d.c)/d.designHeight)))}return edgeDistance[i]=nearest;};
+  const splits=pairTable(tris.length/6),edge=(a,b)=>a<b?splits.get(a,b):splits.get(b,a);
   for(let pass=0;pass<12;pass++){
-   const splits=new Map();
-   for(let f=0;f<tris.length;f+=3){const ids=tris.slice(f,f+3);if(!ids.some(near))continue;let best=spacing,a,b;for(let e=0;e<3;e++){const x=ids[e],y=ids[(e+1)%3],len=Math.hypot(p[x*3]-p[y*3],p[x*3+1]-p[y*3+1],p[x*3+2]-p[y*3+2]);if(len>best){best=len;a=x;b=y}}if(a===undefined||splits.has(key(a,b)))continue;
+   if(pass)splits.clear();const touched=new Uint8Array(p.length/3);
+   for(let f=0;f<tris.length;f+=3){const t0=tris[f],t1=tris[f+1],t2=tris[f+2];if(!(near(t0)||near(t1)||near(t2)))continue;let best=spacing,a,b;for(let e=0;e<3;e++){const x=e===0?t0:e===1?t1:t2,y=e===0?t1:e===1?t2:t0,len=Math.hypot(p[x*3]-p[y*3],p[x*3+1]-p[y*3+1],p[x*3+2]-p[y*3+2]);if(len>best){best=len;a=x;b=y}}if(a===undefined||edge(a,b)>=0)continue;
     // Keep the finest triangles only in a conservative band around contours.
     // Interiors retain a 0.5 mm surface mesh; the original sleeve is untouched.
-    if(best<=.5&&Math.min(...ids.map(distanceToContour))>best*1.5+spacing)continue;
-    const i=p.length/3;splits.set(key(a,b),i);for(let k=0;k<3;k++){p.push((p[a*3+k]+p[b*3+k])/2);n.push((n[a*3+k]+n[b*3+k])/2)}const length=Math.hypot(n[i*3],n[i*3+1],n[i*3+2])||1;for(let k=0;k<3;k++)n[i*3+k]/=length;let du=uv[b]-uv[a];du-=Math.round(du/perimeter)*perimeter;uv.push((uv[a]+du/2+perimeter)%perimeter);distance.push(Math.min(distance[a],distance[b]));thickness.push(Math.min(thickness[a],thickness[b]));outer.push(outer[a]&&outer[b]?1:0);
+    if(best<=.5){const d0=distanceToContour(t0),d1=distanceToContour(t1),d2=distanceToContour(t2);if(Math.min(d0,d1,d2)>best*1.5+spacing)continue}
+    const i=p.length/3;if(a<b)splits.set(a,b,i);else splits.set(b,a,i);touched[a]=touched[b]=1;for(let k=0;k<3;k++){p.push((p[a*3+k]+p[b*3+k])/2);n.push((n[a*3+k]+n[b*3+k])/2)}const length=Math.hypot(n[i*3],n[i*3+1],n[i*3+2])||1;for(let k=0;k<3;k++)n[i*3+k]/=length;let du=uv[b]-uv[a];du-=Math.round(du/perimeter)*perimeter;uv.push((uv[a]+du/2+perimeter)%perimeter);distance.push(Math.min(distance[a],distance[b]));thickness.push(Math.min(thickness[a],thickness[b]));outer.push(outer[a]&&outer[b]?1:0);
    }
-   if(!splits.size)break;if(p.length/3>1400000){const error=Error('Artwork needs more mesh detail than this browser can hold.');error.code='MESH_BUDGET';throw error;}const next=[];
-   for(let f=0;f<tris.length;f+=3){const[a,b,c]=tris.slice(f,f+3),ab=splits.get(key(a,b)),bc=splits.get(key(b,c)),ca=splits.get(key(c,a)),bits=(ab!==undefined?1:0)+(bc!==undefined?2:0)+(ca!==undefined?4:0);switch(bits){case 0:next.push(a,b,c);break;case 1:next.push(a,ab,c,ab,b,c);break;case 2:next.push(b,bc,a,bc,c,a);break;case 4:next.push(c,ca,b,ca,a,b);break;case 3:next.push(b,bc,ab,a,ab,c,ab,bc,c);break;case 5:next.push(a,ab,ca,ab,b,c,ab,c,ca);break;case 6:next.push(c,ca,bc,a,b,ca,b,bc,ca);break;case 7:next.push(a,ab,ca,ab,b,bc,ca,bc,c,ab,bc,ca);break}}
-   tris=next;
+   if(!splits.size)break;if(p.length/3>1400000){const error=Error('Artwork needs more mesh detail than this browser can hold.');error.code='MESH_BUDGET';throw error;}// Faces go into a growable typed buffer (same order as before) instead of millions of Array pushes.
+   let next=new Uint32Array(tris.length+splits.size*12+64),len=0;const T=(x,y,z)=>{if(len+3>next.length){const g=new Uint32Array(next.length*2);g.set(next);next=g}next[len]=x;next[len+1]=y;next[len+2]=z;len+=3};
+   for(let f=0;f<tris.length;f+=3){const a=tris[f],b=tris[f+1],c=tris[f+2];
+    // A split edge has both ends touched; faces with fewer touched corners skip the table lookups.
+    if((touched[a]===1?1:0)+(touched[b]===1?1:0)+(touched[c]===1?1:0)<2){T(a,b,c);continue}
+    const ab=edge(a,b),bc=edge(b,c),ca=edge(c,a),bits=(ab>=0?1:0)+(bc>=0?2:0)+(ca>=0?4:0);switch(bits){case 0:T(a,b,c);break;case 1:T(a,ab,c);T(ab,b,c);break;case 2:T(b,bc,a);T(bc,c,a);break;case 4:T(c,ca,b);T(ca,a,b);break;case 3:T(b,bc,ab);T(a,ab,c);T(ab,bc,c);break;case 5:T(a,ab,ca);T(ab,b,c);T(ab,c,ca);break;case 6:T(c,ca,bc);T(a,b,ca);T(b,bc,ca);break;case 7:T(a,ab,ca);T(ab,b,bc);T(ca,bc,c);T(ab,bc,ca);break}}
+   tris=next.subarray(0,len);
   }
   return{...source,positions:p,normals:n,uv,distance,thickness,outer,indices:tris,spacing};
  }
@@ -60,7 +77,7 @@ globalThis.SharpSleeve=(()=>{
   if(!o.designs&&o.negative&&depth>safe+.001)throw Error('Deboss is too deep here. Use '+Math.max(0,safe).toFixed(2)+' mm or less.');
   const high=i=>{if(highIds.has(i))return highIds.get(i);const id=values.length/3;for(let k=0;k<3;k++)values.push(p.positions[i*3+k]+p.normals[i*3+k]*offsets[i]);amplitude.push(1);highIds.set(i,id);return id};
   const cut=(a,b)=>{const edge=key(a,b);if(cuts.has(edge))return cuts.get(edge);const t=Math.max(.02,Math.min(.98,(.5-field[a])/(field[b]-field[a]))),base=[0,1,2].map(k=>p.positions[a*3+k]+t*(p.positions[b*3+k]-p.positions[a*3+k])),normal=[0,1,2].map(k=>p.normals[a*3+k]+t*(p.normals[b*3+k]-p.normals[a*3+k])),len=Math.hypot(...normal)||1,lo=values.length/3;values.push(...base);amplitude.push(0);const hi=values.length/3;values.push(...base.map((v,k)=>v+normal[k]/len*(field[a]>.5?offsets[a]:offsets[b])));amplitude.push(1);const result={lo,hi,cut:true};cuts.set(edge,result);return result};
-  for(let f=0;f<p.indices.length;f+=3){const ids=p.indices.slice(f,f+3),above=ids.map(i=>field[i]>.5);if(above.every(Boolean)){indices.push(...ids.map(high));continue}if(above.every(v=>!v)){indices.push(...ids);continue}const hi=[],lo=[];
+  for(let f=0;f<p.indices.length;f+=3){const i0=p.indices[f],i1=p.indices[f+1],i2=p.indices[f+2],a0=field[i0]>.5,a1=field[i1]>.5,a2=field[i2]>.5;if(a0&&a1&&a2){const h0=high(i0),h1=high(i1);indices.push(h0,h1,high(i2));continue}if(!a0&&!a1&&!a2){indices.push(i0,i1,i2);continue}const ids=[i0,i1,i2],above=[a0,a1,a2];const hi=[],lo=[];
    for(let e=0;e<3;e++){const a=ids[e],b=ids[(e+1)%3];(above[e]?hi:lo).push({lo:a,hi:above[e]?high(a):a,cut:false});if(above[e]!==above[(e+1)%3]){const v=cut(a,b);hi.push(v);lo.push(v)}}
    for(const [polygon,side]of[[hi,'hi'],[lo,'lo']])for(let j=1;j<polygon.length-1;j++)indices.push(polygon[0][side],polygon[j][side],polygon[j+1][side]);
    for(let e=0;e<hi.length;e++){const a=hi[e],b=hi[(e+1)%hi.length];if(a.cut&&b.cut){walls.push(indices.length/3,indices.length/3+1);indices.push(b.hi,a.hi,a.lo,b.hi,a.lo,b.lo)}}
@@ -81,9 +98,12 @@ globalThis.SharpSleeve=(()=>{
     const candidates=[];for(let j=0;j<3;j++){const x=clean[f+j],y=clean[f+(j+1)%3];if(amplitude[x]!==amplitude[y])continue;const length=Math.hypot(packed[x*3]-packed[y*3],packed[x*3+1]-packed[y*3+1],packed[x*3+2]-packed[y*3+2]);if(length<limit)candidates.push([Math.min(x,y),Math.max(x,y),length])}candidates.sort((a,b)=>a[2]-b[2]);for(const [a,b]of candidates)pairs.push([a,b]);
    }
    if(!pairs.length)break;const wanted=new Set(pairs.flat()),neighbors=new Map([...wanted].map(i=>[i,new Set()]));
-   for(let f=0;f<clean.length;f+=3)for(let j=0;j<3;j++){const a=clean[f+j];if(neighbors.has(a)){neighbors.get(a).add(clean[f+(j+1)%3]);neighbors.get(a).add(clean[f+(j+2)%3])}}
+   const isWanted=new Uint8Array(packed.length/3);for(const i of wanted)isWanted[i]=1;
+   for(let f=0;f<clean.length;f+=3)for(let j=0;j<3;j++){const a=clean[f+j];if(isWanted[a]===1){neighbors.get(a).add(clean[f+(j+1)%3]);neighbors.get(a).add(clean[f+(j+2)%3])}}
    const merges=new Map(),touched=new Set();for(const[a,b]of pairs){if(touched.has(a)||touched.has(b))continue;const common=[...neighbors.get(a)].filter(i=>neighbors.get(b).has(i));if(common.length!==2)continue;merges.set(b,a);touched.add(a);touched.add(b);for(const v of neighbors.get(a))touched.add(v);for(const v of neighbors.get(b))touched.add(v)}if(!merges.size)break;
-   const next=[],nextWalls=new Set();for(let f=0;f<clean.length;f+=3){const ids=clean.slice(f,f+3).map(i=>merges.get(i)??i);if(new Set(ids).size<3)continue;if(wallFaces.has(f/3))nextWalls.add(next.length/3);next.push(...ids)}clean=next;wallFaces=nextWalls;
+   const mergeTo=new Int32Array(packed.length/3).fill(-1);for(const [b,a]of merges)mergeTo[b]=a;const to=i=>mergeTo[i]>=0?mergeTo[i]:i;
+   const isWall=new Uint8Array(clean.length/3);for(const w of wallFaces)isWall[w]=1;
+   const next=new Uint32Array(clean.length),nextWalls=new Set();let kept=0;for(let f=0;f<clean.length;f+=3){const x=to(clean[f]),y=to(clean[f+1]),z=to(clean[f+2]);if(x===y||y===z||x===z)continue;if(isWall[f/3]===1)nextWalls.add(kept/3);next[kept]=x;next[kept+1]=y;next[kept+2]=z;kept+=3}clean=next.subarray(0,kept);wallFaces=nextWalls;
   }
   clean=flipCollinear(packed,clean,wallFaces);
   return{positions:packed,indices:new Uint32Array(clean),amplitude:new Float32Array(amplitude),walls:new Uint32Array([...wallFaces]),info:{affected,affectedByDesign,clipped,maxSafeDepth:safe,peakDepth:depth,spacing:p.spacing,perimeter:p.chart.perimeter,sharp:true}};
