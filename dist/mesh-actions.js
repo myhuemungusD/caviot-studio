@@ -128,15 +128,29 @@ function updateStats() {
 }
 
 // ---------- Export ----------
+// Saves a generated file. Desktop and Android use a Blob URL + <a download>. iOS (Safari and home-screen apps)
+// gets a "file ready" sheet instead, because the export finishes long after the tap: iOS only allows the share
+// sheet or a new tab from a fresh tap, and <a download> inside a home-screen app has no way back.
 function downloadBlob(blob, filename) {
+  if (typeof CaviotDevice !== 'undefined' && CaviotDevice.iOS && typeof showFileReady === 'function') {
+    showFileReady(blob, filename);
+    return;
+  }
+  saveBlobWithAnchor(blob, filename);
+}
+
+function saveBlobWithAnchor(blob, filename) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
   a.download = filename;
+  a.rel = 'noopener';
+  a.style.display = 'none';
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  // Mobile browsers read the Blob URL asynchronously (and may show a prompt first); keep it alive for a minute.
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
 }
 
 function exportCurrentLegacy(format) {

@@ -1,0 +1,131 @@
+/* Phones, tablets and touch. Desktop (fine pointer, wider than 760px) is untouched: every layout rule here sits
+   inside the phone media query, and touch sizing applies only to coarse pointers. */
+.mobile-only,.mobile-menu,.touch-only{display:none}
+.mobile-menu[hidden]{display:none!important}
+.webgl-unavailable::after,body.webgl-lost #threeContainer::after{content:attr(data-webgl-note);position:absolute;inset:auto 16px 50% 16px;text-align:center;color:var(--t2);font-size:14px;line-height:1.5;pointer-events:none}
+#threeContainer{position:relative}
+.mobile-dialog .layer-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+.phone-status{display:none}
+
+/* ---------- Any touch screen: finger-sized targets, no double-tap zoom on controls ---------- */
+@media (pointer:coarse){
+  .touch-only{display:inline}
+  .desktop-only{display:none}
+  button,.btn,select,input,label,summary,[role=button]{touch-action:manipulation}
+  #threeContainer,#threeContainer canvas{touch-action:none;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
+  .canvas{overscroll-behavior:none}
+  .btn{min-height:44px}
+  .btn-sm{min-height:44px}
+  .sidebar input[type=text],.sidebar input[type=number],.sidebar select{min-height:44px;font-size:16px}
+  .sidebar input[type=range]{height:44px;touch-action:pan-y}
+  .sidebar input[type=range]::-webkit-slider-runnable-track{height:6px}
+  .sidebar input[type=range]::-webkit-slider-thumb{width:28px;height:28px;margin-top:-12px}
+  .sidebar input[type=range]::-moz-range-thumb{width:26px;height:26px}
+  .sidebar .check{min-height:44px;align-items:center}
+  .sidebar input[type=checkbox],.sidebar input[type=radio]{width:22px;height:22px}
+  .sidebar summary{min-height:44px;display:flex;align-items:center}
+  .rail-button{min-width:44px;min-height:44px}
+}
+
+/* ---------- Phone layout: portrait up to 760px wide, or a phone in landscape ---------- */
+@media (max-width:760px),(max-height:520px) and (pointer:coarse){
+  :root{--pb-h:52px;--bb-h:64px;--safe-t:env(safe-area-inset-top,0px);--safe-b:env(safe-area-inset-bottom,0px);--safe-l:env(safe-area-inset-left,0px);--safe-r:env(safe-area-inset-right,0px)}
+  html,body{height:100%;overflow:hidden;overscroll-behavior:none;-webkit-text-size-adjust:100%;text-size-adjust:100%}
+  body{position:fixed;inset:0;width:100%}
+  .mobile-only{display:inline-flex}
+  .touch-only{display:inline}
+  .desktop-only{display:none}
+  .shell{height:100vh;height:100dvh;width:100vw;max-width:100%;overflow:hidden;grid-template-rows:calc(var(--pb-h) + var(--safe-t)) minmax(0,1fr) calc(var(--bb-h) + var(--safe-b))!important;grid-template-columns:minmax(0,1fr)}
+  .shell>.projectbar{grid-row:1}
+  .shell>.app{grid-row:2}
+  .shell>.topbar{grid-row:3}
+  .status-strip{display:none!important}
+
+  /* Compact top bar: name, undo/redo, overflow menu */
+  .projectbar{height:auto;padding:var(--safe-t) max(10px,var(--safe-r)) 0 max(10px,var(--safe-l))!important;gap:6px!important;min-width:0}
+  .project-identity{min-width:0;flex:1 1 auto;gap:8px}
+  .studio-mark{display:grid!important;flex:0 0 28px}
+  .project-identity input{width:100%!important;min-width:0;font-size:16px!important;min-height:44px}
+  .local-label{display:none!important}
+  .project-actions{flex:0 0 auto;gap:4px!important}
+  .project-actions>.btn:not(#mobileMoreBtn){display:none!important}
+  .history-actions{gap:4px}
+  .history-actions .btn{min-width:44px;min-height:44px;height:44px;padding:0 8px!important;font-size:20px!important}
+  .history-label{display:none}
+  #mobileMoreBtn{min-width:44px;height:44px;padding:0;justify-content:center;font-size:22px;line-height:1}
+  .mobile-menu{display:flex;flex-direction:column;position:fixed;z-index:120;top:calc(var(--pb-h) + var(--safe-t) - 4px);right:max(8px,var(--safe-r));min-width:220px;max-width:calc(100vw - 16px);padding:6px;background:#1d1e23;border:1px solid var(--b3);border-radius:12px;box-shadow:0 18px 50px #000a}
+  .mobile-menu button{min-height:48px;padding:0 14px;text-align:left;background:transparent;border:0;border-radius:8px;color:var(--t1);font-size:16px}
+  .mobile-menu button:active,.mobile-menu button:focus-visible{background:var(--s3);outline:none}
+  .mobile-menu button:disabled{opacity:.4}
+
+  /* Bottom action bar (the old top bar): Tools + Export STL */
+  .topbar{display:flex!important;flex-wrap:nowrap!important;align-items:center;gap:10px!important;height:auto;min-height:0;padding:8px max(12px,var(--safe-r)) calc(8px + var(--safe-b)) max(12px,var(--safe-l))!important;border-top:1px solid var(--b2);border-bottom:0;overflow:visible!important;background:#101114;z-index:70;position:relative}
+  .topbar .brand{display:none}
+  .tools-heading{flex:1 1 auto}
+  #mobileSettingsBtn{display:inline-flex!important;align-items:center;justify-content:center;height:48px;min-width:110px;padding:0 18px!important;font-size:16px}
+  .top-actions{margin-left:auto;gap:8px}
+  .top-actions>#openSTL,.top-actions>#downloadObjBtn,.top-actions kbd{display:none!important}
+  #generateBtn{height:48px;padding:0 22px!important;font-size:16px;white-space:nowrap}
+
+  /* Full-screen 3D view */
+  .app{grid-template-columns:minmax(0,1fr)!important;padding-left:0!important;position:relative;min-height:0}
+  .canvas{position:relative;min-width:0;min-height:0;overflow:hidden}
+  .canvas-meta,.canvas-hint,.axis-legend,#resetViewBtn,.hm-mini,.using-template .hm-mini{display:none!important}
+  .template-toolbar{top:10px!important;left:max(10px,var(--safe-l))!important;right:max(10px,var(--safe-r));gap:6px;flex-wrap:nowrap}
+  .template-toolbar .btn{min-height:44px;height:44px;padding:0 12px;font-size:14px;background:rgba(16,17,20,.72);backdrop-filter:blur(6px)}
+  .phone-status{display:block;position:absolute;left:max(12px,var(--safe-l));right:max(12px,var(--safe-r));top:64px;z-index:6;padding:8px 12px;border-radius:10px;background:rgba(16,17,20,.82);border:1px solid var(--b2);color:var(--t2);font-size:13px;line-height:1.4;text-align:center;pointer-events:none;opacity:0;transition:opacity .25s}
+  .phone-status.show{opacity:1}
+  .phone-status.error{color:var(--danger);border-color:var(--danger)}
+
+  /* Tools as a bottom sheet over the canvas (half height, drag up for full) */
+  html body .sidebar,html body.settings-closed .sidebar{position:fixed!important;display:block!important;left:max(0px,var(--safe-l))!important;right:max(0px,var(--safe-r))!important;top:auto!important;bottom:calc(var(--bb-h) + var(--safe-b))!important;width:auto!important;height:58vh;height:58dvh;max-height:calc(100dvh - var(--pb-h) - var(--safe-t) - var(--bb-h) - var(--safe-b) - 8px);z-index:65;border:1px solid var(--b2);border-bottom:0;border-radius:18px 18px 0 0;box-shadow:0 -12px 40px rgba(0,0,0,.55);transform:translateY(calc(100% + var(--bb-h) + 40px))!important;visibility:hidden;transition:transform 220ms cubic-bezier(.2,.8,.2,1),visibility 0s linear 220ms,height 220ms ease;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding-bottom:16px}
+  html body.mobile-settings-open .sidebar{transform:none!important;visibility:visible;transition:transform 220ms cubic-bezier(.2,.8,.2,1),visibility 0s,height 220ms ease}
+  html body.sheet-full .sidebar{height:calc(100dvh - var(--pb-h) - var(--safe-t) - var(--bb-h) - var(--safe-b) - 8px)}
+  html body.settings-closed .sidebar>:not(.tool-rail){display:revert!important}
+  html body .sidebar>.panel{max-width:100%}
+  .sheet-handle{display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:3;padding:4px 10px 4px 6px;background:var(--s1);border-bottom:1px solid var(--b1);touch-action:none}
+  .sheet-handle strong{flex:1;font-size:15px;color:var(--t1)}
+  .sheet-grip{width:56px;height:44px;border:0;background:transparent;display:grid;place-items:center;cursor:grab}
+  .sheet-grip span{display:block;width:40px;height:5px;border-radius:3px;background:var(--b3)}
+  .sheet-done{min-height:44px;font-size:15px}
+  html body .sidebar .tool-rail,html body.settings-closed .sidebar .tool-rail{display:flex!important;flex-direction:row!important;position:sticky;top:53px;z-index:2;gap:6px;padding:8px 10px!important;overflow-x:auto;background:var(--s1);border-bottom:1px solid var(--b1);scrollbar-width:none}
+  .tool-rail::-webkit-scrollbar{display:none}
+  .tool-rail .rail-button{flex:0 0 48px;height:48px;width:48px;border-color:var(--b2)}
+  .tool-rail .rail-button:first-child,.tool-rail .rail-button:nth-last-child(-n+2){display:none}
+  .sidebar .mesh-repair-panel{position:static!important;margin:12px 16px 0;max-width:none;flex-direction:column;align-items:flex-start}
+  .sidebar .mesh-repair-panel span{max-height:none!important}
+  .canvas>.mesh-repair-panel{display:none}
+  .sidebar .drop{min-height:88px}
+  .export-quality-panel select{width:100%}
+
+  /* Dialogs, toasts */
+  .toast{bottom:calc(var(--bb-h) + var(--safe-b) + 14px)!important;max-width:calc(100vw - 24px);font-size:14px}
+  .product-dialog{width:calc(100vw - 20px)!important;max-height:calc(100dvh - 24px - var(--safe-t) - var(--safe-b));padding:20px!important}
+  .product-dialog .btn{min-height:46px}
+  .file-ready-actions .btn{flex:1 1 140px}
+  .modal-box{max-width:calc(100vw - 20px)}
+}
+
+/* ---------- Phone in landscape: one slim top row, tools in a side sheet ---------- */
+@media (max-height:520px) and (pointer:coarse) and (orientation:landscape){
+  :root{--pb-h:48px;--bb-h:0px}
+  .shell{grid-template-rows:calc(var(--pb-h) + var(--safe-t)) minmax(0,1fr)!important;grid-template-columns:minmax(0,1fr) auto}
+  .shell>.projectbar{grid-row:1;grid-column:1}
+  .shell>.topbar{grid-row:1;grid-column:2;border-top:0;border-bottom:1px solid var(--b2);padding:var(--safe-t) max(10px,var(--safe-r)) 0 6px!important;gap:8px!important}
+  .shell>.app{grid-row:2;grid-column:1/-1}
+  .projectbar{border-bottom:1px solid var(--b2)}
+  .tools-heading{flex:0 0 auto}
+  #mobileSettingsBtn,#generateBtn{height:44px;min-height:44px;min-width:0}
+  html body .sidebar,html body.settings-closed .sidebar{left:auto!important;top:calc(var(--pb-h) + var(--safe-t))!important;bottom:0!important;right:0!important;width:min(400px,48vw)!important;height:auto!important;max-height:none;border-radius:16px 0 0 0;border:1px solid var(--b2);border-right:0;transform:translateX(calc(100% + 30px))!important;padding-bottom:calc(16px + var(--safe-b));padding-right:var(--safe-r)}
+  html body.mobile-settings-open .sidebar{transform:none!important}
+  html body.sheet-full .sidebar{height:auto!important}
+  .sheet-grip{display:none}
+  .mobile-menu{top:calc(var(--pb-h) + var(--safe-t) - 2px)}
+  .toast{bottom:calc(14px + var(--safe-b))!important}
+  .template-toolbar .btn{min-height:44px;height:44px}
+}
+
+/* Update banner (service worker) */
+.update-banner{position:fixed;z-index:130;left:50%;transform:translateX(-50%);bottom:calc(var(--status-h,42px) + 16px);display:flex;align-items:center;gap:10px;max-width:calc(100vw - 24px);padding:10px 12px;background:#1d1e23;border:1px solid var(--accent);border-radius:12px;box-shadow:0 18px 50px #000a;color:var(--t1);font-size:14px}
+.update-banner[hidden]{display:none}
+@media (max-width:760px),(max-height:520px) and (pointer:coarse){.update-banner{top:calc(var(--pb-h) + var(--safe-t) + 8px);bottom:auto;flex-wrap:wrap;justify-content:center}}

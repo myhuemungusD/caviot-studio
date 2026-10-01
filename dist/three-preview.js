@@ -23,8 +23,19 @@ function initThree() {
   if (!container || typeof THREE === 'undefined') return;
   const w = container.clientWidth || 600;
   const h = container.clientHeight || 500;
-  renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  try {
+    renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
+  } catch (error) {
+    // No WebGL (blocked, or the GPU process is exhausted): keep the editor and exports usable without the 3D view.
+    console.warn('WebGL unavailable', error);
+    renderer = null;
+    container.classList.add('webgl-unavailable');
+    container.setAttribute('data-webgl-note', '3D preview is unavailable in this browser. You can still edit and export.');
+    return;
+  }
+  // Phones cap the drawing buffer lower (CaviotDevice.limits.pixelRatio); desktop keeps 2.
+  const maxRatio = typeof CaviotDevice !== 'undefined' ? CaviotDevice.limits.pixelRatio : 2;
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, maxRatio));
   renderer.setSize(w, h);
   renderer.setClearColor(0x000000, 0);
   container.appendChild(renderer.domElement);
@@ -78,7 +89,24 @@ function initThree() {
     }, true);
   }
 
+  // Mobile browsers reclaim WebGL contexts under memory pressure or when backgrounded. Keep the page alive,
+  // tell the user, and let three.js rebuild its GPU state when the context comes back.
+  const canvasEl = renderer.domElement;
+  canvasEl.addEventListener('webglcontextlost', (e) => {
+    e.preventDefault();
+    document.body.classList.add('webgl-lost');
+    container.setAttribute('data-webgl-note', '3D preview paused while the browser frees graphics memory. Restoring…');
+  }, false);
+  canvasEl.addEventListener('webglcontextrestored', () => {
+    document.body.classList.remove('webgl-lost');
+    container.removeAttribute('data-webgl-note');
+    onResize();
+    if (typeof toast === 'function') toast('3D preview restored', 'success');
+  }, false);
+
   window.addEventListener('resize', onResize);
+  // The canvas also changes size without a window resize (phone toolbars, rotation, split screen).
+  if (typeof ResizeObserver === 'function') new ResizeObserver(() => onResize()).observe(container);
   animate();
 }
 
@@ -87,6 +115,8 @@ function onResize() {
   const w = els.threeContainer.clientWidth;
   const h = els.threeContainer.clientHeight;
   if (w < 2 || h < 2) return;
+  const size = renderer.getSize(new THREE.Vector2());
+  if (size.x === w && size.y === h && Math.abs(camera.aspect - w / h) < 1e-9) return;
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
   renderer.setSize(w, h);
