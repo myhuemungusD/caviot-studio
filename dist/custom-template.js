@@ -485,7 +485,7 @@ globalThis.CustomTemplate=(()=>{
     const positions=[],indices=[],walls=[],counts=[];
     for(const source of designs){
       const w=Math.max(2,Math.min(chart.perimeter,source.designWidth||30)),h=Math.max(2,Math.min(prepared.height,source.designHeight||30)),depth=Math.max(0,Math.min(3,source.maxHeight??maxHeight));
-      const d={...source,designWidth:w,designHeight:h,contour:S.contourField(source.sharp===false?{...source,designWidth:w,designHeight:h,heightmap:Float32Array.from(source.heightmap,v=>Math.min(1,v*500))}:{...source,designWidth:w,designHeight:h})};
+      const d={...source,designWidth:w,designHeight:h,contour:S.contourField(source.sharp===false?{...source,designWidth:w,designHeight:h,smoothContours:false,heightmap:Float32Array.from(source.heightmap,v=>Math.min(1,v*500))}:{...source,designWidth:w,designHeight:h})};
       const rot=(source.designRotation||0)*Math.PI/180,c=Math.cos(rot),s=Math.sin(rot),centerS=T.arcAt(chart,(source.designAngle||0)*Math.PI/180+Math.PI/2),centerY=source.designY??prepared.height/2;
       const g=Math.max(spacing,Math.sqrt(w*h/PAD_MAX_POINTS)),nx=Math.max(2,Math.ceil(w/g))+1,ny=Math.max(2,Math.ceil(h/g))+1,gx=w/(nx-1),gy=h/(ny-1);
       // Grid point (i,j) -> sleeve coordinates; x runs against arc length (the artwork's left is at larger arc).

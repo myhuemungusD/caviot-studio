@@ -24,17 +24,20 @@ let seed=7;const rand=n=>{seed=(seed*1103515245+12345)%2147483648;return seed%n}
 for(let t=0;t<40;t++){const nv=4+rand(40),p=new Float32Array(nv*3).map(()=>rand(1000)/100),ix=[];for(let f=0;f<5+rand(120);f++)ix.push(rand(nv),rand(nv),rand(nv));const v=MeshCore.validateMesh(p,ix),ref=reference(p,ix);assert.equal(v.boundary,ref.boundary);assert.equal(v.nonManifold,ref.nonManifold);assert.equal(v.triCount,ix.length/3)}
 assert.equal(JSON.stringify(MeshCore.validateMesh(new Float32Array(tetra),faces)),JSON.stringify({triCount:4,zeroArea:0,boundary:0,nonManifold:0}));
 console.log('Mesh check counts match the reference on 40 random meshes.');
-// 2. Full export through the worker: byte-identical to the pre-speedup build (hashes recorded from main 4a29b81).
+// 2. Full export through the worker: golden hashes (pixel-outline hashes recorded from main 4a29b81).
 const replies=[];const c={console,Blob,Response,DecompressionStream,TextDecoder,performance,postMessage:m=>replies.push(m)};c.self=c;c.globalThis=c;
 c.fetch=async u=>new Response(fs.readFileSync(new URL(u,dist)));vm.createContext(c);c.importScripts=(...f)=>f.forEach(n=>vm.runInContext(fs.readFileSync(new URL(n,dist),'utf8'),c,{filename:n}));
 vm.runInContext(fs.readFileSync(new URL('template-worker.js',dist),'utf8'),c);
 const rows=48,cols=96,hm=Float32Array.from({length:rows*cols},(_,i)=>{const x=i%cols,y=Math.floor(i/cols);return (x>6&&x<30&&y>6&&y<42)||(x>40&&x<90&&y>8&&y<20)||((x-65)**2+(y-32)**2<90)?1:0});
 const design=o=>({heightmap:hm,rows,cols,designWidth:24,designHeight:12,designAngle:0,designY:44.5,designRotation:-91,maxHeight:.4,negative:true,sharp:true,...o});
-const golden={deboss:[1159642,'a5b99aede8878eb80bd8e4b8816fe6bfee93540c'],debossRepair:[1159642,'a5b99aede8878eb80bd8e4b8816fe6bfee93540c'],emboss:[1159698,'b6150e6a620fa99b7839462ccd8e1bb25a04470f']};
-for(const [name,o,repair] of [['deboss',{},false],['debossRepair',{},true],['emboss',{negative:false,designRotation:30},false]]){replies.length=0;const t=Date.now();
+// Pixel outlines (smoothContours:false) must stay byte-identical to main 4a29b81; the default smooth (vector)
+// outlines are pinned to their own hashes so any later change to them is deliberate.
+const golden={deboss:[1159642,'a5b99aede8878eb80bd8e4b8816fe6bfee93540c'],debossRepair:[1159642,'a5b99aede8878eb80bd8e4b8816fe6bfee93540c'],emboss:[1159698,'b6150e6a620fa99b7839462ccd8e1bb25a04470f'],
+ smoothDeboss:[1159978,'0d04dd135cf85ad2867cb9ce38ceb5c2da382cb8'],smoothDebossRepair:[1159978,'0d04dd135cf85ad2867cb9ce38ceb5c2da382cb8'],smoothEmboss:[1159716,'33f9aff724b3595eb0657b49aaf439d22c6ac3d9']};
+for(const [name,o,repair] of [['deboss',{smoothContours:false},false],['debossRepair',{smoothContours:false},true],['emboss',{negative:false,designRotation:30,smoothContours:false},false],['smoothDeboss',{},false],['smoothDebossRepair',{},true],['smoothEmboss',{negative:false,designRotation:30},false]]){replies.length=0;const t=Date.now();
  await c.onmessage({data:{type:'export',id:1,format:'stl',repair,options:{sharp:true,designs:[design(o)],maxHeight:.4,negative:o.negative??true}}});
  const m=replies.find(x=>!x.progress);assert(!m.error,m.error);assert.deepEqual([m.validation.boundary,m.validation.nonManifold,m.validation.zeroArea],[0,0,0]);
- assert.equal(m.validation.triCount,golden[name][0]);assert.equal(crypto.createHash('sha1').update(Buffer.from(m.buffer)).digest('hex'),golden[name][1],name+' export bytes changed');
+ const sha=crypto.createHash('sha1').update(Buffer.from(m.buffer)).digest('hex');if(process.env.PRINT_GOLDEN)console.log('GOLDEN',name,m.validation.triCount,sha);else{assert.equal(m.validation.triCount,golden[name][0]);assert.equal(sha,golden[name][1],name+' export bytes changed')}
  const stages=replies.filter(x=>x.progress).map(x=>x.progress);assert.equal(stages.join('>'),['Loading template','Forming relief',repair?'Making watertight':'Checking mesh','Writing STL'].join('>'));assert(replies.filter(x=>x.progress).every(x=>x.exportStage));
- console.log('Export',name,'byte-identical,',m.validation.triCount,'triangles,',Date.now()-t,'ms, stages:',stages.join(' > '));}
+ console.log('Export',name,'matches its golden hash,',m.validation.triCount,'triangles,',Date.now()-t,'ms, stages:',stages.join(' > '));}
 console.log('Export path tests passed.');
