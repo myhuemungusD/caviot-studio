@@ -34,7 +34,13 @@ function ensurePlacementMesh(){
  };
  placementMesh=new THREE.Mesh(MC.toThreeGeometry(templateBase,THREE),material);placementMesh.userData.chart=chart;placementMesh.visible=false;scene.add(placementMesh);
 }
-function hidePlacementPreview(){clearTimeout(placementTimer);placementTimer=null;if(placementMesh)placementMesh.visible=false;if(meshObj)meshObj.visible=true;const repair=document.getElementById('makeWatertight');if(repair)repair.disabled=false;}
+// While a slider thumb is held, the detailed rebuild waits for release (pausing mid-drag no longer starts one), and
+// editor-tools keeps the drag as one undo step.
+let sliderDragActive=false,placementAwaitingRelease=false;
+document.addEventListener?.('pointerdown',e=>{if(e.target?.matches?.('input[type=range]'))sliderDragActive=true},true);
+function endSliderDrag(){if(!sliderDragActive)return;sliderDragActive=false;if(placementAwaitingRelease){clearTimeout(placementTimer);placementTimer=setTimeout(finishPlacement,0)}}
+globalThis.addEventListener?.('pointerup',endSliderDrag,true);globalThis.addEventListener?.('pointercancel',endSliderDrag,true);globalThis.addEventListener?.('blur',endSliderDrag);
+function hidePlacementPreview(){clearTimeout(placementTimer);placementTimer=null;placementAwaitingRelease=false;if(placementMesh)placementMesh.visible=false;if(meshObj)meshObj.visible=true;const repair=document.getElementById('makeWatertight');if(repair)repair.disabled=false;}
 function showPlacementPreview(){
  ensurePlacementMesh();if(!placementMesh||!AppState.heightmap)return;
  if(placementImageMap!==AppState.heightmap){placementImageMap=AppState.heightmap;placementTexture.needsUpdate=true;}
@@ -44,7 +50,7 @@ function showPlacementPreview(){
  const repair=document.getElementById('makeWatertight');if(repair)repair.disabled=true;placementMesh.visible=true;if(meshObj)meshObj.visible=false;
 }
 function finishPlacement(){
- clearTimeout(placementTimer);placementTimer=null;
+ clearTimeout(placementTimer);placementTimer=null;placementAwaitingRelease=false;
  if(!templateActive()||!AppState.image){hidePlacementPreview();return}
  saveSettings();requestTemplatePreview();
 }
@@ -54,8 +60,9 @@ function updatePlacement(){
  ++templateRevision;templatePending=null;
  // An obsolete detailed build must not consume CPU or replace the moving artwork.
  if(templatePreviewRunning&&templatePreviewWorker){templatePreviewWorker.terminate();templatePreviewWorker=null;templatePreviewRunning=false}
- showPlacementPreview();templateStatus('Positioning preview · detailed relief updates when you pause.');
- clearTimeout(placementTimer);placementTimer=setTimeout(finishPlacement,500);
+ showPlacementPreview();clearTimeout(placementTimer);placementTimer=null;
+ if(sliderDragActive){placementAwaitingRelease=true;templateStatus('Positioning preview · detailed relief updates when you release.');return}
+ templateStatus('Positioning preview · detailed relief updates when you pause.');placementTimer=setTimeout(finishPlacement,500);
 }
 function queuePlacementPointer(e){placementPointer={clientX:e.clientX,clientY:e.clientY};if(placementFrame!==null)return;placementFrame=requestAnimationFrame(()=>{placementFrame=null;const point=placementPointer;placementPointer=null;if(point&&templateActivePointer!==null)placeFromPointer(point)})}
 function flushPlacementPointer(){if(placementFrame!==null)cancelAnimationFrame(placementFrame);placementFrame=null;const point=placementPointer;placementPointer=null;if(point)placeFromPointer(point);finishPlacement()}
