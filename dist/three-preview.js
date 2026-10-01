@@ -134,7 +134,6 @@ function setBlenderView(view) {
 }
 
 function setEmptyState(empty) {
-  if (els.threeEmpty) els.threeEmpty.style.display = empty ? 'flex' : 'none';
   if (els.generateBtn) els.generateBtn.disabled = empty;
   if (els.downloadObjBtn) els.downloadObjBtn.disabled = empty;
   const tools = document.getElementById('imgTools');

@@ -26,8 +26,8 @@ function syncTemplateUI(){
   const active=templateActive();document.body.classList.toggle('using-template',active);$('templateChoice').value=AppState.templateId;
   els.depthIn.max=active?'3':'5';if(active&&AppState.depthMm>3){AppState.depthMm=3;els.depthIn.value='3';els.depthVal.textContent=(AppState.relief==='carved'?'↓ ':'↑ ')+'3.0'}els.depthIn.closest('.big-field').querySelector('.big-field-context span:last-child').textContent=active?'3 mm':'5 mm';
   $('templatePlacement').hidden=!active;$('designSizing').hidden=!active;$('templateToolbar').hidden=!active;$('templateDescription').textContent=TEMPLATE_IDS.includes(AppState.templateId)?templateInfo().description:'Dimensions generated from the selected elliptical preset.';
-  for(const[id]of placementSpecs){$(id+'Range').value=String(AppState[id]);$(id+'Number').value=String(AppState[id])}$('uniformDepth').checked=AppState.uniformDepth;$('templateStart').hidden=!active||!!AppState.image;
-  if(active){els.threeEmpty.style.display='none';els.generateBtn.disabled=!templateBase||exportBusy;els.downloadObjBtn.disabled=!templateBase||exportBusy;document.querySelector('.canvas-meta span:last-child').textContent=templateInfo().surface;const tag=$('templateToolbar').querySelector('span');if(tag)tag.textContent=templateInfo().label.slice(0,24)}
+  for(const[id]of placementSpecs){$(id+'Range').value=String(AppState[id]);$(id+'Number').value=String(AppState[id])}$('uniformDepth').checked=AppState.uniformDepth;
+  if(active){els.generateBtn.disabled=!templateBase||exportBusy;els.downloadObjBtn.disabled=!templateBase||exportBusy;document.querySelector('.canvas-meta span:last-child').textContent=templateInfo().surface;const tag=$('templateToolbar').querySelector('span');if(tag)tag.textContent=templateInfo().label.slice(0,24)}
   else{hidePlacementPreview();setTemplateMove(false);document.querySelector('.canvas-meta span:last-child').textContent='live preview'}
 }
 const originalProjectUI=projectStateToUI;projectStateToUI=function(){originalProjectUI();syncTemplateUI()};
@@ -39,7 +39,7 @@ function replaceTemplateMesh(positions,indices,amplitude,walls){
   const material=new THREE.MeshStandardMaterial({color:0xd2cec5,metalness:.08,roughness:.48,side:THREE.DoubleSide});
   if(walls?.length){material.color.setHex(0xffffff);material.vertexColors=true}
   if(amplitude&&!walls?.length){const colors=new Float32Array(positions.length);for(let i=0;i<amplitude.length;i++){const t=Math.min(1,amplitude[i]*1.2);colors[i*3]=.72+.28*t;colors[i*3+1]=.70*(1-t)+.29*t;colors[i*3+2]=.66*(1-t)+.035*t}geometry.setAttribute('color',new THREE.BufferAttribute(colors,3));material.color.setHex(0xffffff);material.vertexColors=true}
-  if(meshObj){scene.remove(meshObj);meshObj.geometry.dispose();disposeMaterial(meshObj.material)}meshObj=new THREE.Mesh(geometry,material);scene.add(meshObj);previewMesh={positions,indices};els.threeEmpty.style.display='none';
+  if(meshObj){scene.remove(meshObj);meshObj.geometry.dispose();disposeMaterial(meshObj.material)}meshObj=new THREE.Mesh(geometry,material);scene.add(meshObj);previewMesh={positions,indices};
 }
 function renderTemplateBlank(){hidePlacementPreview();if(!templateActive()||!templateBase||!scene)return;templateRevision++;templatePending=null;templatePreviewValid=true;replaceTemplateMesh(new Float32Array(templateBase.positions),templateBase.indices);AppState.lastValidation={triCount:templateBase.indices.length/3,boundary:0,nonManifold:0,zeroArea:0};templateStatus(templateInfo().ready);syncTemplateUI();updateStats()}
 function ensurePreviewWorker(){
@@ -90,8 +90,6 @@ $('templateChoice').onchange=e=>{if(typeof beforeTemplateChoice==='function'&&be
 $('uniformDepth').onchange=e=>{AppState.uniformDepth=e.target.checked;scheduleRebuild();saveSettings()};
 $('centerDesign').onclick=()=>{AppState.designAngle=0;AppState.designY=templateBase?templateBase.height/2:44.5;AppState.designRotation=0;projectStateToUI();scheduleRebuild();saveSettings();dirty()};
 $('clearDesign').onclick=()=>{AppState.image=null;AppState.heightmap=null;AppState.alphaMap=null;AppState.imageName='';AppState.sourceLabel='—';AppState.hmRows=0;AppState.hmCols=0;AppState.text='';AppState.textRenderId++;els.textInput.value='';els.fileName.style.display='none';els.textStretchField.style.display='none';els.heightmapCanvas.getContext('2d').clearRect(0,0,els.heightmapCanvas.width,els.heightmapCanvas.height);drawHeightmapPreview();renderTemplateBlank();dirty()};
-$('templateUpload').onclick=()=>els.fileInput.click();
-$('templateSample').onclick=()=>{AppState.text='YOUR LOGO';els.textInput.value=AppState.text;AppState.bgEnable=true;AppState.uniformDepth=true;AppState.designWidth=42;projectStateToUI();applyTextDesign()};
 document.querySelectorAll('[data-template-view]').forEach(button=>button.onclick=()=>templateView(button.dataset.templateView));
 async function exportTemplate(format){
   if(exportBusy||!templateBase)return;exportBusy=true;syncTemplateUI();els.generateBtn.textContent='Forming export…';templateStatus('Preparing the full sleeve with your current design… Detailed artwork can take a few minutes.');const worker=new Worker('template-worker.js');let timeout;

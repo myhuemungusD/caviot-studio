@@ -1,10 +1,10 @@
 'use strict';
 /* Upload any STL as the sleeve template. Heavy work (parse, weld, orientation,
    surface preparation) runs in template-worker.js; this file wires the UI. */
-let customTemplate=null,customPrepWorker=null,customPrepCancel=null,customPrepSeq=0,customLoading=false,storedCustomRecord=null;
-// True while an upload/restore that should switch to the template is running; choosing another template clears it.
+let customTemplate=null,customPrepWorker=null,customPrepCancel=null,customPrepSeq=0,customLoading=false;
+// True while an upload or project template that should switch to the template is running; choosing another template clears it.
 let customActivatePending=false;
-const CUSTOM_EMBED_LIMIT=24*1024*1024,CUSTOM_DB='icaviot.templates.v1',CUSTOM_STORE='templates';
+const CUSTOM_EMBED_LIMIT=24*1024*1024;
 const customDefaults={up:'auto',turn:0,units:'mm',autoAlign:true};
 
 // ---------- Panel ----------
@@ -36,7 +36,7 @@ function customStatus(message,level=''){const el=$('customTemplateStatus');el.te
 function customOrientationFromUI(){return CustomTemplate.normalizeOrientation({up:$('customUp').value,turn:Number($('customTurn').value),units:$('customUnits').value,autoAlign:$('customAutoAlign').checked,raiseOnTexture:$('customRaise').checked})}
 function customOrientationToUI(o){$('customUp').value=o.up;$('customTurn').value=String(o.turn);$('customUnits').value=o.units;$('customAutoAlign').checked=o.autoAlign;$('customRaise').checked=o.raiseOnTexture}
 function syncCustomPanel(){
-  const option=$('templateChoice').querySelector('option[value="custom-stl"]');const name=customTemplate?.name||storedCustomRecord?.name;option.textContent=name?'Custom STL · '+name.slice(0,40):'Custom STL · upload…';
+  const option=$('templateChoice').querySelector('option[value="custom-stl"]');const name=customTemplate?.name;option.textContent=name?'Custom STL · '+name.slice(0,40):'Custom STL · upload…';
   $('customTemplatePanel').hidden=!customTemplate;$('customRaiseRow').hidden=!customTemplate?.preview?.texture?.textured;
   for(const id of ['customUp','customTurn','customUnits','customAutoAlign','customRaise','repairTemplateBtn','removeTemplateBtn','uploadTemplateBtn'])$(id).disabled=customLoading&&id!=='removeTemplateBtn'||exportBusy;
   if(customTemplate){const b=customTemplate.base.bounds,dims=[b.max[0]-b.min[0],b.max[2]-b.min[2],b.max[1]-b.min[1]].map(v=>v.toFixed(1)).join(' × ');$('customTemplateInfo').textContent=customTemplate.name+' · '+dims+' mm · '+customTemplate.report.triangles.toLocaleString()+' triangles';}
@@ -116,7 +116,7 @@ async function useCustomTemplateBuffer(buffer,name,orientation,{activate=true,re
 }
 function installCustomTemplate(t,activate){
   if(customTemplate&&customTemplate!==t)dropCustomPrint(customTemplate);customTemplate=t;customOrientationToUI(CustomTemplate.normalizeOrientation(t.orientation));syncCustomPanel();const summary=customSummary(t);customStatus(summary.text,summary.level);
-  t.embedPromise=encodeCustomTemplate(t).then(embed=>{t.embed=embed;storeCustomTemplate(t,embed);return embed}).catch(()=>null);
+  t.embedPromise=encodeCustomTemplate(t).then(embed=>{t.embed=embed;return embed}).catch(()=>null);
   if(activate)activateCustomTemplate();
 }
 function activateCustomTemplate(){
@@ -130,8 +130,6 @@ function activateBuiltinTemplate(){if(builtinTemplateBase&&templateBase!==builti
 function beforeTemplateChoice(value){
   if(value!=='custom-stl')customActivatePending=false; // a template still loading must not take over
   if(value==='custom-stl'){
-    // Remembered template: prepare it now (it is not prepared on every page load).
-    if(!customTemplate&&storedCustomRecord){loadStoredRecord(storedCustomRecord,true);return false}
     // Keyboard users change selects with arrow keys, so never pop a file dialog from here.
     if(!customTemplate){$('customTemplatePanel').hidden=true;templateStatus('Upload an STL first with Upload STL template.',true);$('uploadTemplateBtn').focus();return false}setActiveTemplateBase(customTemplate.display||customTemplate.base);ensureCustomPrint();setTimeout(()=>templateView('front'));return true}
   if(value==='etsyfolger-v1'){if(!builtinTemplateBase){toast(builtinTemplateError?builtinTemplateError.message:'The ETSYFOLGER template is still loading.','error');return false}activateBuiltinTemplate();setTimeout(()=>templateView('front'));}
@@ -164,11 +162,11 @@ function reorientCustomTemplate(repair=false){
 }
 for(const id of ['customUp','customTurn','customUnits','customAutoAlign'])$(id).addEventListener('change',e=>{e.stopPropagation();reorientCustomTemplate(false)});
 // Raising is a build option, not a geometry change: keep the prepared surfaces and just rebuild the relief.
-$('customRaise').addEventListener('change',e=>{e.stopPropagation();if(!customTemplate)return;const t=customTemplate;t.orientation={...t.orientation,raiseOnTexture:e.target.checked};if(t.embed)storeCustomTemplate(t,t.embed);if(AppState.templateId==='custom-stl'){if(AppState.image)scheduleRebuild(true);else renderTemplateBlank()}dirty()});
+$('customRaise').addEventListener('change',e=>{e.stopPropagation();if(!customTemplate)return;const t=customTemplate;t.orientation={...t.orientation,raiseOnTexture:e.target.checked};if(AppState.templateId==='custom-stl'){if(AppState.image)scheduleRebuild(true);else renderTemplateBlank()}dirty()});
 $('repairTemplateBtn').onclick=()=>reorientCustomTemplate(true);
-$('removeTemplateBtn').onclick=()=>{cancelCustomPreparation();const wasActive=AppState.templateId==='custom-stl';dropCustomPrint(customTemplate);customTemplate=null;storedCustomRecord=null;deleteStoredCustomTemplate();syncCustomPanel();if(wasActive){AppState.templateId='etsyfolger-v1';activateBuiltinTemplate();projectStateToUI();if(templateBase){if(AppState.image)scheduleRebuild(true);else renderTemplateBlank();templateView('front')}saveSettings()}toast('Custom template removed','success');dirty()};
+$('removeTemplateBtn').onclick=()=>{cancelCustomPreparation();const wasActive=AppState.templateId==='custom-stl';dropCustomPrint(customTemplate);customTemplate=null;syncCustomPanel();if(wasActive){AppState.templateId='etsyfolger-v1';activateBuiltinTemplate();projectStateToUI();if(templateBase){if(AppState.image)scheduleRebuild(true);else renderTemplateBlank();templateView('front')}saveSettings()}toast('Custom template removed','success');dirty()};
 
-// ---------- Persistence: project files and this browser ----------
+// ---------- Persistence: project files ----------
 function blobToDataURL(blob){return new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=()=>reject(r.error);r.readAsDataURL(blob)})}
 async function gzipBytes(buffer){const stream=new Blob([buffer]).stream().pipeThrough(new CompressionStream('gzip'));return new Uint8Array(await new Response(stream).arrayBuffer())}
 // Decompress with the same 100 MB cap as uploads, so a damaged or hostile project cannot exhaust memory.
@@ -201,32 +199,16 @@ async function restoreProjectTemplate(p){
   if(p.settings.templateId==='etsyfolger-v1')activateBuiltinTemplate();
   return '';
 }
-function openCustomDB(){return new Promise((resolve,reject)=>{if(!self.indexedDB)return reject(Error('No IndexedDB'));const r=indexedDB.open(CUSTOM_DB,1);r.onupgradeneeded=()=>r.result.createObjectStore(CUSTOM_STORE);r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)})}
-// One record ('current'); every helper closes its connection when the transaction settles. Storage is best-effort.
-async function customDB(mode,action){const db=await openCustomDB();try{return await new Promise((resolve,reject)=>{const tx=db.transaction(CUSTOM_STORE,mode),r=action(tx.objectStore(CUSTOM_STORE));tx.oncomplete=()=>resolve(r.result);tx.onerror=tx.onabort=()=>reject(tx.error)})}finally{db.close()}}
-async function storeCustomTemplate(t,embed){if(customTemplate!==t||embed.bytes>60*1024*1024)return;try{await customDB('readwrite',store=>store.put({name:t.name,gz:embed.gz,orientation:CustomTemplate.normalizeOrientation(t.orientation),repaired:!!t.repaired},'current'))}catch{}}
-async function deleteStoredCustomTemplate(){try{await customDB('readwrite',store=>store.delete('current'))}catch{}}
-async function readStoredCustomTemplate(){return (await customDB('readonly',store=>store.get('current')))||null}
 function fallbackToBuiltin(){if(AppState.templateId!=='custom-stl')return;AppState.templateId='etsyfolger-v1';if(builtinTemplateBase){activateBuiltinTemplate();projectStateToUI();if(AppState.image)scheduleRebuild(true);else renderTemplateBlank();templateView('front')}else projectStateToUI()}
-async function loadStoredRecord(record,activate){
-  if(activate)templateStatus('Restoring your custom template '+record.name+'…');
-  try{const buffer=await gunzipBytes(record.gz);await useCustomTemplateBuffer(buffer,record.name,record.orientation,{activate,repaired:record.repaired,quiet:!activate});storedCustomRecord=null}
-  catch(error){if(isCancelled(error))return;storedCustomRecord=null;syncCustomPanel();if(activate)fallbackToBuiltin()}
-}
-// On start-up the remembered template is only prepared if it was the active one; otherwise it
-// waits in storedCustomRecord until chosen in the template list.
-async function restoreStoredCustomTemplate(){
-  const wanted=AppState.templateId==='custom-stl';let record=null;
-  try{record=await readStoredCustomTemplate()}catch{}
-  if(!record){fallbackToBuiltin();return}
-  if(customTemplate)return; // the user already uploaded or opened one
-  storedCustomRecord=record;syncCustomPanel();
-  if(wanted&&AppState.templateId==='custom-stl')await loadStoredRecord(record,true);
-}
+// Custom templates are never remembered between visits: the studio always starts on ETSYFOLGER and a custom
+// template loads only from an upload or a project that embeds one. Earlier builds kept the last upload in
+// IndexedDB and restored it on start-up; delete that database so an old template stops coming back.
+function forgetStoredCustomTemplates(){try{self.indexedDB?.deleteDatabase('icaviot.templates.v1')}catch{}}
 // Keep the displayed surface in step with templateId whenever settings are reloaded (undo/redo, project open).
 function syncTemplateBaseToState(){
-  if(AppState.templateId==='custom-stl'){if(customTemplate){const base=customTemplate.display||customTemplate.base;if(templateBase!==base){setActiveTemplateBase(base);ensureCustomPrint()}}else if(storedCustomRecord&&!customLoading&&builtinTemplateBase){const record=storedCustomRecord;AppState.templateId='etsyfolger-v1';activateBuiltinTemplate();loadStoredRecord(record,true)}else if(builtinTemplateBase&&!storedCustomRecord&&!customLoading){AppState.templateId='etsyfolger-v1';activateBuiltinTemplate()}}
+  if(AppState.templateId==='custom-stl'){if(customTemplate){const base=customTemplate.display||customTemplate.base;if(templateBase!==base){setActiveTemplateBase(base);ensureCustomPrint()}}else if(builtinTemplateBase&&!customLoading){AppState.templateId='etsyfolger-v1';activateBuiltinTemplate()}}
   else if(AppState.templateId==='etsyfolger-v1')activateBuiltinTemplate();
 }
 const customOriginalLoadSettings=loadSettings;loadSettings=function(...args){customOriginalLoadSettings(...args);syncTemplateBaseToState()};
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{syncCustomPanel();restoreStoredCustomTemplate()});else{syncCustomPanel();restoreStoredCustomTemplate()}
+const customStartup=()=>{forgetStoredCustomTemplates();syncCustomPanel();fallbackToBuiltin()};
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',customStartup);else customStartup();
