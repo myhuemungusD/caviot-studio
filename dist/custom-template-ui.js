@@ -148,7 +148,7 @@ const customOriginalInfo=templateInfo;templateInfo=function(){
 };
 // Placement helpers read the chart from the template when it has one (custom templates carry theirs).
 const customOriginalProfile=SleeveTemplate.profile;SleeveTemplate.profile=base=>base&&base.chart?base.chart:customOriginalProfile(base);
-if(typeof fitBottomBrand==='function'){const originalFit=fitBottomBrand;fitBottomBrand=function(){originalFit();if(AppState.templateId==='custom-stl')Object.assign(bottomBrand,{centerX:0,centerZ:0})}}
+// Bottom logo placement on custom templates is fitted by bottom-brand.js (BottomFit) whenever the template changes.
 const customOriginalSync=syncTemplateUI;syncTemplateUI=function(){customOriginalSync();syncCustomPanel()};
 
 // ---------- Orientation, repair, removal ----------
