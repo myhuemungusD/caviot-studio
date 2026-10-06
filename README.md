@@ -90,7 +90,7 @@ Press and hold the middle mouse button (the scroll wheel) over either logo to se
 
 `node wheel-grab-tests.mjs` verifies grab offset, release/cancel/blur cleanup, selection misses, previous move-mode restoration, and an untouched wheel event path. The placement scheduling checks also pass.
 
-Bottom branding: the supplied Design Mainline mark is included, with separate underside and inside-floor starting placements, middle-button dragging, and saved project settings. Both prepared template surfaces now include bottom normals, thickness checks, and opening margins.
+Bottom branding (now the DM logo by default; see *DM logo on the bottom* below): the supplied Design Mainline mark is included, with separate underside and inside-floor starting placements, middle-button dragging, and saved project settings. Both prepared template surfaces now include bottom normals, thickness checks, and opening margins.
 
 
 ## Design layers — September 19
@@ -160,3 +160,35 @@ Caviot Studio now works on phones (iOS Safari, Android Chrome) and installs as a
 - **Hosting**: `vercel.json` serves `dist/` as a static site with no build step.
 - **Tests**: `node pwa-tests.mjs`; browser checks in `e2e/` (`mobile-e2e.mjs` for iPhone 14 / SE, Pixel 7 and iPad
   with real touch input, `pwa-e2e.mjs` for offline and updates; both need `playwright-core` and Chrome).
+
+## DM logo on the bottom — standard branding
+
+Every new sleeve now carries the DM diamond (Design Mainline) on the **outside underside**, on by default:
+**16 × 15.67 mm, raised 0.4 mm**, centred at (15.5, 1) mm on the flat pad beside the bottom hole. That is the
+deepest flat part of the ETSYFOLGER underside (a 12.5 mm clear circle), so the logo stays **4.5 mm clear** of the
+rim fillet and the hole countersink, well outside the 1.2 mm relief keep-out. It is a separate placement from the
+sleeve designs: move it (middle-drag on desktop; on touch screens tap it, then drag it), type a position, resize
+it, change depth, Emboss/Deboss or the surface, pick the earlier Design Mainline triangle, or untick
+**Add bottom logo**. **Fit logo to this surface** returns it to the standard spot. Save project stores all of it.
+
+- **Relief source**: `dist/branding/dm-diamond-relief.png` is a high-contrast black-on-white version made from the
+  original gold artwork (`branding-src/dm-diamond-original.png`) by `branding-src/make-dm-relief.py`. Strokes are
+  thickened evenly from 0.39 mm to **0.65 mm at 16 mm** (about 1.6 nozzle widths, so a 0.4 mm nozzle lays real
+  lines rather than dropping them); separate strokes keep at least **0.5 mm** between them (thickening is held
+  back near a neighbour, and the D bowl is trimmed back where it meets the M diagonal); each of the five strokes
+  stays one continuous piece. The page traces it with the smooth-contour (vector outline) path.
+  `dist/branding/dm-diamond.png` is the gold panel thumbnail.
+- **Custom templates**: when a custom STL becomes the template, a logo that has not been placed by hand is
+  fitted to it: `dist/bottom-fit.js` rasterises the downward faces in the bottom 12 mm, finds the largest clear
+  circle, centres the logo there and shrinks it (never below 8 mm) to keep a 2 mm edge margin. If there is no room,
+  the default logo switches itself off for that template with a note (it never makes exports fail) and comes back
+  on the built-in template.
+- **Projects**: the logo choice is saved (`bottomBrand.logo`). Older projects with an enabled bottom logo keep the
+  triangle they were made with; projects saved before bottom branding existed open with it off.
+- **Printing note**: a raised underside logo is what touches the bed when the sleeve prints upright. Use a raft (or
+  print on supports), or choose **Deboss** to keep the bottom flat on the bed.
+- **Tests**: `node dm-bottom-tests.mjs` (defaults, asset continuity, stroke/gap sizes, placement clearance on both
+  surfaces, closed 0.4 mm exports at desktop and phone contour spacing with and without side designs, deboss and
+  inside floor, custom-template fit, project rules). `e2e/bottom-brand-e2e.mjs <url> [baselineURL]` checks the
+  default in the browser, a closed STL with the raised logo where expected, middle-drag and touch moving, logo
+  switching, older projects, and that with the logo off the STL is byte-identical to a baseline build.
