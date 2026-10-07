@@ -50,7 +50,7 @@ function boxBlur(src, rows, cols) {
   return dst;
 }
 
-function applyBgRemoval(img, state = AppState) {
+function applyBgRemoval(img, state = AppState, edgeOnly = false) {
   const c = document.createElement('canvas');
   c.width = img.width;
   c.height = img.height;
@@ -61,7 +61,11 @@ function applyBgRemoval(img, state = AppState) {
   const tr = state.bgR, tg = state.bgG, tb = state.bgB;
   const tol = state.bgTol;
   const soft = state.bgSoft;
+  // edgeOnly: clear only background-colored pixels connected to the image border, so the same color enclosed by
+  // the artwork (the inside of a badge or shield) stays part of the subject.
+  const reached = edgeOnly ? edgeConnectedBackground(d, c.width, c.height, tr, tg, tb, tol) : null;
   for (let i = 0; i < d.length; i += 4) {
+    if (reached && !reached[i >> 2]) continue;
     const dr = d[i] - tr, dg = d[i + 1] - tg, db = d[i + 2] - tb;
     const dist = Math.sqrt(dr * dr + dg * dg + db * db);
     if (dist <= tol) {
@@ -75,6 +79,29 @@ function applyBgRemoval(img, state = AppState) {
   }
   ctx.putImageData(id, 0, 0);
   return c;
+}
+
+// Pixels reachable from the border through background-colored or already transparent pixels (4-connected).
+function edgeConnectedBackground(d, w, h, tr, tg, tb, tol) {
+  const n = w * h, seen = new Uint8Array(n), stack = new Int32Array(n);
+  let top = 0;
+  const open = (p) => {
+    const i = p * 4;
+    if (d[i + 3] < 128) return true;
+    const dr = d[i] - tr, dg = d[i + 1] - tg, db = d[i + 2] - tb;
+    return dr * dr + dg * dg + db * db <= tol * tol;
+  };
+  const push = (p) => { if (!seen[p] && open(p)) { seen[p] = 1; stack[top++] = p; } };
+  for (let x = 0; x < w; x++) { push(x); push((h - 1) * w + x); }
+  for (let y = 0; y < h; y++) { push(y * w); push(y * w + w - 1); }
+  while (top) {
+    const p = stack[--top], x = p % w;
+    if (x > 0) push(p - 1);
+    if (x < w - 1) push(p + 1);
+    if (p >= w) push(p - w);
+    if (p < n - w) push(p + w);
+  }
+  return seen;
 }
 
 function autoDetectBgColor(img, state = AppState) {
@@ -113,6 +140,21 @@ function blockPixelSize(source) {
   return 1;
 }
 
+// Two trimmed cells that touch only at a corner make a non-manifold vertex (the export reports open edges and
+// refuses the mesh). Join every such pair by filling one of the two empty cells beside it.
+function closeDiagonalMask(m, rows, cols) {
+  let added = 0, changed = true;
+  while (changed) {
+    changed = false;
+    for (let i = 0; i < rows - 1; i++) for (let j = 0; j < cols - 1; j++) {
+      const a = i * cols + j, b = a + 1, c = a + cols, e = c + 1;
+      if (m[a] && m[e] && !m[b] && !m[c]) { m[b] = 1; added++; changed = true; }
+      else if (m[b] && m[c] && !m[a] && !m[e]) { m[a] = 1; added++; changed = true; }
+    }
+  }
+  return added;
+}
+
 function buildHeightmapAtDetail(targetSize, image, state = AppState) {
   const img = image || state.image;
   if (!img) return null;
@@ -126,7 +168,11 @@ function buildHeightmapAtDetail(targetSize, image, state = AppState) {
     cols = Math.max(20, Math.round(targetSize * aspect));
   }
 
-  const sourceCanvas = state.bgEnable ? applyBgRemoval(img, state) : img;
+  const useSilhouette = state.silhouette && state.mode === 'flat';
+  // Dark parts stick out on a trimmed plate: the plate is the subject's outline, so only the background outside
+  // the artwork is removed. Light areas inside it stay as plate (height 0) instead of becoming holes.
+  const edgeOnly = useSilhouette && !state.invert;
+  const sourceCanvas = state.bgEnable ? applyBgRemoval(img, state, edgeOnly) : img;
   const tmp = document.createElement('canvas');
   tmp.width = cols;
   tmp.height = rows;
@@ -149,7 +195,6 @@ function buildHeightmapAtDetail(targetSize, image, state = AppState) {
   tctx.restore();
   const data = tctx.getImageData(0, 0, cols, rows).data;
 
-  const useSilhouette = state.silhouette && state.mode === 'flat';
   const crispMode = state.crisp;
   let hm = new Float32Array(rows * cols);
   const alphaMap = new Uint8Array(rows * cols);
@@ -169,7 +214,9 @@ function buildHeightmapAtDetail(targetSize, image, state = AppState) {
   if (!state.invert) {
     for (let i = 0; i < hm.length; i++) hm[i] = 1 - hm[i];
   }
-  if (!useSilhouette) {
+  // Removed background is never relief. A trimmed plate with light parts high keeps the old behavior
+  // (transparent pixels read as black, so they are already low).
+  if (!useSilhouette || !state.invert) {
     for (let i = 0; i < hm.length; i++) {
       if (alphaMap[i] < 128) hm[i] = 0;
     }
@@ -195,6 +242,7 @@ function buildHeightmapAtDetail(targetSize, image, state = AppState) {
         }
       }
     }
+    if (masked) masked += closeDiagonalMask(m, cellRows, cellCols);
     if (masked === 0) {
       toastMsg = 'Trim to image: nothing visible. Soften background removal or turn off trim.';
     } else if (masked < cellRows * cellCols) {

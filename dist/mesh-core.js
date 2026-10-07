@@ -468,6 +468,15 @@ window.MeshCore = (function MeshCoreFactory() {
     return { positions, indices };
   }
 
+  // True when splitting quad A,B,C,D along A-C leaves a (near) zero-area triangle in plan view and splitting
+  // along B-D does not.
+  function splitDegenerate(P, a, b, c, d) {
+    const area = (u, v, w) => Math.abs((P[v * 3] - P[u * 3]) * (P[w * 3 + 2] - P[u * 3 + 2]) - (P[v * 3 + 2] - P[u * 3 + 2]) * (P[w * 3] - P[u * 3]));
+    const ac = Math.min(area(a, c, b), area(a, d, c));
+    if (ac > 1e-6) return false;
+    return Math.min(area(a, d, b), area(d, c, b)) > ac;
+  }
+
   function buildFlatWithMask(hm, mask, rows, cols, p) {
     const { width, base, maxHeight, negative, edgeSmooth } = p;
     const aspect = cols / rows;
@@ -579,8 +588,15 @@ window.MeshCore = (function MeshCoreFactory() {
         const bB = botIdx[i * cols + j + 1];
         const bC = botIdx[(i + 1) * cols + j + 1];
         const bD = botIdx[(i + 1) * cols + j];
-        indices.push(tA, tC, tB, tA, tD, tC);
-        indices.push(bA, bB, bC, bA, bC, bD);
+        // Edge smoothing straightens staircases, which can make three corners of a boundary cell collinear.
+        // Split such a cell along its other diagonal so no zero-area face reaches the export check.
+        if (edgeSmooth > 0 && splitDegenerate(positions, tA, tB, tC, tD)) {
+          indices.push(tA, tD, tB, tD, tC, tB);
+          indices.push(bA, bB, bD, bB, bC, bD);
+        } else {
+          indices.push(tA, tC, tB, tA, tD, tC);
+          indices.push(bA, bB, bC, bA, bC, bD);
+        }
         if (!isMasked(i - 1, j)) indices.push(bA, tA, bB, tA, tB, bB);
         if (!isMasked(i + 1, j)) indices.push(bD, bC, tD, tD, bC, tC);
         if (!isMasked(i, j - 1)) indices.push(bA, bD, tA, tA, bD, tD);
