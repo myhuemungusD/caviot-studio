@@ -27,8 +27,24 @@ const CaviotDevice=(()=>{
     full:{label:'Full quality',exportSpacing:.14,previewSpacing:.24,meshBudget:1400000,exportDetail:400,maxImagePixels:24e6,pixelRatio:2},
     light:{label:'Phone-safe quality',exportSpacing:.2,previewSpacing:.3,meshBudget:900000,exportDetail:250,maxImagePixels:12e6,pixelRatio:1.5}
   };
-  const api={iOS,android,phone,touch,memory,detected,tier,urlOverride:!!urlTier,PHONE_QUERY,LIMITS,
+  // Memory guards that follow the device class (not the export-quality choice): a phone stays a phone when Full
+  // quality is picked. Measured on the default sleeve and generated 804k / 1.6M-triangle tubes (mobile audit, Oct 7):
+  // loading costs about 0.3 KB per source triangle and exporting about 0.5 KB per output triangle, and iOS Safari
+  // reloads a tab somewhere around 1-1.5 GB (less on 3-4 GB iPhones). Desktop keeps its previous behaviour
+  // (300k-triangle preview copy, 2M-triangle STL limit, no warnings).
+  const DEVICE={
+    full:{displayTriangles:300000,customWarnTriangles:Infinity,customMaxTriangles:2000000,exportTriangleBudget:Infinity,maxImageSide:Infinity},
+    light:{displayTriangles:120000,customWarnTriangles:600000,customMaxTriangles:1200000,exportTriangleBudget:700000,maxImageSide:2048}
+  };
+  const api={iOS,android,phone,touch,memory,detected,tier,urlOverride:!!urlTier,PHONE_QUERY,LIMITS,DEVICE,
     get limits(){return LIMITS[api.tier]},
+    // ?tier=light also applies the phone memory guards, so they can be tested on a computer.
+    get device(){return DEVICE[urlTier||detected]},
+    // Triangle count of an STL from its first 84 bytes (binary header), or an estimate for ASCII STL (about 250
+    // bytes per facet), so a model can be refused before it is read into memory.
+    stlTriangles(head,size){
+      if(head&&head.byteLength>=84&&size>=84){const n=new DataView(head.buffer,head.byteOffset,84).getUint32(80,true),expected=84+n*50;if(n&&expected<=size&&size-expected<512)return {count:n,estimated:false}}
+      return {count:Math.round(size/250),estimated:true}},
     phoneLayout:()=>mq(PHONE_QUERY),
     standalone:()=>mq('(display-mode: standalone)')||nav.standalone===true};
   try{document.documentElement.classList.toggle('touch-device',touch);document.documentElement.dataset.tier=tier}catch{}

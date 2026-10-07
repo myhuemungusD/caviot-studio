@@ -64,6 +64,8 @@ function prepareCustomTemplate(job){
       }
     };
     const message={type:'custom-prepare',id,orientation:job.orientation||customDefaults,repair:!!job.repair,skipPrint:true};
+    // Phones keep a smaller preview copy (CaviotDevice.device.displayTriangles); desktop leaves the 300k default.
+    const displayTriangles=typeof CaviotDevice!=="undefined"?CaviotDevice.device?.displayTriangles:undefined;if(displayTriangles&&displayTriangles!==CustomTemplate.DISPLAY_TRIANGLES)message.displayTriangles=displayTriangles;
     if(job.buffer){message.buffer=job.buffer;worker.postMessage(message,[job.buffer])}else{message.source=job.source;message.report=job.report;worker.postMessage(message)}
   });
 }
