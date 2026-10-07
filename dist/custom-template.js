@@ -200,12 +200,33 @@ globalThis.CustomTemplate=(()=>{
     }
     return nearest;
   }
+  // Sculpted templates (fabric folds, wrinkles) have small steep patches in the middle of the outer surface. Treated as
+  // openings they got the 1.2 mm keep-out band, which bit ragged holes into artwork over them. A patch of non-outer faces
+  // that fits in a 3 mm box, is less than 1 mm deep (radially) and does not border the underside is part of the outer
+  // surface. Rims, openings, the cavity and the underside are larger; texture bumps (discs, knurling) are deeper, so
+  // the textured-template handling still sees their walls.
+  function keepSmallFolds(P,I,outer){
+    const faces=I.length/3,first=new Map(),parent=new Int32Array(faces).map((_,i)=>i),nearBottom=new Set(),box=new Map();let added=0;
+    const find=x=>{while(parent[x]!==x){parent[x]=parent[parent[x]];x=parent[x]}return x};
+    const pairs=[];
+    for(let f=0;f<faces;f++)for(let e=0;e<3;e++){const a=I[f*3+e],b=I[f*3+(e+1)%3],key=a<b?a*4294967296+b:b*4294967296+a,o=first.get(key);if(o===undefined)first.set(key,f);else pairs.push(f,o)}
+    for(let k=0;k<pairs.length;k+=2){const f=pairs[k],o=pairs[k+1];if(outer[f]===0&&outer[o]===0)parent[find(f)]=find(o)}
+    for(let k=0;k<pairs.length;k+=2){const f=pairs[k],o=pairs[k+1];if(outer[f]===0&&outer[o]===2)nearBottom.add(find(f));if(outer[o]===0&&outer[f]===2)nearBottom.add(find(o))}
+    const area=new Float64Array(faces),radial=new Map();
+    for(let f=0;f<faces;f++){if(outer[f]!==0)continue;const r=find(f);let bb=box.get(r);if(!bb){bb=[Infinity,Infinity,Infinity,-Infinity,-Infinity,-Infinity];box.set(r,bb)}
+      let rr=radial.get(r);if(!rr){rr=[Infinity,-Infinity];radial.set(r,rr)}for(let j=0;j<3;j++){const v=I[f*3+j]*3;for(let c=0;c<3;c++){bb[c]=Math.min(bb[c],P[v+c]);bb[c+3]=Math.max(bb[c+3],P[v+c])}const q=Math.hypot(P[v],P[v+2]);rr[0]=Math.min(rr[0],q);rr[1]=Math.max(rr[1],q)}
+      const a=I[f*3]*3,c=I[f*3+1]*3,d=I[f*3+2]*3,ux=P[c]-P[a],uy=P[c+1]-P[a+1],uz=P[c+2]-P[a+2],vx=P[d]-P[a],vy=P[d+1]-P[a+1],vz=P[d+2]-P[a+2];area[f]=Math.hypot(uy*vz-uz*vy,uz*vx-ux*vz,ux*vy-uy*vx)/2}
+    const small=new Set();for(const[r,bb]of box){const [lo,hi]=radial.get(r);if(!nearBottom.has(r)&&bb[3]-bb[0]<3&&bb[4]-bb[1]<3&&bb[5]-bb[2]<3&&hi-lo<1)small.add(r)}
+    for(let f=0;f<faces;f++){if(outer[f]!==0)continue;const r=find(f);if(small.has(r)){outer[f]=1;added+=area[f]}}
+    return added;
+  }
   function classify(P,I){
     const faces=I.length/3,outer=new Uint8Array(faces),fn=new Float32Array(faces*3);let outerArea=0;
     for(let f=0;f<faces;f++){const a=I[f*3]*3,b=I[f*3+1]*3,c=I[f*3+2]*3,ux=P[b]-P[a],uy=P[b+1]-P[a+1],uz=P[b+2]-P[a+2],vx=P[c]-P[a],vy=P[c+1]-P[a+1],vz=P[c+2]-P[a+2];let nx=uy*vz-uz*vy,ny=uz*vx-ux*vz,nz=ux*vy-uy*vx;const area=Math.hypot(nx,ny,nz);if(area>1e-12){nx/=area;ny/=area;nz/=area}else nx=ny=nz=0;fn[f*3]=nx;fn[f*3+1]=ny;fn[f*3+2]=nz;
       let rx=P[a]+P[b]+P[c],rz=P[a+2]+P[b+2]+P[c+2];const rl=Math.hypot(rx,rz);if(rl>1e-12){rx/=rl;rz/=rl}else rx=rz=0;
       // 1 = outward-facing side, 2 = flat face inside the bottom band (underside or inside floor).
       const o=nx*rx+nz*rz>.25&&Math.abs(ny)<.78?1:Math.abs(ny)>.95&&P[a+1]<BOTTOM_BAND&&P[b+1]<BOTTOM_BAND&&P[c+1]<BOTTOM_BAND?2:0;outer[f]=o;if(o)outerArea+=area/2}
+    outerArea+=keepSmallFolds(P,I,outer);
     return{outer,fn,outerArea};
   }
   // Pick the finest spacing (not below the quality minimum) whose predicted refinement fits the
@@ -535,5 +556,5 @@ globalThis.CustomTemplate=(()=>{
     if(r.zeroArea)issues.push(r.zeroArea.toLocaleString()+' collapsed faces');
     return issues;
   }
-  return{MAX_BYTES,MAX_TRIANGLES,DISPLAY_TRIANGLES,UP_AXES,TURNS,UNITS,parseSTL,remeshUnderside,weld,edgeTable,fixOrientation,analyze,load,orient,profile,decimate,chooseSpacing,prepare,bounds,normalizeOrientation,toBinarySTL,describeProblems,signedVolume,textureMap,buildTexturePads,TEXTURE_MIN_DEPTH};
+  return{MAX_BYTES,MAX_TRIANGLES,DISPLAY_TRIANGLES,UP_AXES,TURNS,UNITS,parseSTL,remeshUnderside,weld,edgeTable,fixOrientation,analyze,load,orient,profile,decimate,chooseSpacing,prepare,keepSmallFolds,bounds,normalizeOrientation,toBinarySTL,describeProblems,signedVolume,textureMap,buildTexturePads,TEXTURE_MIN_DEPTH};
 })();
