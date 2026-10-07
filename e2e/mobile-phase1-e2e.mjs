@@ -18,7 +18,7 @@ async function scrollStill(p){let last=-1,same=0;for(let i=0;i<40&&same<3;i++){a
 // Taps the centre of an element like a finger would. Inside the sheet it first scrolls the element into the part
 // below the sticky header and rail; it refuses to tap if something else still covers it.
 async function tapEl(p,cdp,sel){await scrollStill(p);
-  await p.evaluate(s=>{const e=document.querySelector(s),sb=e.closest('.sidebar');if(!sb)return;const r=e.getBoundingClientRect(),box=sb.getBoundingClientRect(),rail=document.getElementById('phoneRail'),head=sb.querySelector('.sheet-handle');
+  await p.evaluate(s=>{const e=document.querySelector(s),sb=e.closest('.sidebar');if(!sb)return;if(e.closest('#phoneRail')){e.scrollIntoView({inline:'center',block:'nearest'});return}const r=e.getBoundingClientRect(),box=sb.getBoundingClientRect(),rail=document.getElementById('phoneRail'),head=sb.querySelector('.sheet-handle');
     const top=Math.max(box.top,rail&&rail.offsetParent?rail.getBoundingClientRect().bottom:0,head&&head.offsetParent?head.getBoundingClientRect().bottom:0),bottom=Math.min(box.bottom,innerHeight);
     if(r.top<top+4||r.bottom>bottom-4)sb.scrollTop+=r.top+r.height/2-(top+bottom)/2},sel);await sleep(250);
   const pt=await p.evaluate(s=>{const e=document.querySelector(s),r=e.getBoundingClientRect(),x=r.x+r.width/2,y=r.y+r.height/2;return document.elementFromPoint(x,y)?.closest(s)===e?[x,y]:null},sel);
