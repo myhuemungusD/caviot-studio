@@ -17,7 +17,9 @@ const camState=p=>p.evaluate(()=>({pos:camera.position.toArray().map(v=>+v.toFix
 // A screen point on the selected design: start at its projected centre, then search outward for painted pixels.
 const designPoint=p=>p.evaluate(()=>{const t=(AppState.designAngle+90)*Math.PI/180,R=30,v=new THREE.Vector3(Math.cos(t)*R,AppState.designY,Math.sin(t)*R).project(camera),r=renderer.domElement.getBoundingClientRect();const c=[r.left+(v.x+1)/2*r.width,r.top+(1-v.y)/2*r.height];
  for(let ring=0;ring<30;ring++)for(let a=0;a<Math.max(1,ring*6);a++){const ang=a/Math.max(1,ring*6)*Math.PI*2,x=c[0]+Math.cos(ang)*ring*8,y=c[1]+Math.sin(ang)*ring*8;if(document.elementFromPoint(x,y)===renderer.domElement&&touchHitsSelectedDesign({clientX:x,clientY:y}))return [x,y];}return c});
-
+// A canvas point with no part of the selected design within 60 px (two-finger gestures there move the camera).
+const offDesignPoint=p=>p.evaluate(()=>{const r=renderer.domElement.getBoundingClientRect();for(const [fx,fy] of [[.25,.25],[.75,.25],[.25,.8],[.75,.8]]){const x=r.left+r.width*fx,y=r.top+r.height*fy;let near=false;for(const [dx,dy] of [[0,0],[60,0],[-60,0],[0,40],[0,-40]])if(touchHitsSelectedDesign({clientX:x+dx,clientY:y+dy}))near=true;if(!near)return [x,y]}return [r.left+r.width*.25,r.top+r.height*.85]});
+let offDesign=null;
 for(const name of names){
   const landscape=/ landscape$/.test(name),dev={...devices[name.replace(/ landscape$/,'')]};if(landscape)dev.viewport={width:dev.viewport.height,height:dev.viewport.width};
   console.log('==',name,JSON.stringify(dev.viewport));const shot=shots&&(shots+name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/-$/,'')+'-');
@@ -65,13 +67,17 @@ for(const name of names){
   await drag(cdp,empty,[empty[0]+70,empty[1]+20]);await sleep(600);
   const cam2=await camState(p);ok(JSON.stringify(cam2.pos)!==JSON.stringify(cam1.pos),'one-finger drag on the background orbits');
   ok(Math.abs((await p.evaluate(()=>AppState.designAngle))-angle1)<1e-9,'orbit drag did not move the design');
-  // Pinch that starts on the design zooms instead of grabbing.
-  await p.evaluate(()=>templateView('front'));await sleep(500);const pt2=await designPoint(p);const before=await camState(p);
+  // Pinch that starts on the design: a phone resizes the selected design (phase 1), a tablet zooms as before.
+  await p.evaluate(()=>templateView('front'));await sleep(500);const pt2=await designPoint(p);const before=await camState(p);const size0=await p.evaluate(()=>[AppState.designWidth,AppState.designHeight]);
   await pinch(cdp,pt2,30,110);await sleep(700);const after=await camState(p);
-  ok(after.dist<before.dist-1,'pinch zooms in ('+before.dist+' → '+after.dist+')');
+  if(phone){const size1=await p.evaluate(()=>[AppState.designWidth,AppState.designHeight]);
+    ok(size1[0]>size0[0]*1.2&&after.dist===before.dist,'phone: pinch on the selected design resizes it, camera still ('+size0.join('×')+' → '+size1.join('×')+')');
+    await p.evaluate(([w,h])=>{AppState.designWidth=w;AppState.designHeight=h;showPlacementValue('designWidth');showPlacementValue('designHeight');updatePlacement();finishPlacement()},size0);await settle(p);
+    await pinch(cdp,offDesign=await offDesignPoint(p),20,60);await sleep(700);ok((await camState(p)).dist<before.dist-1,'phone: pinch away from the design zooms');}
+  else ok(after.dist<before.dist-1,'pinch zooms in ('+before.dist+' → '+after.dist+')');
   ok(Math.abs((await p.evaluate(()=>AppState.designAngle))-angle1)<.5,'pinch over the design did not move it');
-  // Two-finger pan.
-  const t0=await p.evaluate(()=>controls.target.toArray());const c=[info.iw/2,info.ih/2];
+  // Two-finger pan (away from the selected design on a phone, where two fingers on it resize and rotate it).
+  const t0=await p.evaluate(()=>controls.target.toArray());const c=phone?offDesign:[info.iw/2,info.ih/2];
   await touch(cdp,'touchStart',[[c[0]-40,c[1]]]);await touch(cdp,'touchStart',[[c[0]-40,c[1]],[c[0]+40,c[1]]]);for(let i=1;i<=10;i++){await touch(cdp,'touchMove',[[c[0]-40,c[1]+i*6],[c[0]+40,c[1]+i*6]]);await sleep(16)}await touch(cdp,'touchEnd',[]);await sleep(500);
   ok(JSON.stringify(await p.evaluate(()=>controls.target.toArray()))!==JSON.stringify(t0),'two-finger drag pans');
   await settle(p);
@@ -99,7 +105,7 @@ for(const name of names){
   if(!isIPad)ok(/0\.20 mm/.test(status),'phone-safe contour spacing used');
   if(iOS)await p.evaluate(()=>$('fileReadyDialog').close());
   // Full quality on a phone asks first; Cancel starts nothing.
-  if(phone&&/Pixel/.test(name)){await p.tap('#mobileSettingsBtn');await sleep(500);await p.selectOption('#exportQuality','full');await sleep(200);
+  if(phone&&/Pixel/.test(name)){await p.tap('#mobileSettingsBtn');await sleep(500);await p.evaluate(()=>{const d=document.getElementById('phoneAllSettings');if(d)d.open=true});await sleep(200);await p.selectOption('#exportQuality','full');await sleep(200);
     ok(await p.evaluate(()=>CaviotDevice.tier==='full'),'Export quality: Full switches the limits');await p.click('.sheet-done');await sleep(400);
     await p.tap('#generateBtn');await sleep(500);ok(await p.evaluate(()=>$('heavyExportDialog').open),'heavy-export warning shown before a full-quality phone export');
     await p.click('#heavyExportDialog [data-choice="cancel"]');await sleep(300);ok(await p.evaluate(()=>!exportBusy&&!$('heavyExportDialog').open),'Cancel starts no export');
@@ -115,7 +121,7 @@ for(const name of names){
   if(phone&&!landscape){await p.setViewportSize({width:dev.viewport.height,height:dev.viewport.width});await sleep(600);
     const l=await p.evaluate(()=>({sw:document.documentElement.scrollWidth,iw:innerWidth,canvas:renderer.domElement.getBoundingClientRect().width,phone:CaviotDevice.phoneLayout()}));
     ok(l.phone&&l.sw<=l.iw&&l.canvas>=l.iw-2,'landscape: phone layout, full-width canvas, no horizontal scroll '+JSON.stringify(l));
-    await p.tap('#mobileSettingsBtn');await sleep(900);const side=await p.evaluate(()=>{const r=document.querySelector('.sidebar').getBoundingClientRect();return {left:r.left,right:r.right,w:r.width,iw:innerWidth}});
+    await p.tap('#mobileSettingsBtn');await sleep(900);await p.waitForFunction(()=>getComputedStyle(document.querySelector('.sidebar')).transform==='none',null,{timeout:8000}).catch(()=>{});const side=await p.evaluate(()=>{const r=document.querySelector('.sidebar').getBoundingClientRect();return {left:r.left,right:r.right,w:r.width,iw:innerWidth}});
     ok(side.right<=side.iw+1&&side.w<side.iw*.6,'landscape: tools open as a side sheet '+JSON.stringify(side));
     if(shot)await p.screenshot({path:shot+'landscape.png'});}
   const real=errors.filter(e=>!/willReadFrequently/.test(e));ok(!real.length,'no console/page errors '+JSON.stringify(real.slice(0,5)));
