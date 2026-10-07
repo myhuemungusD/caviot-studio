@@ -28,34 +28,39 @@ const originalSetDesignImage=setDesignImage;
 setDesignImage=function(img,label){originalSetDesignImage(img,label);dirty()};
 window.addEventListener('beforeunload',e=>{if(projectDirty){e.preventDefault();e.returnValue=''}});
 function safeFilename(){return (document.getElementById('projectName').value.trim()||'Untitled design').replace(/[^\p{L}\p{N} _-]/gu,'').slice(0,80)||'icaviot-design'}
+// The project object written by Save project (and by the phone autosave, which passes its own image encoder and
+// leaves the custom template out). Throws when the template is still being packed.
+function buildProjectData({encodeImage=null,withTemplate=true}={}){
+  let image=null;
+  // Format 1 kept one image; later formats keep each design's image in its layer, so skip the unused encode.
+  if(AppState.image&&typeof serializeDesignSides!=='function'){const c=document.createElement('canvas');c.width=AppState.image.width;c.height=AppState.image.height;c.getContext('2d').drawImage(AppState.image,0,0);image=c.toDataURL('image/png')}
+  const p={format:'icaviot-project',version:1,name:document.getElementById('projectName').value.slice(0,80),source:(AppState.sourceLabel||'Artwork').slice(0,300),settings:collectSettings(),image};
+  if(typeof serializeDesignSides==='function'){p.version=2;p.sides=encodeImage?null:serializeDesignSides();p.activeSide=activeDesignSide;p.linkSides=linkedSideSettings;p.image=null;}// the autosave skips the format-2 copy that is dropped below
+  if(typeof serializeDesignLayers==='function'){p.version=3;p.layers=serializeDesignLayers(encodeImage);p.selectedIds=designSides.map(s=>s?.id||null);delete p.sides;}
+  p.bottomBrand={...bottomBrand};
+  // Version 4 adds the (optional) embedded custom STL template.
+  p.version=4;p.template=withTemplate&&typeof customTemplateProjectEntry==='function'?customTemplateProjectEntry():null;
+  return p;
+}
 function saveProject(){
   try{
-    let image=null;
-    if(AppState.image){const c=document.createElement('canvas');c.width=AppState.image.width;c.height=AppState.image.height;c.getContext('2d').drawImage(AppState.image,0,0);image=c.toDataURL('image/png')}
-    const p={format:'icaviot-project',version:1,name:document.getElementById('projectName').value.slice(0,80),source:(AppState.sourceLabel||'Artwork').slice(0,300),settings:collectSettings(),image};
-    if(typeof serializeDesignSides==='function'){p.version=2;p.sides=serializeDesignSides();p.activeSide=activeDesignSide;p.linkSides=linkedSideSettings;p.image=null;}
-    if(typeof serializeDesignLayers==='function'){p.version=3;p.layers=serializeDesignLayers();p.selectedIds=designSides.map(s=>s?.id||null);delete p.sides;}
-    p.bottomBrand={...bottomBrand};
-    // Version 4 adds the (optional) embedded custom STL template.
-    p.version=4;p.template=typeof customTemplateProjectEntry==='function'?customTemplateProjectEntry():null;
+    const p=buildProjectData();
     const content=JSON.stringify(p);ProjectFormat.decode(content);
     downloadBlob(new Blob([content],{type:'application/json'}),safeFilename()+'.icaviot');clean();toast('Project download started — keep the file to reopen your design','success');
   }catch(error){toast('Could not save: '+error.message,'error')}
 }
 document.getElementById('saveProject').onclick=saveProject;
 document.getElementById('openProject').onclick=()=>document.getElementById('projectFile').click();
-document.getElementById('projectFile').onchange=async e=>{
-  const file=e.target.files[0];e.target.value='';if(!file)return;
-  try{
-    if(file.size>36*1024*1024)throw Error('Project exceeds 36 MB.');
-    const revision=projectRevision;
-    const p=ProjectFormat.decode(await file.text());
+const projectImage=src=>new Promise((resolve,reject)=>{const i=new Image();i.onload=()=>i.width*i.height<=MAX_IMAGE_PIXELS?resolve(i):reject(Error('Artwork exceeds 24 megapixels.'));i.onerror=()=>reject(Error('Project artwork is damaged.'));i.src=src});
+// Applies a decoded project (ProjectFormat.decode) to the studio. Used by Open project and by the phone autosave
+// restore. Returns false when the user keeps the current design, otherwise the template notice ('' when none).
+async function openProjectData(p,{revision=projectRevision,confirmReplace=true,announce=true}={}){
     let img=null,sideImages=null,layerImages=null;
-    if(p.image){img=await new Promise((resolve,reject)=>{const i=new Image();i.onload=()=>i.width*i.height<=MAX_IMAGE_PIXELS?resolve(i):reject(Error('Artwork exceeds 24 megapixels.'));i.onerror=()=>reject(Error('Project artwork is damaged.'));i.src=p.image})}
-    if(p.version===2){sideImages=await Promise.all(p.sides.map(s=>!s.image?null:new Promise((resolve,reject)=>{const i=new Image();i.onload=()=>i.width*i.height<=MAX_IMAGE_PIXELS?resolve(i):reject(Error('Artwork exceeds 24 megapixels.'));i.onerror=()=>reject(Error('Project artwork is damaged.'));i.src=s.image})));img=sideImages[p.activeSide];}
-    if(p.version===3||p.version===4){layerImages=await Promise.all(p.layers.map(list=>Promise.all(list.map(s=>!s.image?null:new Promise((resolve,reject)=>{const i=new Image();i.onload=()=>i.width*i.height<=MAX_IMAGE_PIXELS?resolve(i):reject(Error('Artwork exceeds 24 megapixels.'));i.onerror=()=>reject(Error('Project artwork is damaged.'));i.src=s.image})))));const selected=Math.max(0,p.layers[p.activeSide].findIndex(s=>s.id===p.selectedIds[p.activeSide]));img=layerImages[p.activeSide][selected]||null;}
+    if(p.image){img=await projectImage(p.image)}
+    if(p.version===2){sideImages=await Promise.all(p.sides.map(s=>!s.image?null:projectImage(s.image)));img=sideImages[p.activeSide];}
+    if(p.version===3||p.version===4){layerImages=await Promise.all(p.layers.map(list=>Promise.all(list.map(s=>!s.image?null:projectImage(s.image)))));const selected=Math.max(0,p.layers[p.activeSide].findIndex(s=>s.id===p.selectedIds[p.activeSide]));img=layerImages[p.activeSide][selected]||null;}
     if(projectRevision!==revision)throw Error('The current design changed while opening. Please open the project again.');
-    if(projectDirty&&!confirm('Replace this unsaved design? Cancel to save it first.'))return;
+    if(confirmReplace&&projectDirty&&!confirm('Replace this unsaved design? Cancel to save it first.'))return false;
     clearTimeout(AppState.rebuildTimer);AppState.rebuildTimer=null;
     if (!Object.hasOwn(p.settings,'templateId')) p.settings.templateId='parametric';
     const templateNotice=typeof restoreProjectTemplate==='function'?await restoreProjectTemplate(p):'';
@@ -65,9 +70,19 @@ document.getElementById('projectFile').onchange=async e=>{
     else{AppState.image=null;AppState.heightmap=null;AppState.lastValidation=null;AppState.sourceLabel='—';AppState.hmRows=0;AppState.hmCols=0;els.fileName.style.display='none';if(meshObj){scene.remove(meshObj);meshObj.geometry.dispose();disposeMaterial(meshObj.material);meshObj=null}setEmptyState(true);drawHeightmapPreview()}
     restoreBottomBrand(p.bottomBrand);
     if(p.version>=3)restoreDesignLayers(p.layers,layerImages,p.activeSide,p.selectedIds);else restoreDesignSides(p.version===2?p.sides:null,sideImages,p.activeSide||0);linkedSideSettings=p.version>=2&&!!p.linkSides;$('linkDesignSettings').checked=linkedSideSettings;
-    projectStateToUI();updateDevicePresetTip(AppState.preset);if(img)scheduleRebuild(true);else if(templateActive())renderTemplateBlank();updateStats();saveSettings();clean();if(typeof resetEditHistory==='function')resetEditHistory();toast(templateNotice?'Project opened. '+templateNotice:'Project opened',/could not|too large/.test(templateNotice)?'error':'success');
+    projectStateToUI();updateDevicePresetTip(AppState.preset);if(img)scheduleRebuild(true);else if(templateActive())renderTemplateBlank();updateStats();saveSettings();clean();if(typeof resetEditHistory==='function')resetEditHistory();if(announce)toast(templateNotice?'Project opened. '+templateNotice:'Project opened',/could not|too large/.test(templateNotice)?'error':'success');
+    return templateNotice;
+}
+document.getElementById('projectFile').onchange=async e=>{
+  const file=e.target.files[0];e.target.value='';if(!file)return;
+  try{
+    if(file.size>36*1024*1024)throw Error('Project exceeds 36 MB.');
+    const revision=projectRevision;
+    const p=ProjectFormat.decode(await file.text());
+    await openProjectData(p,{revision});
   }catch(error){toast('Could not open: '+error.message,'error')}
 };
+
 document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='s'){e.preventDefault();saveProject()}});
 
 let exportBusy=false;
