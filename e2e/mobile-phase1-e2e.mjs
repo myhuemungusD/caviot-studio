@@ -98,7 +98,7 @@ for(const name of names){
   // ---------- 3. Tools sheet: order, labels, no contradictory numbers, shorter, logo stays visible ----------
   await openSheet(p,cdp);await sleep(400);await settle(p);
   const sheet=await p.evaluate(()=>{const sb=document.querySelector('.sidebar'),r=sb.getBoundingClientRect(),vis=e=>!!e&&e.offsetParent!==null&&getComputedStyle(e).visibility!=='hidden';
-    const ids=[...sb.querySelectorAll('.phone-section')].map(s=>s.id);const rail=[...document.querySelectorAll('#phoneRail .phone-rail-btn')].map(b=>({t:b.textContent.replace(/^\W+/u,'').trim(),h:b.getBoundingClientRect().height,label:b.getAttribute('aria-label')}));
+    const ids=[...sb.querySelectorAll('.phone-section')].map(s=>s.id);const rail=[...document.querySelectorAll('#phoneRail .phone-rail-btn')].map(b=>({t:b.textContent.replace(/^\W+/u,'').trim(),h:b.getBoundingClientRect().height,label:b.title}));
     const numbered=[...sb.querySelectorAll('.panel-label')].filter(l=>/^\s*\d+\s*\//.test(l.textContent)).map(l=>l.textContent);
     const tiny=[...sb.querySelectorAll('.phone-section:not(.phone-all) *')].filter(e=>vis(e)&&[...e.childNodes].some(n=>n.nodeType===3&&n.textContent.trim())&&parseFloat(getComputedStyle(e).fontSize)<12).map(e=>e.tagName+'.'+e.className+':'+e.textContent.trim().slice(0,20));
     return {ids,rail,numbered,tiny,top:r.top,height:r.height,vh:innerHeight,oldRail:vis(document.querySelector('.tool-rail')),fontFolder:vis($('openFontFolder')),upload:vis($('uploadBtn')),silhouette:vis($('silhouette')?.closest('label')),left:vis(document.querySelector('[data-template-view="left"]'))}});

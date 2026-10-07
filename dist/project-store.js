@@ -106,14 +106,15 @@ const CaviotAutosave=(()=>{
     finally{restoring=false}
   }
   async function start(){
-    const bootRevision=changeCount();
+    // Only project edits count here: settings saved while the studio starts up must not block the restore.
+    const projectRev=()=>typeof projectRevision==='number'?projectRevision:0,bootRevision=projectRev();
     const studioReady=await waitForStudio();
     let record=null;
     try{record=await readRecord()}catch(error){console.warn('Autosave unavailable:',error);emit('unavailable',{message:String(error?.message||error)});ready=true;return}
     const decision=decide(record);
     if(decision==='expire'){await deleteRecord().catch(()=>{})}
     // Something was already added or opened while the studio loaded: keep that, the next save replaces the record.
-    else if(decision!=='none'&&(changeCount()!==bootRevision||hasUserArtwork()));
+    else if(decision!=='none'&&(projectRev()!==bootRevision||hasUserArtwork()));
     else if(decision==='restore'&&studioReady){
       // A damaged record is deleted by restoreRecord; anything else (e.g. a tap while it loaded) keeps it on offer.
       try{await restoreRecord(record)}catch(error){console.warn('Autosave restore failed:',error);if(record&&validRecord(record)&&!/not a supported|invalid|must be|too large/i.test(String(error?.message))){offer={savedAt:record.savedAt,name:record.name,layers:record.layers,custom:record.custom};emit('offer',offer)}emit('restore-failed',{message:String(error?.message||error)})}

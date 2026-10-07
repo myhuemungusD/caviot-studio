@@ -56,7 +56,7 @@ $('designSizing').insertBefore(lockBtn,$('placementFields'));
 
 // Phone rail: labelled shortcuts to the sections (the desktop icon rail stays as it is on desktop).
 const rail=el('nav',{className:'phone-rail',id:'phoneRail'});rail.setAttribute('aria-label','Tool sections');
-for(const [id,s]of Object.entries(sections)){const b=el('button',{type:'button',className:'phone-rail-btn'});b.dataset.target=id;b.innerHTML='<span aria-hidden="true">'+s.icon+'</span>'+s.label;b.setAttribute('aria-label',s.title);b.onclick=()=>showSection(id);rail.appendChild(b)}
+for(const [id,s]of Object.entries(sections)){const b=el('button',{type:'button',className:'phone-rail-btn'});b.dataset.target=id;b.innerHTML='<span aria-hidden="true">'+s.icon+'</span>'+s.label;b.title=s.title;b.onclick=()=>showSection(id);rail.appendChild(b)}
 function showSection(id){setSettingsOpen(true);const target=secEls[id];if(id==='phoneAllSettings')target.open=true;requestAnimationFrame(()=>{const top=target.offsetTop-(sidebar.querySelector('.sheet-handle')?.offsetHeight||0)-rail.offsetHeight-6;sidebar.scrollTo({top:Math.max(0,top),behavior:'smooth'})})}
 
 // Moving existing controls (with their listeners) into the phone sections, and back when the layout changes.
@@ -184,7 +184,7 @@ for(const id of ['designWidth','designHeight'])for(const suffix of ['Range','Num
 // anywhere else they still zoom and pan the camera. Listens on the canvas container in the capture phase, so it
 // sees each touch before the design grab (template-ui.js) and OrbitControls on the canvas.
 const container=$('threeContainer'),touches=new Map(),swallow=new Set();let pinch=null,orbitPaused=false;
-const chip=el('div',{className:'phone-gesture-chip',hidden:true});chip.setAttribute('aria-live','polite');canvasArea.appendChild(chip);
+const chip=el('div',{className:'phone-gesture-chip',hidden:true});chip.setAttribute('aria-hidden','true');// visual only: the size fields carry the valuescanvasArea.appendChild(chip);
 const RING=[[0,0],[22,0],[-22,0],[0,22],[0,-22]];
 function nearSelected(x,y){for(const [dx,dy]of RING)if(touchHitsSelectedDesign({clientX:x+dx,clientY:y+dy}))return true;return false}
 function pinchAllowed(){return isPhone()&&templateActive()&&!(typeof exportBusy!=='undefined'&&exportBusy)&&!!AppState.image&&!!camera&&typeof touchHitsSelectedDesign==='function'&&!templateMoveFromButton()}
