@@ -14,7 +14,8 @@
     const slot = typeof designSides !== 'undefined' ? designSides[activeDesignSide] : null, parts = [];
     if (templateActive()) parts.push(activeDesignSide ? 'Back' : 'Front');
     const name = slot && slot.kind === 'text' ? (AppState.text || '').trim() : (AppState.sourceLabel || '').replace(/^(pattern|stl):/, '');
-    if (name) parts.push(name.length > 28 ? name.slice(0, 27) + '…' : name);
+    // CSS ellipsis clips the bar; the full name stays in the text so a screen reader and the tooltip get it.
+    if (name) parts.push(name);
     parts.push('Size & rotation');
     return parts.join(' · ');
   }

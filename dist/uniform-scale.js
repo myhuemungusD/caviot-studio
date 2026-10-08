@@ -22,11 +22,14 @@
     wrap.hidden = !templateActive() || !AppState.image;
     if (stale()) { ref = null; if (range.value !== '100') show(100); }
   }
-  // Largest proportional size within the template limits (and at least 2 mm on each side).
+  // Proportions kept, inside the template limits, and at least 2 mm on each side when that still fits.
+  // The 2 mm floor must not grow one side past the other side's maximum.
   function fit(w, h) {
+    if (!(w > 0) || !(h > 0)) return [w, h];
     const maxW = placementLimit('designWidth', 2, 160), maxH = placementLimit('designHeight', 2, 89);
-    let k = Math.min(1, maxW / w, maxH / h);
-    k = Math.max(k, 2 / w, 2 / h);
+    const kMax = Math.min(maxW / w, maxH / h);
+    const kFloor = Math.min(kMax, Math.max(2 / w, 2 / h));
+    const k = Math.min(kMax, Math.max(kFloor, 1));
     return [Math.round(w * k * 100) / 100, Math.round(h * k * 100) / 100];
   }
   range.addEventListener('input', () => {
