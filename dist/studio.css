@@ -1032,3 +1032,16 @@ body.is-rebuilding .canvas-meta .dot { background: var(--warning); }
 .text-backing[hidden], .text-backing .field[hidden], label.check[hidden] { display: none !important; }
 .text-backing .field { margin-top: 10px; }
 .text-backing .muted-tip { margin: 8px 0 0; }
+
+/* Top-bar context and status line (header-context.js) */
+.project-identity { flex: 0 0 auto; }
+.local-label { white-space: nowrap; }
+.project-context { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 18px; margin-left: 6px; }
+.context-label { flex: 0 1 auto; max-width: 42%; min-width: 0; font: 11px var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--t3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.project-context #templateStatus { flex: 1 1 0; max-width: max-content; min-width: 0; margin: 0; padding: 0 0 0 18px; border: 0; border-left: 1px solid var(--b2); font-size: 12px; line-height: 1.4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.project-context #templateStatus:empty { display: none; }
+.project-context #templateStatus.error { color: var(--warning); font-weight: 600; }
+.project-context #templateStatus.error::before { content: '⚠ '; }
+body:not(.using-template) .project-context #templateStatus:not(.error) { display: none; }
+@media (max-width: 1100px) { .context-label, .local-label { display: none; } .project-context #templateStatus { border-left: 0; padding-left: 0; } }
+@media (max-width: 760px) { .project-context { display: none; } }
