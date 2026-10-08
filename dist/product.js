@@ -34,7 +34,12 @@ function buildProjectData({encodeImage=null,withTemplate=true}={}){
   let image=null;
   // Format 1 kept one image; later formats keep each design's image in its layer, so skip the unused encode.
   if(AppState.image&&typeof serializeDesignSides!=='function'){const c=document.createElement('canvas');c.width=AppState.image.width;c.height=AppState.image.height;c.getContext('2d').drawImage(AppState.image,0,0);image=c.toDataURL('image/png')}
-  const p={format:'icaviot-project',version:1,name:document.getElementById('projectName').value.slice(0,80),source:(AppState.sourceLabel||'Artwork').slice(0,300),settings:collectSettings(),image};
+  const settings=collectSettings();
+  // Defaults match the files written before these fields existed, so a plain sleeve or an image design
+  // saves the same bytes. A flat text backing is stored only once it differs from letters-only / 2 mm.
+  if(settings.textBacking==='none')delete settings.textBacking;
+  if(settings.outlineMargin===2)delete settings.outlineMargin;
+  const p={format:'icaviot-project',version:1,name:document.getElementById('projectName').value.slice(0,80),source:(AppState.sourceLabel||'Artwork').slice(0,300),settings,image};
   if(typeof serializeDesignSides==='function'){p.version=2;p.sides=encodeImage?null:serializeDesignSides();p.activeSide=activeDesignSide;p.linkSides=linkedSideSettings;p.image=null;}// the autosave skips the format-2 copy that is dropped below
   if(typeof serializeDesignLayers==='function'){p.version=3;p.layers=serializeDesignLayers(encodeImage);p.selectedIds=designSides.map(s=>s?.id||null);delete p.sides;}
   p.bottomBrand={...bottomBrand};
@@ -107,7 +112,7 @@ function exportCurrent(format){
         clearTimeout(timer);worker.terminate();done();
         if(data.error){toast(data.error,'error');return}
         downloadBlob(new Blob([format==='obj'?data.text:data.buffer],{type:format==='obj'?'model/obj':'model/stl'}),name+'_'+mode+'.'+format);
-        toast(format.toUpperCase()+' exported — '+data.validation.triCount.toLocaleString()+' triangles. Inspect in your slicer.','success');
+        if(data.textReliefError)toast(format.toUpperCase()+' exported with grid lettering: sharp lettering could not be built ('+data.textReliefError+').','error');else toast(format.toUpperCase()+' exported — '+data.validation.triCount.toLocaleString()+' triangles. Inspect in your slicer.','success');
       };
       worker.postMessage({options,format,repair:repairOnExport});
     }catch(error){if(worker)worker.terminate();done();toast('Export failed: '+error.message,'error')}

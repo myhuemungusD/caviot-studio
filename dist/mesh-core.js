@@ -228,8 +228,16 @@ window.MeshCore = (function MeshCoreFactory() {
 
     const positions = [];
     const outerStart = 0;
+    // Sharp lettering (text-relief.js) supplies its own outer surface; the cavity, rims, cap and side walls below
+    // are shared. Without it the grid surface is built exactly as before.
+    let textOuter = null;
+    if (typeof o.textOuter === 'function') {
+      const thetaAt = (j) => (isFullWrap ? (j / cols) * 2 * Math.PI - Math.PI : -wrapAngleRad / 2 + (j / (cols - 1)) * wrapAngleRad) + thetaOffset;
+      textOuter = o.textOuter({ rows, cols, isFullWrap, colMax, thetaAt, innerR, wall, sleeveHeight, logoOnly, negative, maxHeight, minShell: MIN_LOGO_SHELL });
+      for (let k = 0; k < textOuter.positions.length; k++) positions.push(textOuter.positions[k]);
+    }
 
-    for (let i = 0; i < rows; i++) {
+    if (!textOuter) for (let i = 0; i < rows; i++) {
       const yAxial = (i / (rows - 1)) * sleeveHeight;
       for (let j = 0; j < cols; j++) {
         const theta = (isFullWrap
@@ -270,11 +278,12 @@ window.MeshCore = (function MeshCoreFactory() {
       }
     }
 
-    const oIdx = (i, j) => outerStart + i * cols + j;
+    const oIdx = textOuter ? textOuter.oIdx : (i, j) => outerStart + i * cols + j;
     const iIdx = (i, j) => innerStart + i * cols + j;
     const indices = [];
 
-    for (let i = 0; i < rows - 1; i++) {
+    if (textOuter) for (let k = 0; k < textOuter.indices.length; k++) indices.push(textOuter.indices[k]);
+    else for (let i = 0; i < rows - 1; i++) {
       for (let j = 0; j < colMax; j++) {
         const jn = colNext(j);
         const va = oIdx(i, j), vb = oIdx(i, jn), vc = oIdx(i + 1, jn), vd = oIdx(i + 1, j);
@@ -619,6 +628,21 @@ window.MeshCore = (function MeshCoreFactory() {
    */
   function buildMesh(options) {
     const mode = options.mode || 'sleeve';
+    // Lettering with a traced outline (text-relief.js) is meshed from polygons. If that build fails its own
+    // closed-mesh check, the heightmap below is used instead and the reason is reported on the result.
+    let textError = null;
+    if (options.textRelief) {
+      const TR = typeof globalThis !== 'undefined' ? globalThis.TextRelief : undefined;
+      if (TR) {
+        try { return TR.build(options, api); } catch (error) { textError = (error && error.message) || String(error); }
+      } else textError = 'Lettering outlines are not available here.';
+    }
+    const mesh = buildMeshGrid(options, mode);
+    if (textError) mesh.textReliefError = textError;
+    return mesh;
+  }
+
+  function buildMeshGrid(options, mode) {
     if (mode === 'flat') {
       return buildFlat(options);
     }
@@ -636,7 +660,7 @@ window.MeshCore = (function MeshCoreFactory() {
     return geo;
   }
 
-  return {
+  const api = {
     PREVIEW_MAX_DETAIL,
     MIN_LOGO_SHELL,
     getExportDetail,
@@ -650,6 +674,7 @@ window.MeshCore = (function MeshCoreFactory() {
     buildMesh,
     toThreeGeometry,
   };
+  return api;
 })();
 /* END_MESHCORE */
 

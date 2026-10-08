@@ -22,7 +22,7 @@
 </head>
 <body>
 <div class="shell">
-<nav class="projectbar" aria-label="Project"><div class="project-identity"><span class="studio-mark">C</span><label for="projectName" class="sr-only">Project name</label><input id="projectName" value="Untitled design" maxlength="80" /><span class="local-label">LOCAL WORKSPACE</span></div><div class="project-actions"><button class="btn btn-ghost" id="saveProject">Save project</button><button class="btn btn-ghost" id="openProject">Open project</button><button class="btn btn-ghost" id="guideBtn">Guide</button><input type="file" id="projectFile" accept=".icaviot,application/json" hidden /></div></nav>
+<nav class="projectbar" aria-label="Project"><div class="project-identity"><span class="studio-mark">C</span><label for="projectName" class="sr-only">Project name</label><input id="projectName" value="Untitled design" maxlength="80" /><span class="local-label">LOCAL WORKSPACE</span></div><div class="project-context" id="projectContext"><span class="context-label" id="contextLabel">Your design</span><p id="templateStatus" role="status" aria-live="polite">Loading your sleeve…</p></div><div class="project-actions"><button class="btn btn-ghost" id="saveProject">Save project</button><button class="btn btn-ghost" id="openProject">Open project</button><button class="btn btn-ghost" id="guideBtn">Guide</button><input type="file" id="projectFile" accept=".icaviot,application/json" hidden /></div></nav>
 
   <header class="topbar">
     <a class="brand" href="#" aria-label="Caviot Studio build 2026.09.21"><span>CAVIOT</span><small>STUDIO</small><span class="version-badge">BUILD 2026.09.21</span></a>
@@ -52,9 +52,9 @@
 
       <section class="panel template-select-panel"><div class="panel-label">Sleeve template</div><label class="sr-only" for="templateChoice">Sleeve template</label><select id="templateChoice"><option value="etsyfolger-v1">ETSYFOLGER · your STL</option><option value="custom-stl">Custom STL · upload…</option><option value="parametric">Parametric sleeve presets</option></select><p class="muted-tip" id="templateDescription">Original cavity, openings and dimensions preserved.</p></section>
       <!-- SOURCE -->
-      <section class="panel">
-        <div id="designSidesPanel"><div class="panel-label">Artwork on each side</div><div class="design-side-buttons" role="group" aria-label="Side to edit"><button class="btn btn-ghost" id="editSide0" type="button" aria-pressed="true">Front · empty</button><button class="btn btn-ghost" id="editSide1" type="button" aria-pressed="false">Back · empty</button></div><button class="btn btn-ghost btn-sm" id="copyDesignSide" type="button">Copy front to back</button><label class="check"><input type="checkbox" id="linkDesignSettings"><span>Link settings between sides</span></label><p class="muted-tip" id="sideLinkHelp">Click a logo to edit it. Each side has its own size, position and image settings.</p><p id="editingSideLabel">Editing front artwork</p></div><div class="panel-label">01 / Your design</div>
-        <div id="designSizing"><div class="panel-label">Size &amp; rotation · selected design</div><div id="placementFields"></div></div>
+      <section class="panel" aria-label="Your design">
+        <div id="designSidesPanel"><div class="panel-label">Artwork on each side</div><div class="design-side-buttons" role="group" aria-label="Side to edit"><button class="btn btn-ghost" id="editSide0" type="button" aria-pressed="true">Front · empty</button><button class="btn btn-ghost" id="editSide1" type="button" aria-pressed="false">Back · empty</button></div><button class="btn btn-ghost btn-sm" id="copyDesignSide" type="button">Copy front to back</button><label class="check"><input type="checkbox" id="linkDesignSettings"><span>Link settings between sides</span></label><p class="muted-tip" id="sideLinkHelp">Click a logo to edit it. Each side has its own size, position and image settings.</p><p id="editingSideLabel">Editing front artwork</p></div>
+        <div id="designSizing" role="group" aria-label="Size and rotation of the selected design"><div id="placementFields"></div></div>
         <div id="uploadBtn" class="drop" role="button" tabindex="0">
           <span class="glyph">▣</span>
           <strong>Drop or click image</strong>
@@ -129,7 +129,7 @@
         </div>
       </section>
 
-      <section class="panel" id="templatePlacement"><div class="panel-label">03 / Place on the sleeve</div><button class="btn btn-ghost" id="moveDesign" aria-pressed="false" type="button">Move design on sleeve</button><p class="muted-tip"><span class="desktop-only">Hold the scroll wheel on a logo and drag to move it. Or turn this button on for left-button dragging.</span><span class="touch-only">Tap a design to select it, then drag it with one finger. Drag anywhere else to orbit; pinch to zoom; two fingers to pan.</span></p><label class="check"><input id="uniformDepth" type="checkbox" checked><span>Even depth (logos)</span></label><p class="muted-tip">Uses the artwork silhouette. Remove the background to isolate your logo.</p><div class="source-actions"><button class="btn btn-ghost btn-sm" id="centerDesign" type="button">Center on front</button><button class="btn btn-ghost btn-sm" id="clearDesign" type="button">Clear design</button></div><p id="templateStatus" role="status" aria-live="polite">Loading your sleeve…</p></section>
+      <section class="panel" id="templatePlacement"><div class="panel-label">03 / Place on the sleeve</div><button class="btn btn-ghost" id="moveDesign" aria-pressed="false" type="button">Move design on sleeve</button><p class="muted-tip"><span class="desktop-only">Hold the scroll wheel on a logo and drag to move it. Or turn this button on for left-button dragging.</span><span class="touch-only">Tap a design to select it, then drag it with one finger. Drag anywhere else to orbit; pinch to zoom; two fingers to pan.</span></p><label class="check"><input id="uniformDepth" type="checkbox" checked><span>Even depth (logos)</span></label><p class="muted-tip">Uses the artwork silhouette. Remove the background to isolate your logo.</p><div class="source-actions" id="templateStatusHome"><button class="btn btn-ghost btn-sm" id="centerDesign" type="button">Center on front</button><button class="btn btn-ghost btn-sm" id="clearDesign" type="button">Clear design</button></div></section>
       <!-- DEVICE (lighter / vape) -->
       <section class="panel" id="sleevePanel">
         <div class="panel-label">03 / Size &amp; fit</div>
@@ -217,6 +217,26 @@
       <!-- FLAT PLATE -->
       <section class="panel" id="flatPanel" style="display:none">
         <div class="panel-label">Flat plate size</div>
+        <div id="textBackingField" class="text-backing" hidden>
+          <div class="field-label" id="textBackingLabel">Backing behind the text</div>
+          <div class="pill-toggle wrap" role="radiogroup" aria-labelledby="textBackingLabel">
+            <input type="radio" name="textBacking" id="textBackingOutline" value="outline" />
+            <label for="textBackingOutline" title="A thin backing that follows the letters, joined into one piece">Outline</label>
+            <input type="radio" name="textBacking" id="textBackingRounded" value="rounded" />
+            <label for="textBackingRounded" title="A rounded rectangle around the text">Rounded rectangle</label>
+            <input type="radio" name="textBacking" id="textBackingBar" value="bar" />
+            <label for="textBackingBar" title="The letters joined by a bar along the baseline">Connector bar</label>
+            <input type="radio" name="textBacking" id="textBackingSolid" value="solid" />
+            <label for="textBackingSolid" title="The full rectangular plate (Width x the text's proportions)">Solid plate</label>
+            <input type="radio" name="textBacking" id="textBackingNone" value="none" />
+            <label for="textBackingNone" title="Only the letters, lying flat on the bed">None · letters only</label>
+          </div>
+          <div class="field" id="outlineMarginField" hidden>
+            <div class="field-label"><label for="outlineMarginIn">Backing margin</label> <span class="v"><span id="outlineMarginVal">2.0</span> mm</span></div>
+            <input type="range" id="outlineMarginIn" value="2" min="0.5" max="10" step="0.1" aria-describedby="textBackingTip" />
+          </div>
+          <p class="muted-tip" id="textBackingTip" role="status" aria-live="polite"></p>
+        </div>
         <div class="field-row">
           <div class="field">
             <div class="field-label">Width <span class="v"><span id="widthVal">100</span> mm</span></div>
@@ -380,13 +400,15 @@
 
 <script src="project-format.js"></script>
 <script src="mesh-core.js"></script>
+<script src="vendor/earcut.js"></script>
+<script src="text-relief.js"></script>
 <script src="app-state.js"></script>
 <script src="image-pipeline.js"></script>
 <script src="three-preview.js"></script>
 <script src="mesh-actions.js"></script>
 <script src="design-input.js"></script>
 <script src="app.js"></script>
-<script src="product.js"></script><script src="template-core.js"></script><script src="fonts/catalog.js"></script><script src="builtin-fonts.js"></script><script src="template-render.js"></script><script src="placement-preview.js"></script><script src="template-ui.js"></script><script src="design-sides.js"></script><script src="bottom-fit.js"></script><script src="bottom-brand.js"></script><script src="repair-ui.js"></script><script src="editor-tools.js"></script><script src="custom-template.js"></script><script src="custom-template-ui.js"></script>
+<script src="product.js"></script><script src="template-core.js"></script><script src="fonts/catalog.js"></script><script src="builtin-fonts.js"></script><script src="template-render.js"></script><script src="placement-preview.js"></script><script src="template-ui.js"></script><script src="design-sides.js"></script><script src="text-plate-ui.js"></script><script src="header-context.js"></script><script src="uniform-scale.js"></script><script src="bottom-fit.js"></script><script src="bottom-brand.js"></script><script src="repair-ui.js"></script><script src="editor-tools.js"></script><script src="custom-template.js"></script><script src="custom-template-ui.js"></script>
 <script src="tool-layout.js"></script>
 <script src="mobile.js"></script>
 <script src="project-store.js"></script>

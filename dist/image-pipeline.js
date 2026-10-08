@@ -27,7 +27,157 @@ function meshOptionsFromState(hm, rows, cols, mask) {
     curveRadius: Math.max(1, AppState.curveDiam / 2),
     curveAngle: AppState.curveAngle,
     curveFalloff: AppState.curveFalloff,
+    textRelief: textReliefOptions(),
   };
+}
+
+// ---------- Sharp lettering ----------
+// Text designs are meshed from vector outlines traced at sub-pixel accuracy from the 2048 px text image
+// (TextRelief in text-relief.js) instead of the heightmap grid, so letters stay sharp in preview and export.
+// The tracing does not depend on how the font was loaded (built-in, system, uploaded or a restored project PNG).
+const TEXT_TRACE_MAX_PIXELS = 4096 * 2048;
+const TEXT_OUTLINE_CACHE_LIMIT = 6;
+const textOutlineCache = new WeakMap();
+let lastBackingError = '';
+
+// Phones keep the device-tier export budget. Desktop (no finite triangle budget) is unchanged.
+function textDeviceLimits() {
+  const device = typeof CaviotDevice !== 'undefined' ? CaviotDevice.device : null;
+  const budget = device && device.exportTriangleBudget;
+  if (!(budget < Infinity)) return null;
+  const meshBudget = typeof CaviotDevice.limits?.meshBudget === 'number' ? CaviotDevice.limits.meshBudget : budget;
+  return { maxFaces: Math.max(10000, Math.min(1500000, budget, meshBudget)), maxPixels: 6e6 };
+}
+
+function isTextDesign(state = AppState) {
+  if (!state.image) return false;
+  if (/^text:/.test(state.sourceLabel || '')) return true;
+  const slot = typeof designSides !== 'undefined' && typeof activeDesignSide !== 'undefined' ? designSides[activeDesignSide] : null;
+  return !!slot && slot.image === state.image && slot.kind === 'text';
+}
+
+// Lettering outlines for an image, in normalized image coordinates (u right, v down, both 0..1).
+// Returns null when the image cannot be traced; callers then use the heightmap grid.
+function textOutlineSource(img) {
+  if (textOutlineCache.has(img)) return textOutlineCache.get(img);
+  let src = null;
+  try {
+    const w = img.naturalWidth || img.width, h = img.naturalHeight || img.height;
+    if (w >= 8 && h >= 8 && w * h <= TEXT_TRACE_MAX_PIXELS) {
+      const c = document.createElement('canvas');
+      c.width = w; c.height = h;
+      const cx = c.getContext('2d', { willReadFrequently: true });
+      cx.drawImage(img, 0, 0);
+      const data = cx.getImageData(0, 0, w, h).data;
+      const lum = new Float32Array(w * h);
+      for (let i = 0, p = 0; i < lum.length; i++, p += 4) lum[i] = (0.299 * data[p] + 0.587 * data[p + 1] + 0.114 * data[p + 2]) * data[p + 3] / 65025;
+      // 0.2 px simplification: outline points stay within ~0.15 px (0.011 mm on a 152 mm plate) of the true glyph edge.
+      const loops = TextRelief.prepare(TextRelief.trace(lum, w, h, 0.5), 0.2, 2)
+        .map((l) => Float32Array.from(l, (v, i) => (i % 2 ? v / h : v / w)));
+      // Half-resolution ink mask for outline backings (a margin of millimetres does not need full resolution).
+      const hw = Math.ceil(w / 2), hh = Math.ceil(h / 2), ink = new Uint8Array(hw * hh);
+      for (let y = 0; y < hh; y++) for (let x = 0; x < hw; x++) {
+        let sum = 0, n = 0;
+        for (let dy = 0; dy < 2; dy++) for (let dx = 0; dx < 2; dx++) {
+          const sx = 2 * x + dx, sy = 2 * y + dy;
+          if (sx < w && sy < h) { sum += lum[sy * w + sx]; n++; }
+        }
+        ink[y * hw + x] = sum / n >= 0.5 ? 1 : 0;
+      }
+      // Ink extent (half-res pixels) and baseline (median lowest ink row per column; descenders are a minority).
+      let x0 = hw, x1 = -1, y0 = hh, y1 = -1;const bottoms = [];
+      for (let x = 0; x < hw; x++) { let low = -1; for (let y = 0; y < hh; y++) if (ink[y * hw + x]) { low = y; if (y < y0) y0 = y; if (y > y1) y1 = y; } if (low >= 0) { bottoms.push(low); if (x < x0) x0 = x; x1 = x; } }
+      bottoms.sort((a, b) => a - b);
+      // Exact extent of the traced outlines (half-res px) for the rounded rectangle, so it always clears the letters.
+      let ex0 = Infinity, ex1 = -Infinity, ey0 = Infinity, ey1 = -Infinity;
+      for (const l of loops) for (let i = 0; i < l.length; i += 2) {
+        const x = l[i] * hw, y = l[i + 1] * hh;
+        if (x < ex0) ex0 = x; if (x > ex1) ex1 = x; if (y < ey0) ey0 = y; if (y > ey1) ey1 = y;
+      }
+      const box = x1 >= 0 && loops.length ? { x0, x1: x1 + 1, y0, y1: y1 + 1, baseline: bottoms[Math.floor(bottoms.length / 2)] + 1, exact: [ex0, ex1, ey0, ey1] } : null;
+      if (loops.length && box) src = { w, h, loops, ink, hw, hh, box, outlines: new Map() };
+    }
+  } catch (e) {
+    console.warn('Lettering outline unavailable; using the grid.', e);
+    src = null;
+  }
+  textOutlineCache.set(img, src);
+  return src;
+}
+
+// Backing shapes for flat text, as normalized loops (u right, v down in the text image), cached per shape and size.
+//   outline: follows the letters at marginMm (separate letters joined by bridges, so it prints as one piece)
+//   bar:     the outline of the letters plus a connector bar along the baseline (also bridged)
+//   rounded: a rounded rectangle marginMm around the lettering
+function textBackingLoops(src, type, marginMm, letteringWidthMm) {
+  const mmPerHalfPx = letteringWidthMm / src.hw, m = Math.max(0.5, marginMm);
+  const key = type + ':' + (m / mmPerHalfPx).toFixed(2);
+  if (src.outlines.has(key)) return src.outlines.get(key);
+  let loops;
+  if (type === 'rounded') {
+    // In millimetres around the ink box, then back to normalized coordinates.
+    const [ex0, ex1, ey0, ey1] = src.box.exact, mmX = (x) => x * mmPerHalfPx;
+    const left = mmX(ex0) - m, right = mmX(ex1) + m, top = mmX(ey0) - m, bottom = mmX(ey1) + m;
+    // Corner radius below 3.41 x margin keeps the arc outside the lettering's corner (2.5 x leaves >= 0.27 x margin).
+    const r = Math.max(0.1, Math.min(m + 2, 2.5 * m, (right - left) / 2, (bottom - top) / 2)), pts = [], steps = 12;
+    const corner = (cx, cy, a0) => { for (let k = 0; k <= steps; k++) { const a = a0 + (k / steps) * Math.PI / 2; pts.push(cx + r * Math.cos(a), cy + r * Math.sin(a)); } };
+    corner(right - r, bottom - r, 0); corner(left + r, bottom - r, Math.PI / 2); corner(left + r, top + r, Math.PI); corner(right - r, top + r, Math.PI * 1.5);
+    const fullW = src.hw * mmPerHalfPx, fullH = src.hh * mmPerHalfPx;
+    loops = [Float32Array.from(pts, (v, i) => (i % 2 ? v / fullH : v / fullW))];
+  } else {
+    let ink = src.ink;
+    if (type === 'bar') {
+      // Raw bar: across the whole lettering, 30% above / 70% below the baseline, 18% of the letter height (1.5-6 mm).
+      const b = src.box, barMm = Math.max(1.5, Math.min(6, 0.18 * (b.y1 - b.y0) * mmPerHalfPx)), bar = barMm / mmPerHalfPx;
+      const ya = Math.max(0, Math.floor(b.baseline - 0.3 * bar)), yb = Math.min(src.hh, Math.ceil(b.baseline + 0.7 * bar));
+      ink = src.ink.slice();
+      for (let y = ya; y < yb; y++) ink.fill(1, y * src.hw + b.x0, y * src.hw + b.x1);
+    }
+    const limits = textDeviceLimits();
+    const off = TextRelief.offsetOutline(ink, src.hw, src.hh, m / mmPerHalfPx, { bridge: true, ...(limits ? { maxPixels: limits.maxPixels } : {}) });
+    loops = TextRelief.prepare(off.loops, 0.2, 1).map((l) => Float32Array.from(l, (v, i) => (i % 2 ? 2 * v / src.h : 2 * v / src.w)));
+  }
+  if (src.outlines.size >= TEXT_OUTLINE_CACHE_LIMIT) src.outlines.delete(src.outlines.keys().next().value);
+  src.outlines.set(key, loops);
+  return loops;
+}
+
+// TextRelief options for MeshCore.buildMesh, or null when the grid should be used: image designs,
+// "Sharp edges" off, and sleeve templates (their own contour pipeline in template-sharp.js already traces at 768 px).
+function textReliefOptions(state = AppState) {
+  if (typeof TextRelief === 'undefined' || !state.crisp || templateActive() || !isTextDesign(state)) return null;
+  const src = textOutlineSource(state.image);
+  if (!src) return null;
+  const s = Math.max(0.1, Math.min(1, state.logoSizePct / 100));
+  const place = (loops) => loops.map((l) => {
+    const out = new Float32Array(l.length);
+    for (let i = 0; i < l.length; i += 2) {
+      const u = 0.5 + (l[i] - 0.5) * s;
+      out[i] = state.mirror ? 1 - u : u;
+      out[i + 1] = 0.5 + (l[i + 1] - 0.5) * s;
+    }
+    return out;
+  });
+  const flat = state.mode === 'flat';
+  // Flat text: trim off = solid plate; trim on = the chosen backing ('none' = letters only).
+  const shape = !flat || !state.silhouette ? 'solid' : ['outline', 'rounded', 'bar'].includes(state.textBacking) ? state.textBacking : 'none';
+  const opts = { loops: place(src.loops), backing: shape === 'solid' ? 'plate' : shape === 'none' ? 'letters' : 'outline', inkHigh: state.invert !== false };
+  const limits = textDeviceLimits();
+  if (limits) opts.maxFaces = limits.maxFaces;
+  if (flat) opts.depth = state.plateWidth * src.h / src.w;
+  if (opts.backing === 'outline') {
+    try {
+      opts.backingLoops = place(textBackingLoops(src, shape, state.outlineMargin, state.plateWidth * s));
+      lastBackingError = '';
+    } catch (e) {
+      console.warn('Text backing failed; using letters only.', e);
+      opts.backing = 'letters';
+      const msg = (e && e.message) || 'the backing could not be built';
+      if (msg !== lastBackingError && typeof toast === 'function') toast('Backing could not be built (' + msg + '). Letters only were used.', 'error');
+      lastBackingError = msg;
+    }
+  } else lastBackingError = '';
+  return opts;
 }
 
 // ---------- Image / heightmap pipeline ----------

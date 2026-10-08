@@ -84,8 +84,11 @@ function drawHeightmapPreview() {
 
 function updateStats() {
   if (els.statSource) els.statSource.textContent = AppState.sourceLabel || '—';
+  const sharpText = AppState.lastTextRelief && AppState.image && !templateActive();
   if (els.statGrid) {
-    els.statGrid.textContent = AppState.hmCols
+    els.statGrid.textContent = sharpText
+      ? 'outline · ' + (AppState.lastTextRelief.outlinePoints || 0).toLocaleString() + ' pts'
+      : AppState.hmCols
       ? AppState.hmCols + '×' + AppState.hmRows
       : '—';
   }
@@ -98,7 +101,16 @@ function updateStats() {
     } else els.statSize.textContent = '—';
   }
   if (els.statVol) {
-    if (AppState.mode === 'flat') {
+    if (AppState.mode === 'flat' && sharpText && typeof previewMesh !== 'undefined' && previewMesh && previewMesh.positions) {
+      // Flat text prints: the real footprint (a backing margin can make it wider than Width).
+      const P = previewMesh.positions;
+      let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+      for (let i = 0; i < P.length; i += 3) {
+        if (P[i] < x0) x0 = P[i]; if (P[i] > x1) x1 = P[i];
+        if (P[i + 2] < z0) z0 = P[i + 2]; if (P[i + 2] > z1) z1 = P[i + 2];
+      }
+      els.statVol.textContent = (x1 - x0).toFixed(1) + ' × ' + (z1 - z0).toFixed(1) + ' mm';
+    } else if (AppState.mode === 'flat') {
       els.statVol.textContent = AppState.plateWidth + ' mm wide';
     } else {
       els.statVol.textContent =
@@ -118,6 +130,8 @@ function updateStats() {
   }
   if (els.statQualityMode) {
     if (!AppState.image) els.statQualityMode.textContent = '—';
+    // Outline lettering does not depend on the grid detail: the preview is the export.
+    else if (sharpText) els.statQualityMode.textContent = 'sharp lettering · same in export';
     else if (AppState.isPreviewQuality) {
       els.statQualityMode.textContent =
         'preview ' + AppState.lastPreviewRes + ' / export ' + AppState.lastExportRes;

@@ -33,6 +33,33 @@ Run `node tests.mjs` from this directory to check geometry, project validation, 
 - `product.js`: project management, guide and background export orchestration.
 - `project-format.js`: portable project validation.
 - `export-worker.js`: mesh generation and validation off the UI thread.
+- `text-relief.js`: sharp lettering — traced text outlines turned into closed polygon meshes (uses `vendor/earcut.js`).
+- `text-plate-ui.js`, `uniform-scale.js`, `header-context.js`: flat text backings, the Uniform scale slider, and the top-bar context/status line.
+
+## Sharp lettering, flat text prints and the top bar — October 8
+
+**Why text looked blocky.** Typed text is drawn into a 2048 × 1024 image, but the relief was then resampled onto the heightmap grid (160 columns in preview, at most 400 in export: about 0.95 mm per cell on a 152 mm plate) and meshed cell by cell, so every letter edge became a staircase. Edge smoothing only blurred the steps.
+
+**What text does now** (`dist/text-relief.js`, used by preview and export alike). The anti-aliased text image is traced at its 50 % level with sub-pixel marching squares, simplified (0.2 px Douglas–Peucker), cleaned, and triangulated (earcut, then Delaunay flips and re-inserted points). Letter edges become vertical walls exactly on the glyph outline. On curved surfaces (sleeve, logo only, curved flat plate) extra interior points keep the surface within about 0.01 mm of the true curve. Every build checks itself (closed, manifold, consistent winding on the lettering faces, matching volume). If the check fails, or the outline is too large (400,000 outline points or 1.5 million faces), that design falls back to the old grid mesh and a toast explains why. On a phone the bent-surface budget follows the phone export limit (700,000 triangles) and an outline backing that would allocate more than 6 million mask pixels falls back to letters only, with a toast. Desktop limits are unchanged. Applies to text with **Sharp edges** on, on Flat plate, Logo only and the parametric sleeve; Edge smoothing has no effect on it. Measured on a 152 mm plate: letter edges within 0.02 mm of the glyph outline (the grid export was about 0.3–0.66 mm off). The STL is exactly the preview mesh on flat plates. On sleeves, the export uses the same lettering on the finer export-detail body.
+
+Unchanged on purpose: image designs (meshes and STL are byte-identical to before; `text-relief-tests.mjs` compares them with the previous `mesh-core.js`), and ETSYFOLGER/custom STL templates, which keep their own contour pipeline (`template-sharp.js`, 768-pixel vector field), so their exports also stay byte-identical.
+
+**Flat text prints (name signs).** Choose **Flat plate**, type the text, then pick **Backing behind the text** in the Flat plate size panel:
+- **Outline**: a backing that follows the letters at **Backing margin** (0.5–10 mm, default 2), with thin bridges that join separate letters into one piece.
+- **Rounded rectangle**: a rounded rectangle around the text, margin as above.
+- **Connector bar**: the letters joined by a bar along the baseline, plus the outline margin.
+- **Solid plate**: the full rectangular plate (Width × the text's proportions).
+- **None · letters only**: just the letters, lying on the bed. The tip under the choices shows the thickness and how many separate pieces will print.
+
+When text lands on a flat plate, the letters start 2 mm tall (with the default 1 mm Backing: 3 mm thick as letters only, or 2 mm above a 1 mm backing). Switching back to the sleeve restores the previous depth unless you changed it. Saved settings and projects open as saved. A project file records the backing and its margin only when they are not the defaults (letters only, 2 mm), so a plain sleeve or an image design saves the same file as before. Backing thickness is the **Backing** field, letter height is **Depth**. Every option exports a closed STL.
+
+**Uniform scale.** Under the design Width/Height/Rotation sliders, **Uniform scale** (10–300 %) resizes the selected sleeve design with its proportions kept, within the template's size limits. It reads 100 % at rest and starts again from 100 % after any other size change. On phones it sits in the Size section next to the proportion lock.
+
+**Top bar.** The left-panel headings "01 / Your design" and "Size & rotation · selected design" are gone. The top bar shows the context next to LOCAL WORKSPACE (for example "Front · FOGER · Size & rotation") and the sleeve status line (`#templateStatus`, still `role=status`, `aria-live=polite`): one line with the full text on hover. Errors show in the warning colour with ⚠, and as a toast when they don't fit. Below 1100 px the context label is hidden. On phones the status stays in the tools sheet and the phone status overlay.
+
+Known, not changed: on main, a closed bottom with a push-out hole builds the hole wall with reversed winding (80 duplicate directed edges in the test). Fixing it would change image exports, so it is left as is and noted here.
+
+Tests: `node text-relief-tests.mjs` (131 checks: trace accuracy, closed meshes in every shape, exact volumes, deviation against the grid, fallback, byte-identical image meshes, a tight face budget coarsens bent lettering, and an outline backing over the pixel budget is refused). `node e2e/text-relief-e2e.mjs http://127.0.0.1:4190/` (83 checks in Chrome: five fonts within 0.05 mm with no stair steps; every flat backing, logo only and sleeve exported through Export STL closed and wound; spacing/thickness; templates and images untouched; text defaults; Uniform scale with undo).
 
 ## Validation boundaries
 
