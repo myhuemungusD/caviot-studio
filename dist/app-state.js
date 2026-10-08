@@ -52,7 +52,9 @@ const AppState = {
   invert: true,            // light sticks out
   crisp: true,
   mirror: false,
-  silhouette: true,
+  silhouette: true,        // flat plate: trim to the design (text: letters only, or the outline backing below)
+  textOutline: false,      // flat text with trim on: add a backing that follows the letters
+  outlineMargin: 2,        // mm the outline backing extends past the letters
   smoothPasses: 0,
   edgeSmooth: 4,
 
@@ -81,6 +83,8 @@ const AppState = {
   lastPreviewRes: 0,
   lastExportRes: 0,
   lastValidation: null,
+  lastTextRelief: null,    // info of the last sharp-lettering preview mesh (null when the grid was used)
+  lastTextReliefError: null,
   rebuildTimer: null,
   lastSilhouetteToast: 0,
   pickingBg: false,
@@ -252,6 +256,8 @@ function collectSettings() {
     crisp: AppState.crisp,
     mirror: AppState.mirror,
     silhouette: AppState.silhouette,
+    textOutline: AppState.textOutline,
+    outlineMargin: AppState.outlineMargin,
     smoothPasses: AppState.smoothPasses,
     edgeSmooth: AppState.edgeSmooth,
     bgEnable: AppState.bgEnable,
@@ -279,7 +285,7 @@ function loadSettings(settingsOverride) {
       wall: [0.6, 5], sleeveHeight: [10, 200], tol: [0, 2], capThick: [0.6, 5],
       capHole: [0, 15], plateWidth: [10, 500], baseThickness: [0.4, 10],
       curveDiam: [20, 500], curveAngle: [-180, 180], curveFalloff: [0, 90],
-      logoSizePct: [10, 100], smoothPasses: [0, 3], edgeSmooth: [0, 10], bgTol: [0, 180],
+      logoSizePct: [10, 100], outlineMargin: [0.5, 10], smoothPasses: [0, 3], edgeSmooth: [0, 10], bgTol: [0, 180],
       bgR: [0, 255], bgG: [0, 255], bgB: [0, 255],
     };
     Object.keys(s).forEach((k) => {

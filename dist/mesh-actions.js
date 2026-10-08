@@ -84,8 +84,11 @@ function drawHeightmapPreview() {
 
 function updateStats() {
   if (els.statSource) els.statSource.textContent = AppState.sourceLabel || '—';
+  const sharpText = AppState.lastTextRelief && AppState.image && !templateActive();
   if (els.statGrid) {
-    els.statGrid.textContent = AppState.hmCols
+    els.statGrid.textContent = sharpText
+      ? 'outline · ' + (AppState.lastTextRelief.outlinePoints || 0).toLocaleString() + ' pts'
+      : AppState.hmCols
       ? AppState.hmCols + '×' + AppState.hmRows
       : '—';
   }
@@ -118,6 +121,8 @@ function updateStats() {
   }
   if (els.statQualityMode) {
     if (!AppState.image) els.statQualityMode.textContent = '—';
+    // Outline lettering does not depend on the grid detail: the preview is the export.
+    else if (sharpText) els.statQualityMode.textContent = 'sharp lettering · same in export';
     else if (AppState.isPreviewQuality) {
       els.statQualityMode.textContent =
         'preview ' + AppState.lastPreviewRes + ' / export ' + AppState.lastExportRes;

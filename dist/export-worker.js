@@ -1,6 +1,6 @@
 'use strict';
 self.window=self;
-importScripts('mesh-core.js','mesh-repair.js');
+importScripts('mesh-core.js','mesh-repair.js','vendor/earcut.js','text-relief.js');
 self.onmessage=({data})=>{
   try{
     let mesh=MeshCore.buildMesh(data.options);

@@ -172,6 +172,15 @@ function setEmptyState(empty) {
   }
 }
 
+// Sharp lettering renders with creased normals so letter edges look as crisp as they print.
+function textReliefGeometry(mesh) {
+  const { position, normal } = TextRelief.creasedNormals(mesh.positions, mesh.indices, 35);
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(position, 3));
+  geo.setAttribute('normal', new THREE.BufferAttribute(normal, 3));
+  return geo;
+}
+
 function buildThreePreview() {
   if (templateActive()) { requestTemplatePreview(); return; }
   if (!scene || !AppState.heightmap) return;
@@ -183,6 +192,7 @@ function buildThreePreview() {
     console.error(e);
     previewMesh = null;
     AppState.lastValidation = null;
+    AppState.lastTextRelief = null;
     if (meshObj) {
       scene.remove(meshObj);
       meshObj.geometry.dispose();
@@ -195,7 +205,13 @@ function buildThreePreview() {
     return;
   }
   previewMesh = mesh;
-  const geo = MC.toThreeGeometry(mesh, THREE);
+  if (mesh.textReliefError && mesh.textReliefError !== AppState.lastTextReliefError) {
+    console.warn('Sharp lettering unavailable, using the grid:', mesh.textReliefError);
+    toast('Sharp lettering could not be built for this design, so the grid is used. ' + mesh.textReliefError, 'error');
+  }
+  AppState.lastTextReliefError = mesh.textReliefError || null;
+  AppState.lastTextRelief = mesh.textRelief ? (mesh.info || {}) : null;
+  const geo = mesh.textRelief ? textReliefGeometry(mesh) : MC.toThreeGeometry(mesh, THREE);
   const mat = new THREE.MeshStandardMaterial({
     color: 0xc8c4bc,
     metalness: 0.12,

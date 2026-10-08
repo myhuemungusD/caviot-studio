@@ -27,7 +27,105 @@ function meshOptionsFromState(hm, rows, cols, mask) {
     curveRadius: Math.max(1, AppState.curveDiam / 2),
     curveAngle: AppState.curveAngle,
     curveFalloff: AppState.curveFalloff,
+    textRelief: textReliefOptions(),
   };
+}
+
+// ---------- Sharp lettering ----------
+// Text designs are meshed from vector outlines traced at sub-pixel accuracy from the 2048 px text image
+// (TextRelief in text-relief.js) instead of the heightmap grid, so letters stay sharp in preview and export.
+// The tracing does not depend on how the font was loaded (built-in, system, uploaded or a restored project PNG).
+const TEXT_TRACE_MAX_PIXELS = 4096 * 2048;
+const TEXT_OUTLINE_CACHE_LIMIT = 6;
+const textOutlineCache = new WeakMap();
+
+function isTextDesign(state = AppState) {
+  if (!state.image) return false;
+  if (/^text:/.test(state.sourceLabel || '')) return true;
+  const slot = typeof designSides !== 'undefined' && typeof activeDesignSide !== 'undefined' ? designSides[activeDesignSide] : null;
+  return !!slot && slot.image === state.image && slot.kind === 'text';
+}
+
+// Lettering outlines for an image, in normalized image coordinates (u right, v down, both 0..1).
+// Returns null when the image cannot be traced; callers then use the heightmap grid.
+function textOutlineSource(img) {
+  if (textOutlineCache.has(img)) return textOutlineCache.get(img);
+  let src = null;
+  try {
+    const w = img.naturalWidth || img.width, h = img.naturalHeight || img.height;
+    if (w >= 8 && h >= 8 && w * h <= TEXT_TRACE_MAX_PIXELS) {
+      const c = document.createElement('canvas');
+      c.width = w; c.height = h;
+      const cx = c.getContext('2d', { willReadFrequently: true });
+      cx.drawImage(img, 0, 0);
+      const data = cx.getImageData(0, 0, w, h).data;
+      const lum = new Float32Array(w * h);
+      for (let i = 0, p = 0; i < lum.length; i++, p += 4) lum[i] = (0.299 * data[p] + 0.587 * data[p + 1] + 0.114 * data[p + 2]) * data[p + 3] / 65025;
+      // 0.2 px simplification: outline points stay within ~0.15 px (0.011 mm on a 152 mm plate) of the true glyph edge.
+      const loops = TextRelief.prepare(TextRelief.trace(lum, w, h, 0.5), 0.2, 2)
+        .map((l) => Float32Array.from(l, (v, i) => (i % 2 ? v / h : v / w)));
+      // Half-resolution ink mask for outline backings (a margin of millimetres does not need full resolution).
+      const hw = Math.ceil(w / 2), hh = Math.ceil(h / 2), ink = new Uint8Array(hw * hh);
+      for (let y = 0; y < hh; y++) for (let x = 0; x < hw; x++) {
+        let sum = 0, n = 0;
+        for (let dy = 0; dy < 2; dy++) for (let dx = 0; dx < 2; dx++) {
+          const sx = 2 * x + dx, sy = 2 * y + dy;
+          if (sx < w && sy < h) { sum += lum[sy * w + sx]; n++; }
+        }
+        ink[y * hw + x] = sum / n >= 0.5 ? 1 : 0;
+      }
+      if (loops.length) src = { w, h, loops, ink, hw, hh, outlines: new Map() };
+    }
+  } catch (e) {
+    console.warn('Lettering outline unavailable; using the grid.', e);
+    src = null;
+  }
+  textOutlineCache.set(img, src);
+  return src;
+}
+
+// Backing that follows the lettering at `marginMm`, as normalized loops (cached per margin and plate width).
+function textOutlineBacking(src, marginMm, letteringWidthMm) {
+  const mmPerHalfPx = letteringWidthMm / src.hw;
+  const r = Math.max(0.5, marginMm / mmPerHalfPx);
+  const key = r.toFixed(2);
+  if (src.outlines.has(key)) return src.outlines.get(key);
+  const off = TextRelief.offsetOutline(src.ink, src.hw, src.hh, r, { bridge: true });
+  const loops = TextRelief.prepare(off.loops, 0.2, 1).map((l) => Float32Array.from(l, (v, i) => (i % 2 ? 2 * v / src.h : 2 * v / src.w)));
+  if (src.outlines.size >= TEXT_OUTLINE_CACHE_LIMIT) src.outlines.delete(src.outlines.keys().next().value);
+  src.outlines.set(key, loops);
+  return loops;
+}
+
+// TextRelief options for MeshCore.buildMesh, or null when the grid should be used: image designs,
+// "Sharp edges" off, and sleeve templates (their own contour pipeline in template-sharp.js already traces at 768 px).
+function textReliefOptions(state = AppState) {
+  if (typeof TextRelief === 'undefined' || !state.crisp || templateActive() || !isTextDesign(state)) return null;
+  const src = textOutlineSource(state.image);
+  if (!src) return null;
+  const s = Math.max(0.1, Math.min(1, state.logoSizePct / 100));
+  const place = (loops) => loops.map((l) => {
+    const out = new Float32Array(l.length);
+    for (let i = 0; i < l.length; i += 2) {
+      const u = 0.5 + (l[i] - 0.5) * s;
+      out[i] = state.mirror ? 1 - u : u;
+      out[i + 1] = 0.5 + (l[i + 1] - 0.5) * s;
+    }
+    return out;
+  });
+  const flat = state.mode === 'flat';
+  const backing = !flat ? 'plate' : !state.silhouette ? 'plate' : state.textOutline ? 'outline' : 'letters';
+  const opts = { loops: place(src.loops), backing, inkHigh: state.invert !== false };
+  if (flat) opts.depth = state.plateWidth * src.h / src.w;
+  if (backing === 'outline') {
+    try {
+      opts.backingLoops = place(textOutlineBacking(src, state.outlineMargin, state.plateWidth * s));
+    } catch (e) {
+      console.warn('Outline backing failed; using letters only.', e);
+      opts.backing = 'letters';
+    }
+  }
+  return opts;
 }
 
 // ---------- Image / heightmap pipeline ----------
