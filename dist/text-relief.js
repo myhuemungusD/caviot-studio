@@ -16,6 +16,7 @@
 (function(root){
  const MAX_LOOP_POINTS=400000;   // total outline points accepted from a trace (a 2048 x 1024 text image has < 60k)
  const MAX_FACES=1500000;        // face budget: bent-surface point spacing is coarsened to stay below it
+ let faceCap=MAX_FACES;          // build() may lower this for a phone; desktop stays at MAX_FACES
 
  // ---------------------------------------------------------------------------------------------------------------
  // Outline tracing: marching squares over pixel centres (pixel k covers [k, k+1], its centre is k + 0.5). A point is
@@ -111,7 +112,7 @@
  // Separate pieces are joined by straight bridges of the same width (closest points, minimum spanning tree), so the
  // backing prints as one piece. ink: Uint8Array mask (w x h). Returns loops in the mask's pixel coordinates.
  function offsetOutline(ink,w,h,radius,options={}){
-  const r=Math.max(1,radius),pad=Math.ceil(r)+3,W=w+pad*2,H=h+pad*2;if(W*H>24e6)throw Error('Outline backing is too large for this device.');
+  const r=Math.max(1,radius),pad=Math.ceil(r)+3,W=w+pad*2,H=h+pad*2,maxPixels=options.maxPixels>0?options.maxPixels:24e6;if(W*H>maxPixels)throw Error('Outline backing is too large for this device.');
   const m=new Uint8Array(W*H);let any=false;for(let y=0;y<h;y++)for(let x=0;x<w;x++)if(ink[y*w+x]){m[(y+pad)*W+x+pad]=1;any=true}
   if(!any)return {loops:[],bridges:0};
   const D=distanceField(m,W,H);
@@ -198,7 +199,7 @@
   const cell=spacing,grid=new Map(),gk=(x,y)=>x*1048576+y,clear=.45*spacing;
   for(let s=0;s<segs.length;s+=2){const a=segs[s],b=segs[s+1],x0=Math.floor((Math.min(X[a],X[b])-clear)/cell),x1=Math.floor((Math.max(X[a],X[b])+clear)/cell),y0=Math.floor((Math.min(Y[a],Y[b])-clear)/cell),y1=Math.floor((Math.max(Y[a],Y[b])+clear)/cell);for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++){const k=gk(x+524288,y+524288);let l=grid.get(k);if(!l)grid.set(k,l=[]);l.push(s)}}
   const nearEdge=(px,py)=>{const l=grid.get(gk(Math.floor(px/cell)+524288,Math.floor(py/cell)+524288));if(!l)return false;for(const s of l){const a=segs[s],b=segs[s+1],vx=X[b]-X[a],vy=Y[b]-Y[a],L=vx*vx+vy*vy;let t=L?((px-X[a])*vx+(py-Y[a])*vy)/L:0;t=t<0?0:t>1?1:t;if(Math.hypot(px-X[a]-vx*t,py-Y[a]-vy*t)<clear)return true}return false};
-  const rowH=spacing*Math.sqrt(3)/2,maxPoints=Math.max(0,(MAX_FACES/2|0)-nt()),bucket=new Map(),bk=(x,y)=>Math.floor(x/(4*spacing))*1048576+Math.floor(y/(4*spacing));let added=0;
+  const rowH=spacing*Math.sqrt(3)/2,maxPoints=Math.max(0,(faceCap/2|0)-nt()),bucket=new Map(),bk=(x,y)=>Math.floor(x/(4*spacing))*1048576+Math.floor(y/(4*spacing));let added=0;
   for(let t=0;t<nt();t++)bucket.set(bk(X[T[t*3]],Y[T[t*3]]),t);
   const contains=(t,px,py)=>orientP(T[t*3],T[t*3+1],px,py)>=0&&orientP(T[t*3+1],T[t*3+2],px,py)>=0&&orientP(T[t*3+2],T[t*3],px,py)>=0;
   const locate=(px,py)=>{let t=bucket.get(bk(px,py));if(t===undefined)t=0;
@@ -301,7 +302,7 @@
   return {positions,indices,textRelief:true,info:{pieces,outlinePoints:L.reduce((s,l)=>s+l.length/2,0)}};
  }
  // Point spacing on bent surfaces: chord sagitta about 0.01 mm (s^2 / 8R), coarsened so the faces stay in budget.
- function curveSpacing(areaMm2,radius){let s=Math.min(4,Math.max(.3,Math.sqrt(8*radius*.01)));const est=2*areaMm2/(.43*s*s);if(est>MAX_FACES*.5)s*=Math.sqrt(est/(MAX_FACES*.5));return s}
+ function curveSpacing(areaMm2,radius){let s=Math.min(4,Math.max(.3,Math.sqrt(8*radius*.01)));const est=2*areaMm2/(.43*s*s);if(est>faceCap*.5)s*=Math.sqrt(est/(faceCap*.5));return s}
 
  // Parametric sleeve and Logo only: the outer surface is built from the outlines in the unrolled (column, height)
  // domain and handed to MeshCore.buildSleeve, which adds the cavity, rims, cap and side walls exactly as before.
@@ -356,7 +357,10 @@
 
  function build(o,MC){
   if(!o||!o.textRelief||!Array.isArray(o.textRelief.loops))throw Error('No lettering outline.');
-  return o.mode==='flat'?buildFlat(o,MC):buildSleeve(o,MC);
+  const requested=+o.textRelief.maxFaces,cap=Number.isFinite(requested)&&requested>=10000?Math.min(MAX_FACES,requested):MAX_FACES;
+  const prev=faceCap;faceCap=cap;
+  try{return o.mode==='flat'?buildFlat(o,MC):buildSleeve(o,MC);}
+  finally{faceCap=prev;}
  }
 
  root.TextRelief={trace,simplify,clean,prepare,intersecting,area,distanceField,offsetOutline,nesting,triangulate,densify,build,buildFlat,buildSleeve,check,creasedNormals};

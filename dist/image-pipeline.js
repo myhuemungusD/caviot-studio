@@ -38,6 +38,16 @@ function meshOptionsFromState(hm, rows, cols, mask) {
 const TEXT_TRACE_MAX_PIXELS = 4096 * 2048;
 const TEXT_OUTLINE_CACHE_LIMIT = 6;
 const textOutlineCache = new WeakMap();
+let lastBackingError = '';
+
+// Phones keep the device-tier export budget. Desktop (no finite triangle budget) is unchanged.
+function textDeviceLimits() {
+  const device = typeof CaviotDevice !== 'undefined' ? CaviotDevice.device : null;
+  const budget = device && device.exportTriangleBudget;
+  if (!(budget < Infinity)) return null;
+  const meshBudget = typeof CaviotDevice.limits?.meshBudget === 'number' ? CaviotDevice.limits.meshBudget : budget;
+  return { maxFaces: Math.max(10000, Math.min(1500000, budget, meshBudget)), maxPixels: 6e6 };
+}
 
 function isTextDesign(state = AppState) {
   if (!state.image) return false;
@@ -123,7 +133,8 @@ function textBackingLoops(src, type, marginMm, letteringWidthMm) {
       ink = src.ink.slice();
       for (let y = ya; y < yb; y++) ink.fill(1, y * src.hw + b.x0, y * src.hw + b.x1);
     }
-    const off = TextRelief.offsetOutline(ink, src.hw, src.hh, m / mmPerHalfPx, { bridge: true });
+    const limits = textDeviceLimits();
+    const off = TextRelief.offsetOutline(ink, src.hw, src.hh, m / mmPerHalfPx, { bridge: true, ...(limits ? { maxPixels: limits.maxPixels } : {}) });
     loops = TextRelief.prepare(off.loops, 0.2, 1).map((l) => Float32Array.from(l, (v, i) => (i % 2 ? 2 * v / src.h : 2 * v / src.w)));
   }
   if (src.outlines.size >= TEXT_OUTLINE_CACHE_LIMIT) src.outlines.delete(src.outlines.keys().next().value);
@@ -151,15 +162,21 @@ function textReliefOptions(state = AppState) {
   // Flat text: trim off = solid plate; trim on = the chosen backing ('none' = letters only).
   const shape = !flat || !state.silhouette ? 'solid' : ['outline', 'rounded', 'bar'].includes(state.textBacking) ? state.textBacking : 'none';
   const opts = { loops: place(src.loops), backing: shape === 'solid' ? 'plate' : shape === 'none' ? 'letters' : 'outline', inkHigh: state.invert !== false };
+  const limits = textDeviceLimits();
+  if (limits) opts.maxFaces = limits.maxFaces;
   if (flat) opts.depth = state.plateWidth * src.h / src.w;
   if (opts.backing === 'outline') {
     try {
       opts.backingLoops = place(textBackingLoops(src, shape, state.outlineMargin, state.plateWidth * s));
+      lastBackingError = '';
     } catch (e) {
       console.warn('Text backing failed; using letters only.', e);
       opts.backing = 'letters';
+      const msg = (e && e.message) || 'the backing could not be built';
+      if (msg !== lastBackingError && typeof toast === 'function') toast('Backing could not be built (' + msg + '). Letters only were used.', 'error');
+      lastBackingError = msg;
     }
-  }
+  } else lastBackingError = '';
   return opts;
 }
 

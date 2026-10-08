@@ -103,6 +103,13 @@ console.log('flat plate deviation: sharp',sharp.max.toFixed(4),'mm, grid export'
 {const sq=[Float32Array.from([.2,.2,.5,.2,.5,.2,.8,.2,.8,.5,.8,.8,.2,.8,.2,.5,.2,.2])];const m=MC.buildMesh({...grid,mode:'flat',textRelief:{loops:TR.prepare(sq.map(l=>Float32Array.from(l,(v,i)=>v*(i%2?H:W))),.12).map(l=>Float32Array.from(l,(v,i)=>i%2?v/H:v/W)),backing:'plate'}});
  ok(m.textRelief&&m.indices.length/3===2+2+2+2*8+2*8-4||m.textRelief,'duplicate and collinear outline points are cleaned');closed(m,'cleaned square');}
 {const m=MC.buildMesh({...grid,mode:'flat',maxHeight:0,textRelief:{loops:norm,backing:'plate'}});ok(!m.textRelief,'zero depth uses the grid');}
+{const o={...grid,mode:'flat',curveEnable:true,curveDirection:'horizontal',curveRadius:40,curveAngle:90};
+ const full=MC.buildMesh({...o,textRelief:{loops:norm,backing:'plate',depth:plateD}});
+ const capped=MC.buildMesh({...o,textRelief:{loops:norm,backing:'plate',depth:plateD,maxFaces:12000}});
+ ok(full.textRelief&&capped.textRelief&&capped.indices.length<full.indices.length,'a tight face budget coarsens bent lettering ('+(capped.indices.length/3)+' < '+(full.indices.length/3)+' tris)');
+ closed(capped,'budget curved plate');}
+{let threw=false;try{TR.offsetOutline(new Uint8Array(64),8,8,4000,{maxPixels:1000})}catch(e){threw=/too large/.test(e.message)}
+ ok(threw,'outline backing refuses a mask above the pixel budget');}
 
 // ---- 4. Image designs mesh exactly like main (ec2e30d) ----
 let reference=null;try{reference=execFileSync('git',['show','ec2e30d:dist/mesh-core.js'],{encoding:'utf8',stdio:['ignore','pipe','ignore']})}catch(_){}
