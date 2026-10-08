@@ -59,7 +59,7 @@ When text lands on a flat plate, the letters start 2 mm tall (with the default 1
 
 Known, not changed: on main, a closed bottom with a push-out hole builds the hole wall with reversed winding (80 duplicate directed edges in the test). Fixing it would change image exports, so it is left as is and noted here.
 
-Tests: `node text-relief-tests.mjs` (127 checks: trace accuracy, closed meshes in every shape, exact volumes, deviation against the grid, fallback, byte-identical image meshes). `node e2e/text-relief-e2e.mjs http://127.0.0.1:4190/` (83 checks in Chrome: five fonts within 0.05 mm with no stair steps; every flat backing, logo only and sleeve exported through Export STL closed and wound; spacing/thickness; templates and images untouched; text defaults; Uniform scale with undo).
+Tests: `node text-relief-tests.mjs` (131 checks: trace accuracy, closed meshes in every shape, exact volumes, deviation against the grid, fallback, byte-identical image meshes, a tight face budget coarsens bent lettering, and an outline backing over the pixel budget is refused). `node e2e/text-relief-e2e.mjs http://127.0.0.1:4190/` (83 checks in Chrome: five fonts within 0.05 mm with no stair steps; every flat backing, logo only and sleeve exported through Export STL closed and wound; spacing/thickness; templates and images untouched; text defaults; Uniform scale with undo).
 
 ## Validation boundaries
 
