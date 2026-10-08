@@ -78,7 +78,13 @@ function textOutlineSource(img) {
       let x0 = hw, x1 = -1, y0 = hh, y1 = -1;const bottoms = [];
       for (let x = 0; x < hw; x++) { let low = -1; for (let y = 0; y < hh; y++) if (ink[y * hw + x]) { low = y; if (y < y0) y0 = y; if (y > y1) y1 = y; } if (low >= 0) { bottoms.push(low); if (x < x0) x0 = x; x1 = x; } }
       bottoms.sort((a, b) => a - b);
-      const box = x1 >= 0 ? { x0, x1: x1 + 1, y0, y1: y1 + 1, baseline: bottoms[Math.floor(bottoms.length / 2)] + 1 } : null;
+      // Exact extent of the traced outlines (half-res px) for the rounded rectangle, so it always clears the letters.
+      let ex0 = Infinity, ex1 = -Infinity, ey0 = Infinity, ey1 = -Infinity;
+      for (const l of loops) for (let i = 0; i < l.length; i += 2) {
+        const x = l[i] * hw, y = l[i + 1] * hh;
+        if (x < ex0) ex0 = x; if (x > ex1) ex1 = x; if (y < ey0) ey0 = y; if (y > ey1) ey1 = y;
+      }
+      const box = x1 >= 0 && loops.length ? { x0, x1: x1 + 1, y0, y1: y1 + 1, baseline: bottoms[Math.floor(bottoms.length / 2)] + 1, exact: [ex0, ex1, ey0, ey1] } : null;
       if (loops.length && box) src = { w, h, loops, ink, hw, hh, box, outlines: new Map() };
     }
   } catch (e) {
@@ -100,8 +106,10 @@ function textBackingLoops(src, type, marginMm, letteringWidthMm) {
   let loops;
   if (type === 'rounded') {
     // In millimetres around the ink box, then back to normalized coordinates.
-    const b = src.box, mmX = (x) => x * mmPerHalfPx, left = mmX(b.x0) - m, right = mmX(b.x1) + m, top = mmX(b.y0) - m, bottom = mmX(b.y1) + m;
-    const r = Math.max(0.5, Math.min(m + 2, (right - left) / 2, (bottom - top) / 2)), pts = [], steps = 12;
+    const [ex0, ex1, ey0, ey1] = src.box.exact, mmX = (x) => x * mmPerHalfPx;
+    const left = mmX(ex0) - m, right = mmX(ex1) + m, top = mmX(ey0) - m, bottom = mmX(ey1) + m;
+    // Corner radius below 3.41 x margin keeps the arc outside the lettering's corner (2.5 x leaves >= 0.27 x margin).
+    const r = Math.max(0.1, Math.min(m + 2, 2.5 * m, (right - left) / 2, (bottom - top) / 2)), pts = [], steps = 12;
     const corner = (cx, cy, a0) => { for (let k = 0; k <= steps; k++) { const a = a0 + (k / steps) * Math.PI / 2; pts.push(cx + r * Math.cos(a), cy + r * Math.sin(a)); } };
     corner(right - r, bottom - r, 0); corner(left + r, bottom - r, Math.PI / 2); corner(left + r, top + r, Math.PI); corner(right - r, top + r, Math.PI * 1.5);
     const fullW = src.hw * mmPerHalfPx, fullH = src.hh * mmPerHalfPx;
