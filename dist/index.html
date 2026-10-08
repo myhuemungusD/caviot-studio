@@ -217,6 +217,22 @@
       <!-- FLAT PLATE -->
       <section class="panel" id="flatPanel" style="display:none">
         <div class="panel-label">Flat plate size</div>
+        <div id="textBackingField" class="text-backing" hidden>
+          <div class="field-label" id="textBackingLabel">Print the text as</div>
+          <div class="pill-toggle" role="radiogroup" aria-labelledby="textBackingLabel">
+            <input type="radio" name="textBacking" id="textBackingPlate" value="plate" />
+            <label for="textBackingPlate" title="Letters standing on a rectangular plate">Plate</label>
+            <input type="radio" name="textBacking" id="textBackingOutline" value="outline" />
+            <label for="textBackingOutline" title="Letters on a thin backing that follows their outline, joined into one piece">Outline</label>
+            <input type="radio" name="textBacking" id="textBackingLetters" value="letters" />
+            <label for="textBackingLetters" title="Only the letters, lying flat on the bed">Letters only</label>
+          </div>
+          <div class="field" id="outlineMarginField" hidden>
+            <div class="field-label">Outline margin <span class="v"><span id="outlineMarginVal">2.0</span> mm</span></div>
+            <input type="range" id="outlineMarginIn" value="2" min="0.5" max="10" step="0.1" aria-label="Outline margin" aria-describedby="textBackingTip" />
+          </div>
+          <p class="muted-tip" id="textBackingTip" role="status" aria-live="polite"></p>
+        </div>
         <div class="field-row">
           <div class="field">
             <div class="field-label">Width <span class="v"><span id="widthVal">100</span> mm</span></div>
@@ -388,7 +404,7 @@
 <script src="mesh-actions.js"></script>
 <script src="design-input.js"></script>
 <script src="app.js"></script>
-<script src="product.js"></script><script src="template-core.js"></script><script src="fonts/catalog.js"></script><script src="builtin-fonts.js"></script><script src="template-render.js"></script><script src="placement-preview.js"></script><script src="template-ui.js"></script><script src="design-sides.js"></script><script src="bottom-fit.js"></script><script src="bottom-brand.js"></script><script src="repair-ui.js"></script><script src="editor-tools.js"></script><script src="custom-template.js"></script><script src="custom-template-ui.js"></script>
+<script src="product.js"></script><script src="template-core.js"></script><script src="fonts/catalog.js"></script><script src="builtin-fonts.js"></script><script src="template-render.js"></script><script src="placement-preview.js"></script><script src="template-ui.js"></script><script src="design-sides.js"></script><script src="text-plate-ui.js"></script><script src="bottom-fit.js"></script><script src="bottom-brand.js"></script><script src="repair-ui.js"></script><script src="editor-tools.js"></script><script src="custom-template.js"></script><script src="custom-template-ui.js"></script>
 <script src="tool-layout.js"></script>
 <script src="mobile.js"></script>
 <script src="pwa.js"></script>

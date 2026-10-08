@@ -1026,3 +1026,9 @@ body.is-rebuilding .canvas-meta .dot { background: var(--warning); }
 .swatch { width: 18px; height: 18px; border-radius: 4px; border: 1px solid var(--b2); background: #fff; }
 .swatch-label { font-family: var(--mono); font-size: 11px; color: var(--t2); }
 
+
+/* Flat text prints (text-plate-ui.js) */
+.text-backing { margin: 4px 0 12px; }
+.text-backing[hidden], .text-backing .field[hidden], label.check[hidden] { display: none !important; }
+.text-backing .field { margin-top: 10px; }
+.text-backing .muted-tip { margin: 8px 0 0; }
