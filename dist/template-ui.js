@@ -87,6 +87,9 @@ function placeFromPointer(e){
 // else orbits, two fingers pinch-zoom and pan. A second finger during a grab that has not moved yet cancels it,
 // so a pinch that happens to start on the design still zooms.
 let templateGrabTouch=false,templateGrabMoved=false,templateGrabStart={x:0,y:0};
+// Ends a touch grab of the selected design as if the finger lifted (phone-ui.js uses it when a second finger turns
+// the grab into a pinch on the design). Set once the canvas exists; a no-op without a grab.
+let releaseLogoTouchGrab=()=>{};
 function installLogoPointerControls(canvas){
  canvas.addEventListener('pointerdown',e=>{
   if(templateActivePointer!==null&&templateGrabTouch&&e.pointerId!==templateActivePointer){
@@ -109,6 +112,7 @@ function installLogoPointerControls(canvas){
   if(templateGrabTouch&&!templateGrabMoved){if(placementFrame!==null)cancelAnimationFrame(placementFrame);placementFrame=null;placementPointer=null;templateStatus('Drag the selected design to move it · drag elsewhere to orbit.');if(e.clientX!==undefined&&typeof selectedDesignTapped==='function')selectedDesignTapped(e,templateGrabStart.t||undefined)}else flushPlacementPointer();
   templateActivePointer=null;templateGrabOffset=null;templateGrabTouch=false;const prior=wheelGrabRestoreMove;wheelGrabRestoreMove=null;if(prior!==null)setTemplateMove(prior);if(canvas.hasPointerCapture(e.pointerId))canvas.releasePointerCapture(e.pointerId);};
  const cancelTouchGrab=canvas=>{const id=templateActivePointer;templateGrabMoved=false;end({pointerId:id});};
+ releaseLogoTouchGrab=()=>{if(templateActivePointer!==null&&templateGrabTouch)end({pointerId:templateActivePointer})};
  canvas.addEventListener('pointerup',end,true);canvas.addEventListener('pointercancel',end,true);canvas.addEventListener('lostpointercapture',end);
  // While a design is held, the browser must not turn the finger into a scroll, zoom or orbit gesture.
  canvas.addEventListener('touchmove',e=>{if(templateActivePointer!==null&&templateMove)e.preventDefault();},{passive:false,capture:true});
@@ -129,6 +133,8 @@ $('uniformDepth').onchange=e=>{AppState.uniformDepth=e.target.checked;scheduleRe
 $('centerDesign').onclick=()=>{AppState.designAngle=0;AppState.designY=templateBase?templateBase.height/2:44.5;AppState.designRotation=0;projectStateToUI();scheduleRebuild();saveSettings();dirty()};
 $('clearDesign').onclick=()=>{AppState.image=null;AppState.heightmap=null;AppState.alphaMap=null;AppState.imageName='';AppState.sourceLabel='—';AppState.hmRows=0;AppState.hmCols=0;AppState.text='';AppState.textRenderId++;els.textInput.value='';els.fileName.style.display='none';els.textStretchField.style.display='none';els.heightmapCanvas.getContext('2d').clearRect(0,0,els.heightmapCanvas.width,els.heightmapCanvas.height);drawHeightmapPreview();renderTemplateBlank();dirty()};
 document.querySelectorAll('[data-template-view]').forEach(button=>button.onclick=()=>templateView(button.dataset.templateView));
+// File name part for the relief. Desktop names it after the selected design; phone-ui.js names every side.
+function exportReliefTag(){return hasSleeveArtwork()?(AppState.relief==='carved'?'deboss':'emboss'):'plain'}
 async function exportTemplate(format){
   if(exportBusy||!templateBase)return;exportBusy=true;syncTemplateUI();els.generateBtn.textContent='Forming export…';templateStatus('Preparing the full sleeve with your current design…');const worker=new Worker('template-worker.js');let timeout,ticker;
   // The worker reports each stage; show it with the elapsed time so a long export never looks frozen. The watchdog
@@ -139,7 +145,7 @@ async function exportTemplate(format){
   const finish=()=>{clearTimeout(timeout);clearInterval(ticker);worker.terminate();exportBusy=false;els.generateBtn.textContent='Export STL';syncTemplateUI()};
   ticker=setInterval(showStage,1000);
   try{const options=templateOptions(1024);
-    const filename=safeFilename()+'_'+templateInfo().file+'_'+(hasSleeveArtwork()?(AppState.relief==='carved'?'deboss':'emboss'):'plain')+'.'+format;
+    const filename=safeFilename()+'_'+templateInfo().file+'_'+exportReliefTag()+'.'+format;
     worker.onmessage=({data})=>{if(data.progress){watchdog();stageText=data.exportStage?'Export: '+data.progress:'Preparing the print surface for your template: '+data.progress;showStage();return}finish();if(data.error){const message=data.error+(/open edges|non-manifold|Repair could not/.test(data.error)&&templateInfo().exportHint?' '+templateInfo().exportHint:'');templateStatus(message,true);toast(data.error,'error');return}downloadBlob(new Blob([format==='obj'?data.text:data.buffer],{type:format==='obj'?'model/obj':'model/stl'}),filename);templateStatus('Exported '+data.validation.triCount.toLocaleString()+' triangles.'+(data.info.sharp?' Contour spacing: '+data.info.spacing.toFixed(2)+' mm'+(data.info.adapted?' (adjusted for this large design)':'')+'.':'')+' '+(AppState.templateId==='custom-stl'?'Template geometry preserved outside the artwork':'Original cavity preserved')+'; inspect in your slicer.');toast('Sleeve '+format.toUpperCase()+' exported','success')};worker.onerror=()=>{finish();templateStatus('Export failed. Reload and try again.',true)};watchdog();worker.postMessage({id:1,type:'export',format,options,repair:repairOnExport,template:templateJobData(worker,'print')});
   }catch(error){finish();templateStatus(error.message,true)}
 }
