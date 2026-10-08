@@ -218,18 +218,22 @@
       <section class="panel" id="flatPanel" style="display:none">
         <div class="panel-label">Flat plate size</div>
         <div id="textBackingField" class="text-backing" hidden>
-          <div class="field-label" id="textBackingLabel">Print the text as</div>
-          <div class="pill-toggle" role="radiogroup" aria-labelledby="textBackingLabel">
-            <input type="radio" name="textBacking" id="textBackingPlate" value="plate" />
-            <label for="textBackingPlate" title="Letters standing on a rectangular plate">Plate</label>
+          <div class="field-label" id="textBackingLabel">Backing behind the text</div>
+          <div class="pill-toggle wrap" role="radiogroup" aria-labelledby="textBackingLabel">
             <input type="radio" name="textBacking" id="textBackingOutline" value="outline" />
-            <label for="textBackingOutline" title="Letters on a thin backing that follows their outline, joined into one piece">Outline</label>
-            <input type="radio" name="textBacking" id="textBackingLetters" value="letters" />
-            <label for="textBackingLetters" title="Only the letters, lying flat on the bed">Letters only</label>
+            <label for="textBackingOutline" title="A thin backing that follows the letters, joined into one piece">Outline</label>
+            <input type="radio" name="textBacking" id="textBackingRounded" value="rounded" />
+            <label for="textBackingRounded" title="A rounded rectangle around the text">Rounded rectangle</label>
+            <input type="radio" name="textBacking" id="textBackingBar" value="bar" />
+            <label for="textBackingBar" title="The letters joined by a bar along the baseline">Connector bar</label>
+            <input type="radio" name="textBacking" id="textBackingSolid" value="solid" />
+            <label for="textBackingSolid" title="The full rectangular plate (Width x the text's proportions)">Solid plate</label>
+            <input type="radio" name="textBacking" id="textBackingNone" value="none" />
+            <label for="textBackingNone" title="Only the letters, lying flat on the bed">None · letters only</label>
           </div>
           <div class="field" id="outlineMarginField" hidden>
-            <div class="field-label">Outline margin <span class="v"><span id="outlineMarginVal">2.0</span> mm</span></div>
-            <input type="range" id="outlineMarginIn" value="2" min="0.5" max="10" step="0.1" aria-label="Outline margin" aria-describedby="textBackingTip" />
+            <div class="field-label"><label for="outlineMarginIn">Backing margin</label> <span class="v"><span id="outlineMarginVal">2.0</span> mm</span></div>
+            <input type="range" id="outlineMarginIn" value="2" min="0.5" max="10" step="0.1" aria-describedby="textBackingTip" />
           </div>
           <p class="muted-tip" id="textBackingTip" role="status" aria-live="polite"></p>
         </div>

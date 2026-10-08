@@ -1032,6 +1032,9 @@ body.is-rebuilding .canvas-meta .dot { background: var(--warning); }
 .text-backing[hidden], .text-backing .field[hidden], label.check[hidden] { display: none !important; }
 .text-backing .field { margin-top: 10px; }
 .text-backing .muted-tip { margin: 8px 0 0; }
+.pill-toggle.wrap { flex-wrap: wrap; }
+.pill-toggle.wrap label { flex: 1 1 40%; min-height: 32px; text-align: center; }
+.pill-toggle.wrap label[for=textBackingNone] { flex-basis: 100%; }
 
 /* Top-bar context and status line (header-context.js) */
 .project-identity { flex: 0 0 auto; }

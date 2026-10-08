@@ -74,7 +74,12 @@ function textOutlineSource(img) {
         }
         ink[y * hw + x] = sum / n >= 0.5 ? 1 : 0;
       }
-      if (loops.length) src = { w, h, loops, ink, hw, hh, outlines: new Map() };
+      // Ink extent (half-res pixels) and baseline (median lowest ink row per column; descenders are a minority).
+      let x0 = hw, x1 = -1, y0 = hh, y1 = -1;const bottoms = [];
+      for (let x = 0; x < hw; x++) { let low = -1; for (let y = 0; y < hh; y++) if (ink[y * hw + x]) { low = y; if (y < y0) y0 = y; if (y > y1) y1 = y; } if (low >= 0) { bottoms.push(low); if (x < x0) x0 = x; x1 = x; } }
+      bottoms.sort((a, b) => a - b);
+      const box = x1 >= 0 ? { x0, x1: x1 + 1, y0, y1: y1 + 1, baseline: bottoms[Math.floor(bottoms.length / 2)] + 1 } : null;
+      if (loops.length && box) src = { w, h, loops, ink, hw, hh, box, outlines: new Map() };
     }
   } catch (e) {
     console.warn('Lettering outline unavailable; using the grid.', e);
@@ -84,14 +89,35 @@ function textOutlineSource(img) {
   return src;
 }
 
-// Backing that follows the lettering at `marginMm`, as normalized loops (cached per margin and plate width).
-function textOutlineBacking(src, marginMm, letteringWidthMm) {
-  const mmPerHalfPx = letteringWidthMm / src.hw;
-  const r = Math.max(0.5, marginMm / mmPerHalfPx);
-  const key = r.toFixed(2);
+// Backing shapes for flat text, as normalized loops (u right, v down in the text image), cached per shape and size.
+//   outline: follows the letters at marginMm (separate letters joined by bridges, so it prints as one piece)
+//   bar:     the outline of the letters plus a connector bar along the baseline (also bridged)
+//   rounded: a rounded rectangle marginMm around the lettering
+function textBackingLoops(src, type, marginMm, letteringWidthMm) {
+  const mmPerHalfPx = letteringWidthMm / src.hw, m = Math.max(0.5, marginMm);
+  const key = type + ':' + (m / mmPerHalfPx).toFixed(2);
   if (src.outlines.has(key)) return src.outlines.get(key);
-  const off = TextRelief.offsetOutline(src.ink, src.hw, src.hh, r, { bridge: true });
-  const loops = TextRelief.prepare(off.loops, 0.2, 1).map((l) => Float32Array.from(l, (v, i) => (i % 2 ? 2 * v / src.h : 2 * v / src.w)));
+  let loops;
+  if (type === 'rounded') {
+    // In millimetres around the ink box, then back to normalized coordinates.
+    const b = src.box, mmX = (x) => x * mmPerHalfPx, left = mmX(b.x0) - m, right = mmX(b.x1) + m, top = mmX(b.y0) - m, bottom = mmX(b.y1) + m;
+    const r = Math.max(0.5, Math.min(m + 2, (right - left) / 2, (bottom - top) / 2)), pts = [], steps = 12;
+    const corner = (cx, cy, a0) => { for (let k = 0; k <= steps; k++) { const a = a0 + (k / steps) * Math.PI / 2; pts.push(cx + r * Math.cos(a), cy + r * Math.sin(a)); } };
+    corner(right - r, bottom - r, 0); corner(left + r, bottom - r, Math.PI / 2); corner(left + r, top + r, Math.PI); corner(right - r, top + r, Math.PI * 1.5);
+    const fullW = src.hw * mmPerHalfPx, fullH = src.hh * mmPerHalfPx;
+    loops = [Float32Array.from(pts, (v, i) => (i % 2 ? v / fullH : v / fullW))];
+  } else {
+    let ink = src.ink;
+    if (type === 'bar') {
+      // Raw bar: across the whole lettering, 30% above / 70% below the baseline, 18% of the letter height (1.5-6 mm).
+      const b = src.box, barMm = Math.max(1.5, Math.min(6, 0.18 * (b.y1 - b.y0) * mmPerHalfPx)), bar = barMm / mmPerHalfPx;
+      const ya = Math.max(0, Math.floor(b.baseline - 0.3 * bar)), yb = Math.min(src.hh, Math.ceil(b.baseline + 0.7 * bar));
+      ink = src.ink.slice();
+      for (let y = ya; y < yb; y++) ink.fill(1, y * src.hw + b.x0, y * src.hw + b.x1);
+    }
+    const off = TextRelief.offsetOutline(ink, src.hw, src.hh, m / mmPerHalfPx, { bridge: true });
+    loops = TextRelief.prepare(off.loops, 0.2, 1).map((l) => Float32Array.from(l, (v, i) => (i % 2 ? 2 * v / src.h : 2 * v / src.w)));
+  }
   if (src.outlines.size >= TEXT_OUTLINE_CACHE_LIMIT) src.outlines.delete(src.outlines.keys().next().value);
   src.outlines.set(key, loops);
   return loops;
@@ -114,14 +140,15 @@ function textReliefOptions(state = AppState) {
     return out;
   });
   const flat = state.mode === 'flat';
-  const backing = !flat ? 'plate' : !state.silhouette ? 'plate' : state.textOutline ? 'outline' : 'letters';
-  const opts = { loops: place(src.loops), backing, inkHigh: state.invert !== false };
+  // Flat text: trim off = solid plate; trim on = the chosen backing ('none' = letters only).
+  const shape = !flat || !state.silhouette ? 'solid' : ['outline', 'rounded', 'bar'].includes(state.textBacking) ? state.textBacking : 'none';
+  const opts = { loops: place(src.loops), backing: shape === 'solid' ? 'plate' : shape === 'none' ? 'letters' : 'outline', inkHigh: state.invert !== false };
   if (flat) opts.depth = state.plateWidth * src.h / src.w;
-  if (backing === 'outline') {
+  if (opts.backing === 'outline') {
     try {
-      opts.backingLoops = place(textOutlineBacking(src, state.outlineMargin, state.plateWidth * s));
+      opts.backingLoops = place(textBackingLoops(src, shape, state.outlineMargin, state.plateWidth * s));
     } catch (e) {
-      console.warn('Outline backing failed; using letters only.', e);
+      console.warn('Text backing failed; using letters only.', e);
       opts.backing = 'letters';
     }
   }

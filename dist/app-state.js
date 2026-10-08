@@ -53,8 +53,8 @@ const AppState = {
   crisp: true,
   mirror: false,
   silhouette: true,        // flat plate: trim to the design (text: letters only, or the outline backing below)
-  textOutline: false,      // flat text with trim on: add a backing that follows the letters
-  outlineMargin: 2,        // mm the outline backing extends past the letters
+  textBacking: 'none',     // flat text with trim on: 'none' | 'outline' | 'rounded' | 'bar' (trim off = solid plate)
+  outlineMargin: 2,        // mm the outline / rounded / bar backing extends past the letters
   smoothPasses: 0,
   edgeSmooth: 4,
 
@@ -256,7 +256,7 @@ function collectSettings() {
     crisp: AppState.crisp,
     mirror: AppState.mirror,
     silhouette: AppState.silhouette,
-    textOutline: AppState.textOutline,
+    textBacking: AppState.textBacking,
     outlineMargin: AppState.outlineMargin,
     smoothPasses: AppState.smoothPasses,
     edgeSmooth: AppState.edgeSmooth,
@@ -300,6 +300,7 @@ function loadSettings(settingsOverride) {
     if (!['etsyfolger-v1','custom-stl','parametric'].includes(AppState.templateId)) AppState.templateId='etsyfolger-v1';
     if (!['sleeve', 'logo-only', 'flat'].includes(AppState.mode)) AppState.mode = 'sleeve';
     if (!['raised', 'carved'].includes(AppState.relief)) AppState.relief = 'raised';
+    if (!['none', 'outline', 'rounded', 'bar'].includes(AppState.textBacking)) AppState.textBacking = 'none';
     if (![180, 360].includes(Number(AppState.wrapAngle))) AppState.wrapAngle = 180;
     if (!['horizontal', 'vertical', 'all'].includes(AppState.curveDirection)) AppState.curveDirection = 'horizontal';
   } catch (_) { /* ignore */ }
