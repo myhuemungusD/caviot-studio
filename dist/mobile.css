@@ -70,7 +70,7 @@
   /* Full-screen 3D view */
   .app{grid-template-columns:minmax(0,1fr)!important;padding-left:0!important;position:relative;min-height:0}
   .canvas{position:relative;min-width:0;min-height:0;overflow:hidden}
-  .canvas-meta,.canvas-hint,.axis-legend,#resetViewBtn,.hm-mini,.using-template .hm-mini{display:none!important}
+  .canvas-meta,.canvas-hint,.axis-legend,#resetViewBtn,.canvas>.hm-mini,.using-template .canvas>.hm-mini{display:none!important}
   .template-toolbar{top:10px!important;left:max(10px,var(--safe-l))!important;right:max(10px,var(--safe-r));gap:6px;flex-wrap:nowrap}
   .template-toolbar .btn{min-height:44px;height:44px;padding:0 12px;font-size:14px;background:rgba(16,17,20,.72);backdrop-filter:blur(6px)}
   .phone-status{display:block;position:absolute;left:max(12px,var(--safe-l));right:max(12px,var(--safe-r));top:64px;z-index:6;padding:8px 12px;border-radius:10px;background:rgba(16,17,20,.82);border:1px solid var(--b2);color:var(--t2);font-size:13px;line-height:1.4;text-align:center;pointer-events:none;opacity:0;transition:opacity .25s}
@@ -78,7 +78,7 @@
   .phone-status.error{color:var(--danger);border-color:var(--danger)}
 
   /* Tools as a bottom sheet over the canvas (half height, drag up for full) */
-  html body .sidebar,html body.settings-closed .sidebar{position:fixed!important;display:block!important;left:max(0px,var(--safe-l))!important;right:max(0px,var(--safe-r))!important;top:auto!important;bottom:calc(var(--bb-h) + var(--safe-b))!important;width:auto!important;height:58vh;height:58dvh;max-height:calc(100dvh - var(--pb-h) - var(--safe-t) - var(--bb-h) - var(--safe-b) - 8px);z-index:65;border:1px solid var(--b2);border-bottom:0;border-radius:18px 18px 0 0;box-shadow:0 -12px 40px rgba(0,0,0,.55);transform:translateY(calc(100% + var(--bb-h) + 40px))!important;visibility:hidden;transition:transform 220ms cubic-bezier(.2,.8,.2,1),visibility 0s linear 220ms,height 220ms ease;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding-bottom:16px}
+  html body .sidebar,html body.settings-closed .sidebar{position:fixed!important;display:block!important;left:max(0px,var(--safe-l))!important;right:max(0px,var(--safe-r))!important;top:auto!important;bottom:calc(var(--bb-h) + var(--safe-b))!important;width:auto!important;height:46vh;height:clamp(260px,46dvh,480px);max-height:calc(100dvh - var(--pb-h) - var(--safe-t) - var(--bb-h) - var(--safe-b) - 8px);z-index:65;border:1px solid var(--b2);border-bottom:0;border-radius:18px 18px 0 0;box-shadow:0 -12px 40px rgba(0,0,0,.55);transform:translateY(calc(100% + var(--bb-h) + 40px))!important;visibility:hidden;transition:transform 220ms cubic-bezier(.2,.8,.2,1),visibility 0s linear 220ms,height 220ms ease;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding-bottom:16px}
   html body.mobile-settings-open .sidebar{transform:none!important;visibility:visible;transition:transform 220ms cubic-bezier(.2,.8,.2,1),visibility 0s,height 220ms ease}
   html body.sheet-full .sidebar{height:calc(100dvh - var(--pb-h) - var(--safe-t) - var(--bb-h) - var(--safe-b) - 8px)}
   html body.settings-closed .sidebar>:not(.tool-rail){display:revert!important}

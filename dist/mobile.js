@@ -8,7 +8,7 @@ const D=CaviotDevice,isPhone=()=>D.phoneLayout(),sidebar=document.querySelector(
 // ---------- Overflow menu (Save / Open / Guide / OBJ / STL template / Reset view) ----------
 const more=document.createElement('button');more.type='button';more.id='mobileMoreBtn';more.className='btn btn-ghost mobile-only';more.setAttribute('aria-label','More actions');more.setAttribute('aria-haspopup','menu');more.setAttribute('aria-expanded','false');more.innerHTML='<span aria-hidden="true">⋮</span>';
 const menu=document.createElement('div');menu.id='mobileMenu';menu.className='mobile-menu';menu.setAttribute('role','menu');menu.hidden=true;
-const items=[['saveProject','Save project'],['openProject','Open project…'],['downloadObjBtn','Export OBJ'],['openSTL','Import STL template…'],['resetViewBtn','Reset view'],['guideBtn','Guide']];
+const items=[['startNewDesign','Start new design…'],['saveProject','Save project'],['openProject','Open project…'],['downloadObjBtn','Export OBJ'],['openSTL','Import STL template…'],['resetViewBtn','Reset view'],['guideBtn','Guide']];
 for(const [id,label]of items){const b=document.createElement('button');b.type='button';b.setAttribute('role','menuitem');b.dataset.target=id;b.textContent=label;b.onclick=()=>{closeMenu();const t=$(id);if(t&&!t.disabled)t.click();};menu.appendChild(b);}
 document.querySelector('.project-actions').append(more);document.body.appendChild(menu);
 function openMenu(){for(const b of menu.querySelectorAll('button')){const t=$(b.dataset.target);b.disabled=!t||t.disabled;}menu.hidden=false;more.setAttribute('aria-expanded','true');menu.querySelector('button:not(:disabled)')?.focus({preventScroll:true});}
@@ -63,12 +63,23 @@ const tierOriginalDetail=MC.getExportDetail;MC.getExportDetail=detail=>{const d=
 const heavy=document.createElement('dialog');heavy.className='product-dialog mobile-dialog';heavy.id='heavyExportDialog';
 heavy.innerHTML='<h2>Large export on a phone</h2><p id="heavyExportText"></p><div class="layer-actions"><button class="btn btn-primary" data-choice="go">Export anyway</button><button class="btn btn-ghost" data-choice="safe">Use phone-safe quality</button><button class="btn btn-ghost" data-choice="cancel">Cancel</button></div>';
 document.body.appendChild(heavy);
-function heavyReasons(format){if(D.detected!=='light')return [];const r=[];
+// Rough size of the exported mesh, from the mobile audit: the built-in sleeve is about 450k triangles phone-safe and
+// 1.3M at full quality; a custom STL keeps all of its triangles (+10 % refinement); each design adds up to about
+// 2.5 triangles per contour cell of its box (measured: 483k at 30×20 mm, 684k at 80×40, 1.24M at 150×85, phone-safe). Export needs about 0.5 KB of memory per output triangle.
+function exportEstimate(){const L=D.limits,s=L.exportSpacing||.2;let base;
+ if(templateActive()&&AppState.templateId==='custom-stl'){const tris=typeof customTemplate!=='undefined'&&customTemplate?.report?.triangles||templateBase?.sourceTriangles||((templateBase?.indices?.length||0)/3);base=tris*1.1}
+ else base=D.tier==='light'?450000:1300000;
+ const designs=typeof designLayers!=='undefined'?designLayers.flat().filter(d=>d.image):[];
+ const tris=Math.round(base+designs.reduce((t,d)=>t+2.5*d.designWidth*d.designHeight/(s*s),0));
+ return {tris,fileMB:Math.round(tris*50/1048576),memoryMB:Math.round(tris*.5/1024)};}
+globalThis.exportEstimate=exportEstimate;
+function heavyReasons(format){if(D.detected!=='light')return [];const r=[],budget=D.device?.exportTriangleBudget??Infinity;
  if(D.tier!=='light')r.push('Full quality is on, which can need over 600 MB of memory for a large design.');
- if(templateActive()&&AppState.templateId==='custom-stl'){const tris=(templateBase?.sourceTriangles||((templateBase?.indices?.length||0)/3));if(tris>200000)r.push('This custom STL has '+Math.round(tris/1000)+'k triangles.');if(repairOnExport)r.push('Make watertight is on for a custom template.');}
+ if(templateActive()){const e=exportEstimate();if(e.tris>budget)r.push('This export is about '+(e.tris/1e6).toFixed(1)+' million triangles (a '+e.fileMB+' MB file) and needs roughly '+e.memoryMB+' MB of memory.');}
+ if(templateActive()&&AppState.templateId==='custom-stl'&&repairOnExport)r.push('Make watertight is on for a custom template.');
  if(format==='obj'&&D.tier!=='light')r.push('OBJ files are text and need about three times the memory of STL.');
  return r;}
-function askHeavy(reasons){return new Promise(resolve=>{heavy.querySelector('#heavyExportText').textContent=reasons.join(' ')+' The browser may run out of memory and reload this page. Save your project first if you are unsure.';heavy.querySelector('[data-choice="safe"]').hidden=D.tier==='light';const done=v=>{heavy.close();resolve(v);};heavy.querySelectorAll('[data-choice]').forEach(b=>b.onclick=()=>done(b.dataset.choice));heavy.oncancel=e=>{e.preventDefault();done('cancel');};heavy.showModal();});}
+function askHeavy(reasons){return new Promise(resolve=>{heavy.querySelector('#heavyExportText').textContent=reasons.join(' ')+' The browser may run out of memory and reload this page'+(typeof CaviotAutosave!=='undefined'&&CaviotAutosave.enabled?' (your design is kept on this phone and comes back). Exporting on a computer is safer for large models.':'. Save your project first if you are unsure.');heavy.querySelector('[data-choice="safe"]').hidden=D.tier==='light';const done=v=>{heavy.close();resolve(v);};heavy.querySelectorAll('[data-choice]').forEach(b=>b.onclick=()=>done(b.dataset.choice));heavy.oncancel=e=>{e.preventDefault();done('cancel');};heavy.showModal();});}
 const tierOriginalExport=exportCurrent;
 exportCurrent=async function(format){if(exportBusy)return;const reasons=heavyReasons(format);
  if(reasons.length){const choice=await askHeavy(reasons);if(choice==='cancel')return;if(choice==='safe'){try{localStorage.setItem('caviot.exportQuality','safe')}catch{}const s=$('exportQuality');if(s){s.value='safe';s.onchange();}else applyTier();}}
@@ -77,22 +88,28 @@ exportCurrent=async function(format){if(exportBusy)return;const reasons=heavyRea
 
 // ---------- iOS file handoff: share sheet / download / open, each from a fresh tap ----------
 const ready=document.createElement('dialog');ready.className='product-dialog mobile-dialog';ready.id='fileReadyDialog';
-ready.innerHTML='<h2>Your file is ready</h2><p id="fileReadyName"></p><div class="layer-actions file-ready-actions"><button class="btn btn-primary" data-act="share">Save or share…</button><button class="btn btn-ghost" data-act="download">Download</button><button class="btn btn-ghost" data-act="open">Open in new tab</button><button class="btn btn-ghost" data-act="close">Close</button></div><p class="muted-tip">In Safari, Download saves to the Files app (Downloads). Save or share can send the file to Files, AirDrop or a slicer app.</p>';
+ready.innerHTML='<h2>Your file is ready</h2><p id="fileReadyName"></p><div class="layer-actions file-ready-actions"><button class="btn btn-primary" data-act="share">Share…</button><button class="btn btn-ghost" data-act="download">Download</button><button class="btn btn-ghost" data-act="open">Open in new tab</button><button class="btn btn-ghost" data-act="close">Close</button></div><p class="muted-tip" id="fileReadyHelp"></p>';
 document.body.appendChild(ready);
 let readyFile=null,readyUrl=null;
 const mimeFor=name=>/\.stl$/i.test(name)?'model/stl':/\.obj$/i.test(name)?'model/obj':/\.icaviot$/i.test(name)?'application/json':'application/octet-stream';
+function canShareFile(file){try{return !!navigator.canShare&&(navigator.canShare({files:[file]})||navigator.canShare({files:[new File([file],file.name,{type:'application/octet-stream'})]}))}catch{return false}}
+globalThis.canShareFile=canShareFile;
 globalThis.showFileReady=function(blob,filename){
  if(readyUrl)URL.revokeObjectURL(readyUrl);readyUrl=null;
  readyFile={blob,filename};const mb=blob.size/1048576;ready.querySelector('#fileReadyName').textContent=filename+' · '+(mb>=1?mb.toFixed(1)+' MB':Math.max(1,Math.round(blob.size/1024))+' KB');
  const file=new File([blob],filename,{type:blob.type||mimeFor(filename)});
- ready.querySelector('[data-act="share"]').hidden=!(navigator.canShare&&(navigator.canShare({files:[file]})||navigator.canShare({files:[new File([blob],filename,{type:'application/octet-stream'})]})));
+ const canShare=canShareFile(file),shareBtn=ready.querySelector('[data-act="share"]'),downloadBtn=ready.querySelector('[data-act="download"]');
+ // Share comes first (AirDrop, Files, slicer apps); without it, Download is the main action.
+ shareBtn.hidden=!canShare;downloadBtn.classList.toggle('btn-primary',!canShare);downloadBtn.classList.toggle('btn-ghost',canShare);
+ ready.querySelector('[data-act="open"]').hidden=!D.iOS;
+ ready.querySelector('#fileReadyHelp').textContent=D.iOS?'Share can send the file to Files, AirDrop or a slicer app. In Safari, Download saves to the Files app (Downloads).':'Share can send the file to another app. Download saves it to this device\u2019s Downloads.';
  if(!ready.open)ready.showModal();
 };
 ready.addEventListener('click',async e=>{const act=e.target.closest('[data-act]')?.dataset.act;if(!act||!readyFile)return;const {blob,filename}=readyFile;
  if(act==='close'){ready.close();return}
  if(act==='download'){saveBlobWithAnchor(blob,filename);return}
  if(act==='open'){readyUrl=readyUrl||URL.createObjectURL(blob);if(!window.open(readyUrl,'_blank'))location.assign(readyUrl);return}
- if(act==='share'){let file=new File([blob],filename,{type:blob.type||mimeFor(filename)});if(!navigator.canShare({files:[file]}))file=new File([blob],filename,{type:'application/octet-stream'});
+ if(act==='share'){let file=new File([blob],filename,{type:blob.type||mimeFor(filename)});try{if(!navigator.canShare({files:[file]}))file=new File([blob],filename,{type:'application/octet-stream'});}catch{}
   try{await navigator.share({files:[file],title:filename});ready.close();}catch(error){if(error?.name!=='AbortError'){toast('Sharing is not available here. Use Download instead.','error');}}}
 });
 ready.addEventListener('close',()=>{readyFile=null;if(readyUrl){const u=readyUrl;readyUrl=null;setTimeout(()=>URL.revokeObjectURL(u),60000);}});
@@ -107,7 +124,10 @@ function placeRepair(){if(!repair)return;const target=isPhone()?sidebar:repairHo
 // Sleeve status (progress, placement hints, errors) lives in the sheet; on a phone mirror it over the canvas.
 const status=document.createElement('div');status.className='phone-status';status.setAttribute('aria-hidden','true');$('threeContainer').parentElement.appendChild(status);
 let statusTimer=null;const source=$('templateStatus');
-if(source)new MutationObserver(()=>{if(!isPhone()||settingsAreOpen())return;const text=source.textContent.trim();if(!text)return;status.textContent=text;status.classList.toggle('error',source.classList.contains('error')||source.dataset.error==='true');status.classList.add('show');clearTimeout(statusTimer);statusTimer=setTimeout(()=>status.classList.remove('show'),exportBusy?15000:3500);}).observe(source,{childList:true,characterData:true,subtree:true});
+// Only progress, results and problems show over the canvas; routine notes ("Designs follow the sleeve surface…",
+// "ready", positioning hints) stay in the sheet so the jargon does not cover the sleeve.
+const statusWorthy=(text,error)=>error||exportBusy||/loading|preparing|forming export|export|repair|could not|failed|cannot|too large|no relief|stopped/i.test(text);
+if(source)new MutationObserver(()=>{if(!isPhone()||settingsAreOpen())return;const text=source.textContent.trim();if(!text)return;if(!statusWorthy(text,source.classList.contains('error')))return;status.textContent=text;status.classList.toggle('error',source.classList.contains('error')||source.dataset.error==='true');status.classList.add('show');clearTimeout(statusTimer);statusTimer=setTimeout(()=>status.classList.remove('show'),exportBusy?15000:3500);}).observe(source,{childList:true,characterData:true,subtree:true});
 const phoneQuery=matchMedia(D.PHONE_QUERY);(phoneQuery.addEventListener?phoneQuery.addEventListener('change',placeRepair):phoneQuery.addListener(placeRepair));placeRepair();
 if(D.detected==='light'&&document.readyState!=='loading')applyTier();
 })();

@@ -140,12 +140,44 @@ Caviot Studio now works on phones (iOS Safari, Android Chrome) and installs as a
   swipe down or Done to close); in landscape they open as a side sheet. Safe-area insets are respected. Desktop
   and tablet layouts are unchanged.
 - **Touch**: one finger orbits, pinch zooms, two fingers pan. Tap a design to select it; drag the selected
-  design to move it (a drag anywhere else still orbits; a pinch that starts on the design still zooms). Double-tap
-  a design to open its settings. The "Move design on sleeve" toggle still makes every drag place the design.
+  design to move it (a drag anywhere else still orbits). On a phone, two fingers on or next to the selected design
+  resize it (proportions kept) and twist to rotate it (snaps to 0/90/180/270°); elsewhere they still zoom and pan.
+  Tablets keep the earlier behaviour (a pinch that starts on the design zooms). Double-tap a design to open its
+  settings. The "Move design on sleeve" toggle still makes every drag place the design.
 - **Images**: the picker accepts any image (camera roll or camera). Phones scale very large photos down to
-  12 MP instead of refusing them. Paste and drag-and-drop still work on desktop.
-- **Downloads**: desktop and Android save directly. On iOS a "file ready" sheet offers Save or share (Files,
-  AirDrop, slicer apps), Download (Files › Downloads) or Open in new tab.
+  12 MP and 2048 px on the long side instead of refusing them. Paste and drag-and-drop still work on desktop.
+- **Downloads**: desktop saves directly. On phones a "file ready" sheet puts **Share…** first (Files, AirDrop,
+  slicer apps) with Download as the fallback (and Open in new tab on iOS); Android phones whose browser cannot share
+  files download directly. On phones the file name names every side's relief, e.g.
+  `…_ETSYFOLGER_front-deboss_back-emboss.stl`.
+
+### Phone layout (phase 1, `dist/phone-ui.js`, `dist/phone-ui.css`, `dist/project-store.js`)
+
+Phone layout only (`CaviotDevice.PHONE_QUERY`); desktop and tablets are unchanged (same DOM order, labels and
+byte-identical exports; checked against `main`).
+
+- **Start card**: an empty sleeve shows "Add the customer's logo" with Photos, Camera (rear camera), Files and
+  Text. Export with nothing on the sleeve asks first (Add logo / Export plain sleeve / Cancel).
+- **Tools sheet** opens at under half the screen and shifts the 3D view up (`camera.setViewOffset`) so the logo
+  stays visible. Sections in working order with labelled shortcuts: Add, Background (with the flat preview),
+  Size (🔒 proportions locked by default), Emboss/Deboss + depth, Front/back, and **All settings** (template, image
+  options, bottom logo, export quality, repair, …). Desktop section numbers are dropped on phones; Import font
+  folder (not supported on iOS), Trim flat plate (sleeves) and the canvas Left/Right buttons are hidden.
+- **Background colour**: tap Pick, then tap the background in the preview; Pick again, Done or Escape cancels.
+- **Front/Back** on the canvas and in the sheet are one control: both choose the side and turn the camera, and show
+  how many designs each side has.
+- **Autosave**: the design in progress (artwork as PNG, placement, sides, settings; same data as Save project minus
+  the custom STL) is kept in IndexedDB (`caviot.autosave.v1`), at most 30 MB, saved 1.5 s after a change and when the
+  page is hidden. Less than 12 hours old, it comes back by itself after a reload ("Restored · Start new"); up to 14
+  days old it is offered on the start card (Resume / Discard); older copies are deleted. A custom STL template is
+  never restored: the design comes back on ETSYFOLGER with a button to import that STL again. **Start new design…**
+  in the ⋮ menu clears it. ETSYFOLGER with the DM bottom logo stays the clean default; desktop never uses autosave.
+- **Memory guards** (`CaviotDevice.device`, from the Oct 7 mobile audit: loading ≈ 0.3 KB per source triangle,
+  exporting ≈ 0.5 KB per output triangle): on phones and low-memory devices a custom STL above 600k triangles asks
+  first (with memory estimates), above 1.2M it is refused before it is read (use a computer); the preview copy is
+  120k triangles (desktop 300k). Before an export the studio estimates the output (≈450k triangles for the sleeve
+  plus ≈2.5 per contour cell of each design) and warns above 700k. If the page reloads during a large load or
+  export, a banner says so and suggests a computer.
 - **Phone-safe limits** (`dist/device-tier.js`): phones and low-memory devices use 0.20 mm outline spacing,
   a 900k-vertex budget and the lighter sleeve surface for sharp-edged designs (same sleeve shape; roughly 400k
   instead of 1.2M triangles), a 0.30 mm preview, export detail ≤ 250 for flat modes, and a 1.5× pixel-ratio cap.
@@ -158,8 +190,9 @@ Caviot Studio now works on phones (iOS Safari, Android Chrome) and installs as a
   The worker only registers on HTTPS, so the local launcher always serves the files on disk (`?sw=1` enables it
   locally for testing).
 - **Hosting**: `vercel.json` serves `dist/` as a static site with no build step.
-- **Tests**: `node pwa-tests.mjs`; browser checks in `e2e/` (`mobile-e2e.mjs` for iPhone 14 / SE, Pixel 7 and iPad
-  with real touch input, `pwa-e2e.mjs` for offline and updates; both need `playwright-core` and Chrome).
+- **Tests**: `node pwa-tests.mjs`, `node phone-tests.mjs` (device limits, STL pre-check, autosave rules); browser
+  checks in `e2e/` (`mobile-e2e.mjs` and `mobile-phase1-e2e.mjs` for iPhone 14 / SE, Pixel 7 and iPad with real
+  touch input, `pwa-e2e.mjs` for offline and updates; all need `playwright-core` and Chrome).
 
 ## DM logo on the bottom — standard branding
 
