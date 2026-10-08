@@ -10,15 +10,12 @@
   const phone = () => typeof CaviotDevice !== 'undefined' && CaviotDevice.phoneLayout();
 
   function contextText() {
-    const slot = typeof designSides !== 'undefined' ? designSides[activeDesignSide] : null;
     if (!AppState.image) return 'Your design';
-    const parts = [];
-    {
-      if (templateActive()) parts.push(activeDesignSide ? 'Back' : 'Front');
-      const name = slot && slot.kind === 'text' ? (AppState.text || '').trim() : (AppState.sourceLabel || '').replace(/^(pattern|stl):/, '');
-      if (name) parts.push(name.length > 28 ? name.slice(0, 27) + '…' : name);
-      parts.push('Size & rotation');
-    }
+    const slot = typeof designSides !== 'undefined' ? designSides[activeDesignSide] : null, parts = [];
+    if (templateActive()) parts.push(activeDesignSide ? 'Back' : 'Front');
+    const name = slot && slot.kind === 'text' ? (AppState.text || '').trim() : (AppState.sourceLabel || '').replace(/^(pattern|stl):/, '');
+    if (name) parts.push(name.length > 28 ? name.slice(0, 27) + '…' : name);
+    parts.push('Size & rotation');
     return parts.join(' · ');
   }
   function syncContext() {

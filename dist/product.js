@@ -107,7 +107,7 @@ function exportCurrent(format){
         clearTimeout(timer);worker.terminate();done();
         if(data.error){toast(data.error,'error');return}
         downloadBlob(new Blob([format==='obj'?data.text:data.buffer],{type:format==='obj'?'model/obj':'model/stl'}),name+'_'+mode+'.'+format);
-        toast(format.toUpperCase()+' exported — '+data.validation.triCount.toLocaleString()+' triangles. Inspect in your slicer.','success');
+        if(data.textReliefError)toast(format.toUpperCase()+' exported with grid lettering: sharp lettering could not be built ('+data.textReliefError+').','error');else toast(format.toUpperCase()+' exported — '+data.validation.triCount.toLocaleString()+' triangles. Inspect in your slicer.','success');
       };
       worker.postMessage({options,format,repair:repairOnExport});
     }catch(error){if(worker)worker.terminate();done();toast('Export failed: '+error.message,'error')}
