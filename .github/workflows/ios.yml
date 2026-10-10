@@ -50,10 +50,47 @@ jobs:
             mobile/build/DerivedData/Build/Products/Debug-iphonesimulator/App.app
             mobile/build/smoke/**
 
+  signing-gate:
+    name: Check whether signing secrets exist
+    runs-on: ubuntu-latest
+    outputs:
+      enabled: ${{ steps.gate.outputs.enabled }}
+    steps:
+      - id: gate
+        env:
+          IOS_TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
+          IOS_CERTIFICATE_PASSWORD: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
+          IOS_DISTRIBUTION_CERTIFICATE_P12_BASE64: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_P12_BASE64 }}
+          IOS_PROVISIONING_PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
+          APPSTORE_API_KEY_ID: ${{ secrets.APPSTORE_API_KEY_ID }}
+          APPSTORE_ISSUER_ID: ${{ secrets.APPSTORE_ISSUER_ID }}
+          APPSTORE_API_PRIVATE_KEY: ${{ secrets.APPSTORE_API_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          missing=0
+          for value in \
+            "$IOS_TEAM_ID" \
+            "$IOS_CERTIFICATE_PASSWORD" \
+            "$IOS_DISTRIBUTION_CERTIFICATE_P12_BASE64" \
+            "$IOS_PROVISIONING_PROFILE_BASE64" \
+            "$APPSTORE_API_KEY_ID" \
+            "$APPSTORE_ISSUER_ID" \
+            "$APPSTORE_API_PRIVATE_KEY"
+          do
+            if [ -z "$value" ]; then missing=1; fi
+          done
+          if [ "$missing" = 0 ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+            echo "Signing secrets are set. TestFlight will run after the simulator job."
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "Signing secrets are not set. TestFlight stays off."
+          fi
+
   testflight:
     name: Sign and upload to TestFlight
-    needs: simulator
-    if: ${{ secrets.APPSTORE_API_KEY_ID != '' && secrets.APPSTORE_ISSUER_ID != '' && secrets.APPSTORE_API_PRIVATE_KEY != '' && secrets.IOS_DISTRIBUTION_CERTIFICATE_P12_BASE64 != '' && secrets.IOS_CERTIFICATE_PASSWORD != '' && secrets.IOS_PROVISIONING_PROFILE_BASE64 != '' && secrets.IOS_TEAM_ID != '' }}
+    needs: [simulator, signing-gate]
+    if: needs.signing-gate.outputs.enabled == 'true'
     runs-on: macos-latest
     timeout-minutes: 60
     steps:
