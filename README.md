@@ -252,3 +252,7 @@ it, change depth, Emboss/Deboss or the surface, pick the earlier Design Mainline
   inside floor, custom-template fit, project rules). `e2e/bottom-brand-e2e.mjs <url> [baselineURL]` checks the
   default in the browser, a closed STL with the raised logo where expected, middle-drag and touch moving, logo
   switching, older projects, and that with the logo off the STL is byte-identical to a baseline build.
+
+## Mac desktop app
+
+`desktop/` is a macOS app that opens this same `dist/` build offline. It does not change the studio. Build, install, and the unsigned-app first launch (right-click the app, then Open) are documented in `desktop/README.md`.
