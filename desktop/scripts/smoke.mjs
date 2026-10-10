@@ -13,7 +13,18 @@ import { testSafePath } from './safe-path.test.mjs';
 const desktopDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const repoRoot = path.resolve(desktopDir, '..');
 const exportDir = fs.mkdtempSync(path.join(os.tmpdir(), 'caviot-export-'));
-const shotDir = process.env.CAVIOT_SCREENSHOT_DIR || '/opt/cursor/artifacts/screenshots';
+function writableDir(preferred) {
+  try {
+    fs.mkdirSync(preferred, { recursive: true });
+    fs.accessSync(preferred, fs.constants.W_OK);
+    return preferred;
+  } catch {
+    const fallback = path.join(os.tmpdir(), 'caviot-screenshots');
+    fs.mkdirSync(fallback, { recursive: true });
+    return fallback;
+  }
+}
+const shotDir = writableDir(process.env.CAVIOT_SCREENSHOT_DIR || '/opt/cursor/artifacts/screenshots');
 const TEXT = 'CAVIOT';
 const EXPORT_TIMEOUT_MS = 8 * 60 * 1000;
 
@@ -178,11 +189,15 @@ async function addText(page) {
 }
 
 async function shot(page, name) {
-  fs.mkdirSync(shotDir, { recursive: true });
-  const file = path.join(shotDir, name);
-  await page.screenshot({ path: file, animations: 'disabled' });
-  console.log('[smoke] screenshot', file);
-  return file;
+  try {
+    const file = path.join(shotDir, name);
+    await page.screenshot({ path: file, animations: 'disabled' });
+    console.log('[smoke] screenshot', file);
+    return file;
+  } catch (error) {
+    console.error('[smoke] screenshot skipped:', error instanceof Error ? error.message : error);
+    return '';
+  }
 }
 
 const port = await freePort();
