@@ -152,7 +152,9 @@ function safeDownloadName(filename) {
   const raw = String(filename || 'caviot-export');
   const dot = raw.lastIndexOf('.');
   const ext = dot > 0 ? raw.slice(dot).replace(/[^.a-z0-9]/gi, '').slice(0, 12) : '';
-  let stem = (dot > 0 ? raw.slice(0, dot) : raw)
+  // "name." has no real extension. Keeping the dot makes Windows hide the file.
+  const keepExt = ext.length > 1;
+  let stem = (keepExt ? raw.slice(0, dot) : raw)
     .replace(/[^\p{L}\p{N} _-]/gu, ' ')
     .replace(/\s+/g, ' ')
     .trim()
@@ -161,7 +163,7 @@ function safeDownloadName(filename) {
     .trim();
   if (!stem) stem = 'caviot-export';
   if (/^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i.test(stem)) stem += '-file';
-  return stem + ext;
+  return stem + (keepExt ? ext : '');
 }
 
 function downloadBlob(blob, filename) {

@@ -53,24 +53,48 @@ const designPoint = (p) => p.evaluate(() => {
   return c;
 });
 async function metrics(p) {
-  return p.evaluate(() => [...document.querySelectorAll('input[type=range]')].map((range) => {
-    const thumb = getComputedStyle(range, '::-webkit-slider-thumb');
-    const track = getComputedStyle(range, '::-webkit-slider-runnable-track');
-    const box = range.getBoundingClientRect();
-    const num = range._sliderNum;
-    return {
-      id: range.id,
-      h: box.height,
-      shown: !!range.offsetParent,
-      thumb: parseFloat(thumb.width) || 0,
-      track: parseFloat(track.height) || 0,
-      fill: range.style.getPropertyValue('--fill'),
-      text: range.getAttribute('aria-valuetext') || '',
-      reset: range.dataset.sliderReset || '',
-      numId: num ? num.id : '',
-      numType: num ? num.type : '',
+  return p.evaluate(() => {
+    // getComputedStyle on the thumb pseudo reports the input's box in this Chrome,
+    // so the painted size is read from the rules that actually apply.
+    // Style rules also expose cssRules in this Chrome, so only real groups are walked.
+    const group = (rule) => rule.cssRules && !rule.selectorText;
+    const declared = [];
+    const walk = (rules) => {
+      for (const rule of rules) {
+        if (group(rule)) { if (!rule.conditionText || matchMedia(rule.conditionText).matches) walk(rule.cssRules); continue; }
+        if (rule.selectorText && rule.selectorText.includes('::-webkit-slider-thumb') && rule.style.width)
+          declared.push(parseFloat(rule.style.width) || 0);
+      }
     };
-  }));
+    for (const sheet of document.styleSheets) { try { walk(sheet.cssRules); } catch { /* cross-origin */ } }
+    const thumb = declared.length ? declared[declared.length - 1] : 0;
+    let track = 0;
+    const walkTrack = (rules) => {
+      for (const rule of rules) {
+        if (group(rule)) { if (!rule.conditionText || matchMedia(rule.conditionText).matches) walkTrack(rule.cssRules); continue; }
+        if (rule.selectorText && rule.selectorText.includes('::-webkit-slider-runnable-track') && rule.style.height)
+          track = parseFloat(rule.style.height) || track;
+      }
+    };
+    for (const sheet of document.styleSheets) { try { walkTrack(sheet.cssRules); } catch { /* cross-origin */ } }
+    return [...document.querySelectorAll('input[type=range]')].map((range) => {
+      const box = range.getBoundingClientRect();
+      const num = range._sliderNum;
+      return {
+        id: range.id,
+        h: box.height,
+        shown: !!range.offsetParent,
+        thumb,
+        track,
+        fill: range.style.getPropertyValue('--fill'),
+        text: range.getAttribute('aria-valuetext') || '',
+        reset: range.dataset.sliderReset || '',
+        numId: num ? num.id : '',
+        numType: num ? num.type : '',
+        numFont: num ? parseFloat(getComputedStyle(num).fontSize) || 0 : 0,
+      };
+    });
+  });
 }
 
 async function openPage(ctxOptions) {
@@ -97,6 +121,7 @@ console.log('== desktop');
   const depth = rows.find((r) => r.id === 'depthIn');
   ok(depth && depth.shown && depth.h >= 36, 'depth row is a tall hit target (' + (depth && depth.h) + 'px)');
   ok(depth && /millimeters/.test(depth.text), 'depth announces millimeters (' + (depth && depth.text) + ')');
+  ok(depth && depth.numFont >= 20, 'depth number stays a large figure (' + (depth && depth.numFont) + 'px)');
   ok(depth && depth.reset === '0.4', 'double-click target is the designed 0.4 mm');
   const placed = rows.find((r) => r.id === 'designWidthRange');
   ok(placed && placed.numId === 'designWidthNumber', 'placement keeps its existing number field');
@@ -126,8 +151,8 @@ console.log('== desktop');
   const box = await p.locator('#depthIn').boundingBox();
   await p.mouse.click(box.x + box.width * 0.9, box.y + box.height / 2);
   await sleep(80);
-  const jumped = await p.evaluate(() => Number(document.getElementById('depthIn').value));
-  ok(jumped > 3, 'clicking the track jumps the thumb (' + jumped + ')');
+  const jumped = await p.evaluate(() => ({ value: Number(document.getElementById('depthIn').value), max: Number(document.getElementById('depthIn').max) }));
+  ok(jumped.value > jumped.max * 0.8, 'clicking the track jumps the thumb (' + jumped.value + ' of ' + jumped.max + ')');
   const real = errors.filter((e) => !/willReadFrequently/.test(e));
   ok(!real.length, 'no page errors ' + JSON.stringify(real.slice(0, 3)));
   await ctx.close();
@@ -141,7 +166,7 @@ for (const name of ['iPhone 14', 'Pixel 7']) {
   const sheet = await p.evaluate(() => {
     const side = document.querySelector('.sidebar').getBoundingClientRect();
     const range = [...document.querySelectorAll('input[type=range]')].find((el) => el.offsetParent);
-    const thumb = range ? parseFloat(getComputedStyle(range, '::-webkit-slider-thumb').width) || 0 : 0;
+    const thumb = (() => { let w = 0; const group = (rule) => rule.cssRules && !rule.selectorText; const walk = (rules) => { for (const rule of rules) { if (group(rule)) { if (!rule.conditionText || matchMedia(rule.conditionText).matches) walk(rule.cssRules); continue; } if (rule.selectorText && rule.selectorText.includes('::-webkit-slider-thumb') && rule.style.width) w = parseFloat(rule.style.width) || w; } }; for (const sheet of document.styleSheets) { try { walk(sheet.cssRules); } catch { /* ignore */ } } return w; })();
     return { open: document.body.classList.contains('phone-ui') && typeof settingsAreOpen === 'function' && settingsAreOpen(), h: range ? range.getBoundingClientRect().height : 0, thumb, top: side.top, id: range && range.id };
   });
   ok(sheet.open, 'tools sheet opens');

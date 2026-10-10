@@ -383,13 +383,15 @@
     white-space: nowrap !important; border: 0 !important;
   }
   .sidebar input.slider-num { width: 5.2em; text-align: right; font-variant-numeric: tabular-nums; }
-  .big-field-value input.slider-num-lg {
-    width: 4.6em; height: 32px; padding: 0 4px;
+  /* Beats the later .sidebar input[type=number] size in product.css, so Depth
+     and Logo size keep a large typeable figure instead of a small field. */
+  .sidebar .big-field-value input.slider-num-lg {
+    width: 4.6em; height: 36px; padding: 0 4px;
     font-size: 22px; font-weight: 400; letter-spacing: -0.01em;
     background: transparent; border-color: transparent; box-shadow: none;
   }
-  .big-field-value input.slider-num-lg:hover,
-  .big-field-value input.slider-num-lg:focus {
+  .sidebar .big-field-value input.slider-num-lg:hover,
+  .sidebar .big-field-value input.slider-num-lg:focus {
     background: var(--s4); border-color: var(--b2);
   }
   @media (prefers-reduced-motion: reduce) {
@@ -891,9 +893,6 @@
   details summary { cursor: pointer; font-size: 11px; color: var(--t3); padding: 4px 0; transition: color 140ms ease; }
   details summary:hover { color: var(--t1); }
   details > div { margin-top: 6px; display: grid; gap: 6px; }
-
-  /* Hide unused legacy nodes still in DOM */
-  #advancedToggle, #advancedContent, #stats { display: none !important; }
 
   /* Responsive: collapse sidebar on narrow viewports */
   @media (max-width: 900px) {
