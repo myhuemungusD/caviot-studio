@@ -1,0 +1,62 @@
+{
+  "name": "caviot-studio-desktop",
+  "version": "2026.9.21",
+  "private": true,
+  "description": "macOS desktop wrapper for Caviot Studio. The studio itself stays in dist/.",
+  "author": "Caviot Studio",
+  "main": "src/main.js",
+  "type": "module",
+  "scripts": {
+    "start": "electron .",
+    "test": "node scripts/smoke.mjs",
+    "test:paths": "node scripts/safe-path.test.mjs",
+    "prepare-icon": "node scripts/prepare-icon.mjs",
+    "dist": "node scripts/prepare-icon.mjs && electron-builder --mac dmg --universal --publish never"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "electron": "^35.7.5",
+    "electron-builder": "^26.0.12",
+    "playwright-core": "^1.55.0"
+  },
+  "build": {
+    "appId": "studio.caviot.desktop",
+    "productName": "Caviot Studio",
+    "copyright": "Design locally. Export STL or OBJ.",
+    "asar": true,
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "src/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../dist",
+        "to": "dist"
+      }
+    ],
+    "mac": {
+      "category": "public.app-category.graphics-design",
+      "icon": "build/icon.png",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": ["universal"]
+        }
+      ],
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist"
+    },
+    "dmg": {
+      "title": "Caviot Studio ${version}",
+      "writeUpdateInfo": false
+    }
+  }
+}
