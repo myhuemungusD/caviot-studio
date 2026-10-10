@@ -1,0 +1,28 @@
+{
+  "name": "caviot-studio-ios",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Caviot Studio for iPhone and iPad. Bundles the static dist/ app offline with Capacitor.",
+  "scripts": {
+    "sync:www": "node scripts/sync-www.mjs",
+    "sync": "npm run sync:www && cap sync ios && node scripts/apply-ios.mjs",
+    "assets": "node scripts/prepare-branding.mjs",
+    "test": "node scripts/bridge-tests.mjs",
+    "smoke": "node scripts/ci-smoke.mjs"
+  },
+  "dependencies": {
+    "@capacitor/camera": "^8.2.5",
+    "@capacitor/core": "^8.5.3",
+    "@capacitor/filesystem": "^8.1.4",
+    "@capacitor/haptics": "^8.0.2",
+    "@capacitor/ios": "^8.5.3",
+    "@capacitor/share": "^8.0.3",
+    "@capacitor/splash-screen": "^8.0.2",
+    "@capacitor/status-bar": "^8.0.4"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.5.3",
+    "sharp": "^0.35.5"
+  }
+}

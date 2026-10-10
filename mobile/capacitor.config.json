@@ -1,0 +1,30 @@
+{
+  "appId": "com.caviot.studio",
+  "appName": "Caviot Studio",
+  "webDir": "www",
+  "server": {
+    "hostname": "localhost",
+    "androidScheme": "https",
+    "iosScheme": "https"
+  },
+  "ios": {
+    "contentInset": "never",
+    "backgroundColor": "#101114",
+    "allowsLinkPreview": false,
+    "scrollEnabled": false,
+    "preferredContentMode": "recommended"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchAutoHide": false,
+      "backgroundColor": "#101114",
+      "showSpinner": false,
+      "launchFadeOutDuration": 200
+    },
+    "StatusBar": {
+      "overlaysWebView": true,
+      "style": "DARK",
+      "backgroundColor": "#101114"
+    }
+  }
+}

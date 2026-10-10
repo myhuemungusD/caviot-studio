@@ -1,0 +1,11 @@
+node_modules/
+www/
+build/
+ios/App/App/public/
+ios/App/build/
+ios/DerivedData/
+ios/**/xcuserdata/
+ios/**/*.xcuserstate
+*.ipa
+*.dSYM.zip
+export/

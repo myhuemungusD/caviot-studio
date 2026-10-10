@@ -217,6 +217,7 @@ byte-identical exports; checked against `main`).
   The worker only registers on HTTPS, so the local launcher always serves the files on disk (`?sw=1` enables it
   locally for testing).
 - **Hosting**: `vercel.json` serves `dist/` as a static site with no build step.
+- **iPhone and iPad**: `mobile/` wraps this same `dist/` with Capacitor for a bundled App Store app. The website is unchanged. See `mobile/README.md` for the Xcode project, the simulator workflow, and what an Apple Developer account needs before TestFlight.
 - **Tests**: `node pwa-tests.mjs`, `node phone-tests.mjs` (device limits, STL pre-check, autosave rules); browser
   checks in `e2e/` (`mobile-e2e.mjs` and `mobile-phase1-e2e.mjs` for iPhone 14 / SE, Pixel 7 and iPad with real
   touch input, `pwa-e2e.mjs` for offline and updates; all need `playwright-core` and Chrome).
