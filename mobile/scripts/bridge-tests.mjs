@@ -77,9 +77,14 @@ test('share cancel and camera denial are not generic failures', () => {
 test('the website index is not edited; the iOS copy gains the bridge once', () => {
   const html = fs.readFileSync(path.join(root, 'dist', 'index.html'), 'utf8');
   assert.equal(html.includes('caviot-native.js'), false);
+  assert.equal(html.includes('page-bridge.js'), false);
   const once = injectNativeBridge(html);
+  assert.ok(once.includes('<script src="page-bridge.js"></script>'));
   assert.ok(once.includes('<script type="module" src="caviot-native.js"></script>'));
   assert.ok(once.includes('href="native.css"'));
+  const bridge = fs.readFileSync(path.join(root, 'mobile', 'native', 'page-bridge.js'), 'utf8');
+  assert.equal(bridge.includes('import '), false);
+  assert.ok(bridge.includes('__caviotPage'));
   assert.equal(injectNativeBridge(once), once);
   assert.equal(fs.readFileSync(path.join(root, 'dist', 'index.html'), 'utf8'), html);
 });

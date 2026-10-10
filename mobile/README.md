@@ -27,7 +27,7 @@ Signing can stay automatic while you are only using the simulator. A paid Apple 
 
 ## What is native
 
-`native/caviot-native.js` loads only in the iOS copy of the page. If `Capacitor.isNativePlatform()` is false, it returns immediately and does not replace download, camera, or export. That is the path a normal browser hits, and it is what `npm test` checks.
+`native/caviot-native.js` loads only in the iOS copy of the page. If `Capacitor.isNativePlatform()` is false, it returns immediately and does not replace download, camera, or export. That is the path a normal browser hits, and it is what `npm test` checks. The studio’s limits live in `const` and `let` bindings a module cannot see, so `page-bridge.js` (a classic script, also only in the iOS copy) exposes them as `__caviotPage`.
 
 | Action | What the app does |
 | --- | --- |
@@ -52,7 +52,7 @@ Rough ceilings, from jetsam on current devices, not a promise from Apple:
 - iPhone: about 1.0–1.5 GB for the web content process.
 - iPad: often about 2–4 GB.
 
-`os_proc_available_memory()` reports the app process, which is a different process. The simulator smoke test records that number so we know the call works. It is not the web content ceiling.
+`os_proc_available_memory()` reports the app process, which is a different process. The simulator smoke test records that number so we know the call works. On the iOS Simulator the call often returns 0. A device returns a positive byte count. Either way it is not the web content ceiling.
 
 The web app’s existing phone limits stay in force on iPhone, including inside this shell:
 

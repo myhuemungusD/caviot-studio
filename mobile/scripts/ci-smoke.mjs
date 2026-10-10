@@ -122,8 +122,10 @@ if (ready && ready.template !== 'etsyfolger-v1') problems.push('ETSYFOLGER was n
 if (ready && ready.phone !== true) problems.push('the iPhone simulator was not classified as a phone');
 if (ready && ready.exportTriangleBudget !== 700000) problems.push('iPhone export budget was ' + ready.exportTriangleBudget + ', expected 700000');
 if (ready && ready.shareReady !== true) problems.push('the native share plugin was not available');
-const memory = Number((ready || events.find((event) => event.stage === 'launch'))?.availableMemory);
-if (!(memory > 0)) problems.push('the app process did not report available memory');
+const memoryEvent = ready || events.find((event) => event.stage === 'launch');
+const memory = Number(memoryEvent?.availableMemory);
+// The simulator often reports 0. A missing or non-numeric value means the call did not run.
+if (!memoryEvent || !Number.isFinite(memory) || memory < 0) problems.push('the app process did not report available memory');
 if (!text) problems.push('a text design was not added');
 if (failed) problems.push(failed.message || 'smoke test failed');
 if (!exported) problems.push('export did not finish');

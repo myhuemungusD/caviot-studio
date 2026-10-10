@@ -11,7 +11,10 @@ import {
 
 // Optional native shell for the Capacitor app. On the web, and in Node tests, Capacitor is absent
 // and this module returns without patching download, camera, or export.
+// page-bridge.js (a classic script) publishes __caviotPage. This module must not name the
+// studio's const/let bindings or its function declarations; those are invisible here.
 const cap = globalThis.Capacitor;
+let pageApi = null;
 if (!nativeActive(cap)) {
   // Intentionally empty.
 } else {
@@ -23,6 +26,7 @@ function installNativeShell(capacitor) {
   const native = typeof capacitor.registerPlugin === 'function'
     ? capacitor.registerPlugin('CaviotNative')
     : plugins.CaviotNative;
+  pageApi = globalThis.__caviotPage || null;
   document.documentElement.classList.add('capacitor-native');
 
   const haptics = plugins.Haptics;
@@ -53,9 +57,9 @@ function installNativeShell(capacitor) {
   }
 
   function patchExportHandoff(tools) {
-    if (typeof downloadBlob !== 'function') return;
-    const webDownload = downloadBlob;
-    globalThis.downloadBlob = function (blob, filename) {
+    if (!pageApi || typeof pageApi.download !== 'function') return;
+    const webDownload = pageApi.download;
+    pageApi.download = function (blob, filename) {
       deliverExport(blob, filename, tools).catch((error) => {
         if (smokeMode) {
           globalThis.__caviotSmokeExportError = messageOf(error);
@@ -112,12 +116,13 @@ function installNativeShell(capacitor) {
   }
 
   function patchIpadMemoryGuard() {
-    if (typeof exportCurrent !== 'function' || typeof CaviotDevice === 'undefined') return;
-    const previous = exportCurrent;
-    globalThis.exportCurrent = function (format) {
+    if (!pageApi || typeof pageApi.exportCurrent !== 'function' || !pageApi.device) return;
+    const previous = pageApi.exportCurrent;
+    pageApi.exportCurrent = function (format) {
       try {
-        const estimate = typeof exportEstimate === 'function' ? exportEstimate() : null;
-        if (estimate && shouldConfirmIpadExport({ ios: CaviotDevice.iOS, phone: CaviotDevice.phone, triangles: estimate.tris })) {
+        const estimate = pageApi.estimate();
+        const device = pageApi.device;
+        if (estimate && device && shouldConfirmIpadExport({ ios: device.iOS, phone: device.phone, triangles: estimate.tris })) {
           const millions = (estimate.tris / 1e6).toFixed(1);
           const ok = confirm('This export is about ' + millions + ' million triangles and may be closed by iOS if it runs out of memory (WKWebView is limited to roughly 2 GB on iPad). Export anyway?');
           if (!ok) return;
@@ -170,7 +175,7 @@ function installNativeShell(capacitor) {
       if (!media) return;
       const file = await fileFromMedia(media, capacitor);
       const input = document.getElementById(kind === 'camera' ? 'phoneCameraInput' : 'fileInput');
-      if (!handToInput(input, file) && typeof loadImageFile === 'function') loadImageFile(file);
+      if (!handToInput(input, file)) pageApi?.loadImage(file);
     } catch (error) {
       const outcome = cameraOutcome(error);
       if (outcome === 'cancel') return;
@@ -208,11 +213,12 @@ function installNativeShell(capacitor) {
     if (!smokeMode) return;
     try {
       await report(plugin, { stage: 'launch', availableMemory: flags.availableMemory, physicalMemory: flags.physicalMemory });
-      await waitFor(() => typeof templateBase !== 'undefined' && templateBase && globalThis.AppState?.templateId === 'etsyfolger-v1', 90000, 'ETSYFOLGER did not finish loading');
-      const device = globalThis.CaviotDevice;
+      if (!pageApi) throw new Error('The native page bridge did not load');
+      await waitFor(() => pageApi.templateBase && pageApi.state?.templateId === 'etsyfolger-v1', 90000, 'ETSYFOLGER did not finish loading');
+      const device = pageApi.device;
       if (!device) throw new Error('Device limits did not load');
       const choice = document.getElementById('templateChoice');
-      if (!choice || choice.value !== 'etsyfolger-v1' || globalThis.AppState.templateId !== 'etsyfolger-v1') {
+      if (!choice || choice.value !== 'etsyfolger-v1' || pageApi.state.templateId !== 'etsyfolger-v1') {
         throw new Error('ETSYFOLGER is not the default template');
       }
       if (device.phone && !iphoneMemoryHolds(device.device)) {
@@ -220,7 +226,7 @@ function installNativeShell(capacitor) {
       }
       await report(plugin, {
         stage: 'ready',
-        template: globalThis.AppState.templateId,
+        template: pageApi.state.templateId,
         tier: device.tier,
         detected: device.detected,
         phone: device.phone,
@@ -235,14 +241,15 @@ function installNativeShell(capacitor) {
       input.value = 'CI';
       input.dispatchEvent(new Event('input', { bubbles: true }));
       await waitFor(() => {
-        const label = String(globalThis.AppState?.sourceLabel || globalThis.AppState?.imageName || '');
-        return globalThis.AppState?.image && label.startsWith('text:');
+        const state = pageApi.state;
+        const label = String(state?.sourceLabel || state?.imageName || '');
+        return state?.image && label.startsWith('text:');
       }, 30000, 'Text design was not created');
       await sleep(400);
-      await waitFor(() => !globalThis.templatePreviewRunning && !globalThis.templatePending && !globalThis.AppState?.rebuildTimer, 120000, 'Preview did not settle');
-      await report(plugin, { stage: 'text-added', label: globalThis.AppState.sourceLabel });
+      await waitFor(() => !pageApi.previewRunning && !pageApi.previewPending && !pageApi.state?.rebuildTimer, 120000, 'Preview did not settle');
+      await report(plugin, { stage: 'text-added', label: pageApi.state.sourceLabel });
       const started = Date.now();
-      const pending = globalThis.exportCurrent('stl');
+      const pending = pageApi.exportCurrent('stl');
       if (pending && typeof pending.then === 'function') pending.catch(() => {});
       while (!globalThis.__caviotSmokeExport) {
         if (globalThis.__caviotSmokeExportError) throw new Error(globalThis.__caviotSmokeExportError);
@@ -251,7 +258,7 @@ function installNativeShell(capacitor) {
         if (heavy?.open) heavy.querySelector('[data-choice="go"]')?.click();
         const empty = document.getElementById('phoneEmptyExport');
         if (empty?.open) throw new Error('Export asked for a logo after the text design was added');
-        if (typeof exportBusy !== 'undefined' && !exportBusy && Date.now() - started > 8000) {
+        if (!pageApi.exportBusy && Date.now() - started > 8000) {
           const status = document.getElementById('templateStatus')?.textContent || '';
           if (/could not|failed|cannot|too large|stopped responding/i.test(status)) throw new Error(status);
         }
@@ -323,7 +330,7 @@ function pulse(plugin, method, options) {
 }
 
 function say(message, kind) {
-  if (typeof toast === 'function') toast(message, kind);
+  if (pageApi && typeof pageApi.toast === 'function') pageApi.toast(message, kind);
   else console.warn(message);
 }
 
