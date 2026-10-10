@@ -146,7 +146,7 @@ templateJobData=function(worker,quality){
 const customOriginalInfo=templateInfo;templateInfo=function(){
   if(AppState.templateId!=='custom-stl'||!customTemplate)return customOriginalInfo();
   const h=customTemplate.base.height;
-  return{label:customTemplate.name,file:customTemplate.name.replace(/[^\p{L}\p{N}_-]/gu,'').slice(0,40)||'custom',description:'Your uploaded STL. Its geometry is kept; artwork follows the outer surface.',surface:customTemplate.name.slice(0,30)+' · custom template',stats:'Custom STL · '+h.toFixed(1)+' mm tall',kept:'Template geometry kept',ready:'Your template is ready. Add an image, pattern or text.',exportHint:customTemplate.report.closed?'':'Your template itself is not watertight: use Make template watertight in the Sleeve template panel, or repair the STL in your mesh tool.'};
+  return{label:customTemplate.name,file:customTemplate.name.replace(/[^\p{L}\p{N} _-]/gu,'').replace(/\s+/g,' ').trim().slice(0,40)||'custom',description:'Your uploaded STL. Its geometry is kept; artwork follows the outer surface.',surface:customTemplate.name.slice(0,30)+' · custom template',stats:'Custom STL · '+h.toFixed(1)+' mm tall',kept:'Template geometry kept',ready:'Your template is ready. Add an image, pattern or text.',exportHint:customTemplate.report.closed?'':'Your template itself is not watertight: use Make template watertight in the Sleeve template panel, or repair the STL in your mesh tool.'};
 };
 // Placement helpers read the chart from the template when it has one (custom templates carry theirs).
 const customOriginalProfile=SleeveTemplate.profile;SleeveTemplate.profile=base=>base&&base.chart?base.chart:customOriginalProfile(base);

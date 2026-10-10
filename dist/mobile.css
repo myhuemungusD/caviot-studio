@@ -17,10 +17,12 @@
   .btn{min-height:44px}
   .btn-sm{min-height:44px}
   .sidebar input[type=text],.sidebar input[type=number],.sidebar select{min-height:44px;font-size:16px}
+  /* 44px is the row you can grab; the orange thumb stays visible inside it. */
   .sidebar input[type=range]{height:44px;touch-action:pan-y}
-  .sidebar input[type=range]::-webkit-slider-runnable-track{height:6px}
-  .sidebar input[type=range]::-webkit-slider-thumb{width:28px;height:28px;margin-top:-12px}
-  .sidebar input[type=range]::-moz-range-thumb{width:26px;height:26px}
+  .sidebar input[type=range]::-webkit-slider-runnable-track{height:8px}
+  .sidebar input[type=range]::-webkit-slider-thumb{width:28px;height:28px;margin-top:-10px}
+  .sidebar input[type=range]::-moz-range-thumb{width:28px;height:28px}
+  .sidebar input.slider-num{min-height:44px;font-size:16px}
   .sidebar .check{min-height:44px;align-items:center}
   .sidebar input[type=checkbox],.sidebar input[type=radio]{width:22px;height:22px}
   .sidebar summary{min-height:44px;display:flex;align-items:center}

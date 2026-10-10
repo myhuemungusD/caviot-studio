@@ -314,7 +314,7 @@ exportReliefTag=function(){
 // Phones without iOS's file-ready sheet (Android) also get Share first when the browser can share the file.
 const priorDownload=downloadBlob;
 downloadBlob=function(blob,filename){
-  if(phoneDevice()&&!D.iOS&&typeof showFileReady==='function'&&typeof canShareFile==='function'&&canShareFile(new File([blob],filename,{type:blob.type||'application/octet-stream'}))){showFileReady(blob,filename);return}
+  if(phoneDevice()&&!D.iOS&&typeof showFileReady==='function'&&typeof canShareFiles==='function'&&canShareFiles()){showFileReady(blob,filename);return true}
   return priorDownload(blob,filename)};
 
 // ======================= Glue =======================

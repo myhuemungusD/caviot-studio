@@ -22,7 +22,7 @@ vm.runInContext(fs.readFileSync('dist/project-format.js','utf8'),ctx);
 const valid={format:'icaviot-project',version:1,name:'Test',source:'Pattern',settings:{mode:'flat'},image:null};
 test('project roundtrip',()=>assert.equal(ctx.ProjectFormat.decode(JSON.stringify(valid)).name,'Test'));
 for(const [name,p] of [['version',{...valid,version:99}],['external image',{...valid,image:'https://example.com/image.png'}],['SVG',{...valid,image:'data:image/svg+xml;base64,PHN2Zz4='}],['settings',{...valid,settings:null}]])test('reject project '+name,()=>assert.throws(()=>ctx.ProjectFormat.decode(JSON.stringify(p))));
-for(const file of ['mesh-core.js','app.js','product.js','project-format.js','export-worker.js','vendor/three.min.js','vendor/OrbitControls.js'])test('syntax '+file,()=>new vm.Script(fs.readFileSync('dist/'+file,'utf8'),{filename:file}));
+for(const file of ['mesh-core.js','app.js','product.js','project-format.js','export-worker.js','slider-ui.js','vendor/three.min.js','vendor/OrbitControls.js'])test('syntax '+file,()=>new vm.Script(fs.readFileSync('dist/'+file,'utf8'),{filename:file}));
 for(const file of ['index.html','about.html'])test('local assets '+file,()=>{const html=fs.readFileSync('dist/'+file,'utf8');for(const m of html.matchAll(/(?:src|href)="([^"#]+)"/g)){if(/^(https?:|data:)/.test(m[1]))continue;assert(fs.existsSync('dist/'+m[1]),m[1])}const ids=[...html.matchAll(/\bid="([^"]+)"/g)].map(x=>x[1]);assert.equal(ids.length,new Set(ids).size)});
 let workerReply;
 const workerContext={console,postMessage:r=>workerReply=r};workerContext.self=workerContext;

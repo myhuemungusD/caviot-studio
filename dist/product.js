@@ -91,13 +91,16 @@ document.getElementById('projectFile').onchange=async e=>{
 document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='s'){e.preventDefault();saveProject()}});
 
 let exportBusy=false;
+const plainExportButtonLabel=els.generateBtn.innerHTML;
 function exportCurrent(format){
   if (templateActive()) { exportTemplate(format); return; }
   if(exportBusy)return;
   if(!AppState.image){toast('Add a design first','error');return}
   exportBusy=true;els.generateBtn.disabled=true;els.downloadObjBtn.disabled=true;els.generateBtn.textContent='Preparing…';
-  const name=safeFilename(),mode=AppState.mode;
-  const done=()=>{exportBusy=false;els.generateBtn.disabled=!AppState.image;els.downloadObjBtn.disabled=!AppState.image;els.generateBtn.textContent='Export STL'};
+  const name=safeFilename(),mode=AppState.mode,started=performance.now();
+  // Flat and logo exports have no worker progress events. The clock is what shows the job is still going.
+  const ticker=setInterval(()=>{if(exportBusy)els.generateBtn.textContent='Preparing… '+Math.round((performance.now()-started)/1000)+' s'},1000);
+  const done=()=>{clearInterval(ticker);exportBusy=false;els.generateBtn.disabled=!AppState.image;els.downloadObjBtn.disabled=!AppState.image;els.generateBtn.innerHTML=plainExportButtonLabel};
   // Yield so progress paints before rasterizing the source.
   setTimeout(()=>{
     let worker;
@@ -106,12 +109,17 @@ function exportCurrent(format){
       if(!built)throw Error('Add a valid image first.');
       const options=meshOptionsFromState(built.hm,built.rows,built.cols,built.mask);
       worker=new Worker('export-worker.js');
-      const timer=setTimeout(()=>{worker.terminate();done();toast('Export took too long. Lower export detail and try again.','error')},60000);
-      worker.onerror=()=>{clearTimeout(timer);worker.terminate();done();toast('Export could not run. Reload the page and try again.','error')};
+      // Same five-minute quiet limit as a sleeve. The old 60s cap killed detailed plates that were still working.
+      const timer=setTimeout(()=>{worker.terminate();done();toast('Export took too long. Lower export detail and try again.','error')},300000);
+      worker.onerror=event=>{event.preventDefault?.();clearTimeout(timer);worker.terminate();done();toast('Export could not run'+(event.message?': '+event.message:'')+'. Reload the page and try again.','error')};
       worker.onmessage=({data})=>{
         clearTimeout(timer);worker.terminate();done();
         if(data.error){toast(data.error,'error');return}
-        downloadBlob(new Blob([format==='obj'?data.text:data.buffer],{type:format==='obj'?'model/obj':'model/stl'}),name+'_'+mode+'.'+format);
+        const payload=format==='obj'?data.text:data.buffer;
+        const empty=format==='obj'?!payload:!(payload instanceof ArrayBuffer)||payload.byteLength<84;
+        if(empty||!data.validation||typeof data.validation.triCount!=='number'){toast('Export produced an empty file. Nothing was saved.','error');return}
+        const saved=downloadBlob(new Blob([payload],{type:format==='obj'?'model/obj':'model/stl'}),name+'_'+mode+'.'+format);
+        if(saved===false)return;
         if(data.textReliefError)toast(format.toUpperCase()+' exported with grid lettering: sharp lettering could not be built ('+data.textReliefError+').','error');else toast(format.toUpperCase()+' exported — '+data.validation.triCount.toLocaleString()+' triangles. Inspect in your slicer.','success');
       };
       worker.postMessage({options,format,repair:repairOnExport});

@@ -92,13 +92,16 @@ ready.innerHTML='<h2>Your file is ready</h2><p id="fileReadyName"></p><div class
 document.body.appendChild(ready);
 let readyFile=null,readyUrl=null;
 const mimeFor=name=>/\.stl$/i.test(name)?'model/stl':/\.obj$/i.test(name)?'model/obj':/\.icaviot$/i.test(name)?'application/json':'application/octet-stream';
-function canShareFile(file){try{return !!navigator.canShare&&(navigator.canShare({files:[file]})||navigator.canShare({files:[new File([file],file.name,{type:'application/octet-stream'})]}))}catch{return false}}
+// Ask the browser whether it can share a file without copying the STL. A full
+// File([blob]) here duplicates a large export in memory and can reload the tab.
+function canShareFile(file){try{if(typeof navigator.canShare!=='function'||!file)return false;const name=file.name||'caviot.stl',type=file.type||mimeFor(name);const probe=new File([new Uint8Array([0])],name,{type});return !!(navigator.canShare({files:[probe]})||navigator.canShare({files:[new File([new Uint8Array([0])],name,{type:'application/octet-stream'})]}))}catch{return false}}
+function canShareFiles(){return canShareFile({name:'caviot.stl',type:'model/stl'})}
 globalThis.canShareFile=canShareFile;
+globalThis.canShareFiles=canShareFiles;
 globalThis.showFileReady=function(blob,filename){
  if(readyUrl)URL.revokeObjectURL(readyUrl);readyUrl=null;
  readyFile={blob,filename};const mb=blob.size/1048576;ready.querySelector('#fileReadyName').textContent=filename+' · '+(mb>=1?mb.toFixed(1)+' MB':Math.max(1,Math.round(blob.size/1024))+' KB');
- const file=new File([blob],filename,{type:blob.type||mimeFor(filename)});
- const canShare=canShareFile(file),shareBtn=ready.querySelector('[data-act="share"]'),downloadBtn=ready.querySelector('[data-act="download"]');
+ const canShare=canShareFiles(),shareBtn=ready.querySelector('[data-act="share"]'),downloadBtn=ready.querySelector('[data-act="download"]');
  // Share comes first (AirDrop, Files, slicer apps); without it, Download is the main action.
  shareBtn.hidden=!canShare;downloadBtn.classList.toggle('btn-primary',!canShare);downloadBtn.classList.toggle('btn-ghost',canShare);
  ready.querySelector('[data-act="open"]').hidden=!D.iOS;
