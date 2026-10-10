@@ -1,0 +1,119 @@
+name: iOS app
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ios-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  simulator:
+    name: Simulator build and smoke test
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - name: Install dependencies
+        working-directory: mobile
+        run: npm ci
+      - name: Check the native bridge
+        working-directory: mobile
+        run: npm test
+      - name: Sync Capacitor
+        working-directory: mobile
+        run: npm run sync
+      - name: Build unsigned for the simulator
+        working-directory: mobile
+        run: bash scripts/ci-build.sh build/DerivedData
+      - name: Smoke test on an iPhone simulator
+        working-directory: mobile
+        run: node scripts/ci-smoke.mjs
+      - name: Upload the build and screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-simulator
+          if-no-files-found: warn
+          retention-days: 14
+          path: |
+            mobile/build/DerivedData/Build/Products/Debug-iphonesimulator/App.app
+            mobile/build/smoke/**
+
+  signing-gate:
+    name: Check whether signing secrets exist
+    runs-on: ubuntu-latest
+    outputs:
+      enabled: ${{ steps.gate.outputs.enabled }}
+    steps:
+      - id: gate
+        env:
+          IOS_TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
+          IOS_CERTIFICATE_PASSWORD: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
+          IOS_DISTRIBUTION_CERTIFICATE_P12_BASE64: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_P12_BASE64 }}
+          IOS_PROVISIONING_PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
+          APPSTORE_API_KEY_ID: ${{ secrets.APPSTORE_API_KEY_ID }}
+          APPSTORE_ISSUER_ID: ${{ secrets.APPSTORE_ISSUER_ID }}
+          APPSTORE_API_PRIVATE_KEY: ${{ secrets.APPSTORE_API_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          missing=0
+          for value in \
+            "$IOS_TEAM_ID" \
+            "$IOS_CERTIFICATE_PASSWORD" \
+            "$IOS_DISTRIBUTION_CERTIFICATE_P12_BASE64" \
+            "$IOS_PROVISIONING_PROFILE_BASE64" \
+            "$APPSTORE_API_KEY_ID" \
+            "$APPSTORE_ISSUER_ID" \
+            "$APPSTORE_API_PRIVATE_KEY"
+          do
+            if [ -z "$value" ]; then missing=1; fi
+          done
+          if [ "$missing" = 0 ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+            echo "Signing secrets are set. TestFlight will run after the simulator job."
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "Signing secrets are not set. TestFlight stays off."
+          fi
+
+  testflight:
+    name: Sign and upload to TestFlight
+    needs: [simulator, signing-gate]
+    if: needs.signing-gate.outputs.enabled == 'true'
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - name: Install dependencies
+        working-directory: mobile
+        run: npm ci
+      - name: Sync Capacitor
+        working-directory: mobile
+        run: npm run sync
+      - name: Archive, sign, and upload
+        working-directory: mobile
+        env:
+          IOS_TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
+          IOS_CERTIFICATE_PASSWORD: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
+          IOS_DISTRIBUTION_CERTIFICATE_P12_BASE64: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_P12_BASE64 }}
+          IOS_PROVISIONING_PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
+          APPSTORE_API_KEY_ID: ${{ secrets.APPSTORE_API_KEY_ID }}
+          APPSTORE_ISSUER_ID: ${{ secrets.APPSTORE_ISSUER_ID }}
+          APPSTORE_API_PRIVATE_KEY: ${{ secrets.APPSTORE_API_PRIVATE_KEY }}
+        run: bash scripts/ci-testflight.sh
