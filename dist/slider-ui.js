@@ -55,6 +55,8 @@
     const shown = formatValue(value, stepOf(range));
     range.setAttribute('aria-valuetext', unit && shown !== '' ? shown + ' ' + unit : shown || range.value);
     const num = range._sliderNum;
+    // A focused number is mid-typing. Overwriting it here would eat the digits
+    // the user has not finished. Reset and Shift+arrow use showNumber instead.
     if (!num || num.dataset.sliderOwned !== '1' || document.activeElement === num || num._sliderSync) return;
     num.min = range.min;
     num.max = range.max;
@@ -62,10 +64,25 @@
     if (shown !== '') num.value = shown;
   }
 
+  // Rewrite an owned number even while it is focused. Otherwise a double-click
+  // or Shift+arrow moves the model and the old digits are written back on blur.
+  function showNumber(range) {
+    const num = range._sliderNum;
+    if (!num || num.dataset.sliderOwned !== '1' || num._sliderSync) return;
+    const shown = formatValue(Number(range.value), stepOf(range));
+    if (shown === '') return;
+    const current = Number(num.value);
+    if (num.value !== '' && Number.isFinite(current) && current === Number(shown)) return;
+    num._sliderSync = true;
+    num.value = shown;
+    num._sliderSync = false;
+  }
+
   function commit(range) {
     range.dispatchEvent(new Event('input', { bubbles: true }));
     range.dispatchEvent(new Event('change', { bubbles: true }));
     paint(range);
+    showNumber(range);
   }
 
   function nudge(range, direction, coarse) {
@@ -113,11 +130,16 @@
       paint(range);
     });
     num.addEventListener('change', () => {
-      if (num.dataset.sliderOwned !== '1') return;
-      if (num.value === '' || !Number.isFinite(Number(num.value))) { paint(range); return; }
+      if (num.dataset.sliderOwned !== '1' || num._sliderSync) return;
+      if (num.value === '' || !Number.isFinite(Number(num.value))) { showNumber(range); return; }
+      const before = Number(range.value);
       range.value = num.value;
+      // Typing already sent input. Send it again only when the committed
+      // number actually moves the slider, so a clamp cannot leave the model behind.
+      if (Number(range.value) !== before) range.dispatchEvent(new Event('input', { bubbles: true }));
       range.dispatchEvent(new Event('change', { bubbles: true }));
       paint(range);
+      showNumber(range);
     });
     num.addEventListener('keydown', (event) => {
       if (!event.shiftKey || (event.key !== 'ArrowUp' && event.key !== 'ArrowDown')) return;
