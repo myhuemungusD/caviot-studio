@@ -2,7 +2,7 @@
 
 This PC copy is **build 2026.09.21** (the independent design layers and Undo update). The same build label appears in the app header.
 
-A browser-based tool for turning images, text and patterns into 3D-printable sleeves and reliefs. The existing mesh engine has been preserved and separated from the interface.
+A browser-based tool for turning images and text into 3D-printable sleeves and reliefs. The existing mesh engine has been preserved and separated from the interface.
 
 ## Quick start on Windows
 
@@ -130,15 +130,15 @@ Automatic background detection uses the dominant border color and preserves tran
 
 ## September 21 layout
 
-Selected-design depth and finish sit directly below rotation. New designs and bottom branding start at 0.4 mm; saved project depths are retained. Hide tools sits at the left by the toolbar. Import STL sits beside export. Output shape, sleeve template and bottom branding are at the bottom of the tools. The extra Add Image and Pattern buttons are hidden; image drop/upload remains available. Add & view bottom logo enables the mark, turns to the selected surface and reports placement results.
+Selected-design depth and finish sit directly below rotation. New designs and bottom branding start at 0.4 mm; saved project depths are retained. Hide tools sits at the left by the toolbar. Output shape, sleeve template and bottom branding are at the bottom of the tools. Image drop and upload remain in the artwork panel; the layer list adds text. Add & view bottom logo enables the mark, turns to the selected surface and reports placement results.
 
 ## Start-up — September 30
 
-The studio opens straight on the ETSYFOLGER sleeve with no start card or onboarding overlay over the canvas (the "Your sleeve. Your design." card with Upload design / Try lettering, and the older "Make it yours" empty-state panel, are removed). Add artwork from the side panel as before: upload, drop or paste an image, **Text**, or a pattern. Custom templates are not restored on start-up; see below.
+The studio opens straight on the ETSYFOLGER sleeve with no start card or onboarding overlay over the canvas (the "Your sleeve. Your design." card with Upload design / Try lettering, and the older "Make it yours" empty-state panel, are removed). Add artwork from the side panel as before: upload, drop or paste an image, or **Text**. Custom templates are not restored on start-up; see below.
 
 ## Custom STL templates
 
-Any STL can now be the template, just like ETSYFOLGER. Click **Import STL template** (top bar) or **Upload STL template…** in the Sleeve template panel and choose a binary or ASCII STL (up to 100 MB / 2,000,000 triangles). ETSYFOLGER stays the default; switch back and forth with the template list.
+Any STL can now be the template, just like ETSYFOLGER. Click **Upload STL template…** in the Sleeve template panel and choose a binary or ASCII STL (up to 100 MB / 2,000,000 triangles). That keeps the STL shape. ETSYFOLGER stays the default; switch back and forth with the template list.
 
 - **What happens on upload** (in a Web Worker, `dist/custom-template.js` + `template-worker.js`): parse, weld coincident vertices (1e-5 mm), drop degenerate/duplicate faces, make face winding consistent and flip inside-out shells, then orient. At runtime it computes the same per-template data the ETSYFOLGER assets precompute with `build-template-assets.mjs`: refined outer surface, angle-weighted normals, wall thickness (inward ray cast), the 1.2 mm keep-out band around rims and openings, the cylindrical chart used for front/back placement, and bottom faces below 12 mm. A 1.1 mm+ preview surface is ready in seconds; the 0.5 mm+ print surface is prepared in the background (spacing grows for large objects to stay within the vertex budget).
 - **Orientation**: Auto puts the longest side up and turns the widest side to the front (round outlines keep the file's own rotation). Override with Up axis (±X/±Y/±Z; the minus options flip the model), Turn (90° steps), File units (mm/cm/in/m) and the widest-side-to-front toggle. Exports are Z-up with the template's millimetre scale.
@@ -162,7 +162,7 @@ Validation: `node custom-template-tests.mjs` checks binary/ASCII parsing (includ
 Caviot Studio now works on phones (iOS Safari, Android Chrome) and installs as an app.
 
 - **Phone layout** (portrait up to 760 px wide, or a phone in landscape): full-screen 3D view, a compact top bar
-  (project name, undo/redo, ⋮ menu with Save / Open / Export OBJ / Import STL template / Reset view / Guide) and a
+  (project name, undo/redo, ⋮ menu with Save / Open / Export OBJ / Reset view / Guide) and a
   bottom bar with **Tools** and **Export STL**. Tools open as a bottom sheet (drag the handle up for full height,
   swipe down or Done to close); in landscape they open as a side sheet. Safe-area insets are respected. Desktop
   and tablet layouts are unchanged.

@@ -119,8 +119,6 @@ const els = {
   letterThicknessIn: $('letterThicknessIn'),
   letterThicknessVal: $('letterThicknessVal'),
   textStretchField: $('textStretchField'),
-  openPatterns: $('openPatterns'),
-  openSTL: $('openSTL'),
   openFont: $('openFont'),
   openFontFolder: $('openFontFolder'),
   clearFont: $('clearFont'),
@@ -209,9 +207,6 @@ const els = {
   statQuality: $('statQuality'),
   statQualityMode: $('statQualityMode'),
   toast: $('toast'),
-  patternModal: $('patternModal'),
-  patternModalClose: $('patternModalClose'),
-  patternGrid: $('patternGrid'),
 };
 
 // ---------- Toast ----------

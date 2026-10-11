@@ -14,9 +14,9 @@ Personal tool for now, as requested by the owner. Subscription work is deferred.
 
 **Headline:** Your design. A physical thing.
 
-**Short description:** Turn artwork, lettering and patterns into custom sleeves and reliefs. Shape it in your browser. Export it for your 3D printer.
+**Short description:** Turn artwork and lettering into custom sleeves and reliefs. Shape it in your browser. Export it for your 3D printer.
 
-**Demonstration:** Open a pattern → set dimensions → export and print a fit ring → adjust fit → export the full model → inspect in a slicer → show the finished print. Record this using actual outputs and a real printer.
+**Demonstration:** Add artwork or lettering → set dimensions → export and print a fit ring → adjust fit → export the full model → inspect in a slicer → show the finished print. Record this using actual outputs and a real printer.
 
 ## Release gates before a paid public launch
 

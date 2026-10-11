@@ -9,7 +9,7 @@ const customDefaults={up:'auto',turn:0,units:'mm',autoAlign:true};
 
 // ---------- Panel ----------
 const customPanel=document.createElement('div');customPanel.id='customTemplateTools';customPanel.className='custom-template-tools';
-customPanel.innerHTML=`<div class="custom-template-actions"><button class="btn btn-ghost btn-sm" id="uploadTemplateBtn" type="button">Upload STL template…</button><button class="btn btn-ghost btn-sm" id="flattenStlBtn" type="button" title="Old behaviour: turn an STL's top view into a height-map image">Flatten STL into artwork</button></div>
+customPanel.innerHTML=`<div class="custom-template-actions custom-template-uploads"><div class="custom-template-choice"><button class="btn btn-ghost btn-sm" id="uploadTemplateBtn" type="button">Upload STL template…</button><p class="muted-tip">Keeps the STL shape.</p></div><div class="custom-template-choice"><button class="btn btn-ghost btn-sm" id="flattenStlBtn" type="button" title="Old behaviour: turn an STL's top view into a height-map image">Flatten STL into artwork</button><p class="muted-tip">Turns the STL into a picture.</p></div></div>
 <input type="file" id="templateStlInput" accept=".stl,model/stl,application/sla,application/vnd.ms-pki.stl" hidden>
 <div id="customTemplatePanel" hidden>
  <p class="custom-template-name" id="customTemplateInfo"></p>
@@ -24,7 +24,7 @@ customPanel.innerHTML=`<div class="custom-template-actions"><button class="btn b
  <div class="custom-template-actions"><button class="btn btn-ghost btn-sm" id="repairTemplateBtn" type="button">Make template watertight</button><button class="btn btn-ghost btn-sm" id="removeTemplateBtn" type="button">Remove template</button></div>
 </div>`;
 $('templateDescription').after(customPanel);
-const customStyle=document.createElement('style');customStyle.textContent=`.custom-template-tools{margin-top:8px}.custom-template-actions{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}.custom-orient-grid{display:grid;grid-template-columns:auto 1fr;gap:6px 8px;align-items:center;margin:8px 0}.custom-orient-grid label{font-size:12px}.custom-template-name{font-weight:600;margin:8px 0 2px;overflow-wrap:anywhere}#customTemplateStatus.error{color:var(--warning,#f5a524)}#customTemplateStatus.bad{color:var(--danger,#ff5d5d)}`;document.head.appendChild(customStyle);
+const customStyle=document.createElement('style');customStyle.textContent=`.custom-template-tools{margin-top:8px}.custom-template-actions{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}.custom-template-uploads{align-items:flex-start}.custom-template-choice{display:flex;flex-direction:column;align-items:flex-start;max-width:100%}.custom-template-choice .muted-tip{margin:2px 0 8px}.custom-orient-grid{display:grid;grid-template-columns:auto 1fr;gap:6px 8px;align-items:center;margin:8px 0}.custom-orient-grid label{font-size:12px}.custom-template-name{font-weight:600;margin:8px 0 2px;overflow-wrap:anywhere}#customTemplateStatus.error{color:var(--warning,#f5a524)}#customTemplateStatus.bad{color:var(--danger,#ff5d5d)}`;document.head.appendChild(customStyle);
 const customInput=$('templateStlInput');
 function openTemplateUpload(){customInput.value='';customInput.click()}
 $('uploadTemplateBtn').onclick=openTemplateUpload;
@@ -146,7 +146,7 @@ templateJobData=function(worker,quality){
 const customOriginalInfo=templateInfo;templateInfo=function(){
   if(AppState.templateId!=='custom-stl'||!customTemplate)return customOriginalInfo();
   const h=customTemplate.base.height;
-  return{label:customTemplate.name,file:customTemplate.name.replace(/[^\p{L}\p{N} _-]/gu,'').replace(/\s+/g,' ').trim().slice(0,40)||'custom',description:'Your uploaded STL. Its geometry is kept; artwork follows the outer surface.',surface:customTemplate.name.slice(0,30)+' · custom template',stats:'Custom STL · '+h.toFixed(1)+' mm tall',kept:'Template geometry kept',ready:'Your template is ready. Add an image, pattern or text.',exportHint:customTemplate.report.closed?'':'Your template itself is not watertight: use Make template watertight in the Sleeve template panel, or repair the STL in your mesh tool.'};
+  return{label:customTemplate.name,file:customTemplate.name.replace(/[^\p{L}\p{N} _-]/gu,'').replace(/\s+/g,' ').trim().slice(0,40)||'custom',description:'Your uploaded STL. Its geometry is kept; artwork follows the outer surface.',surface:customTemplate.name.slice(0,30)+' · custom template',stats:'Custom STL · '+h.toFixed(1)+' mm tall',kept:'Template geometry kept',ready:'Your template is ready. Add an image or text.',exportHint:customTemplate.report.closed?'':'Your template itself is not watertight: use Make template watertight in the Sleeve template panel, or repair the STL in your mesh tool.'};
 };
 // Placement helpers read the chart from the template when it has one (custom templates carry theirs).
 const customOriginalProfile=SleeveTemplate.profile;SleeveTemplate.profile=base=>base&&base.chart?base.chart:customOriginalProfile(base);
@@ -196,7 +196,7 @@ async function restoreProjectTemplate(p){
     try{const bytes=new Uint8Array(await (await fetch(t.mesh)).arrayBuffer()),buffer=await gunzipBytes(bytes);await useCustomTemplateBuffer(buffer,t.name,t.orientation,{activate:false,repaired:t.repaired,quiet:true});p.settings.templateId='custom-stl';AppState.templateId='custom-stl';setActiveTemplateBase(customTemplate.display||customTemplate.base);ensureCustomPrint();setTimeout(()=>templateView('front'),50);return}
     catch(error){if(isCancelled(error))throw Error('Another template was loaded while opening the project. Open it again.');p.settings.templateId='etsyfolger-v1';activateBuiltinTemplate();return 'The embedded template could not be loaded: '+error.message+' Using ETSYFOLGER instead.'}
   }
-  if(t&&!t.mesh){if(customTemplate&&customTemplate.name===t.name){p.settings.templateId='custom-stl';AppState.templateId='custom-stl';setActiveTemplateBase(customTemplate.display||customTemplate.base);ensureCustomPrint();return 'Using the loaded template '+t.name+'; check that it is the same STL.'}p.settings.templateId='etsyfolger-v1';activateBuiltinTemplate();return 'This project used the custom template "'+t.name+'", which was too large to embed. Upload that STL with Import STL template.'}
+  if(t&&!t.mesh){if(customTemplate&&customTemplate.name===t.name){p.settings.templateId='custom-stl';AppState.templateId='custom-stl';setActiveTemplateBase(customTemplate.display||customTemplate.base);ensureCustomPrint();return 'Using the loaded template '+t.name+'; check that it is the same STL.'}p.settings.templateId='etsyfolger-v1';activateBuiltinTemplate();return 'This project used the custom template "'+t.name+'", which was too large to embed. Upload that STL with Upload STL template.'}
   if(p.settings.templateId==='custom-stl'&&!t)p.settings.templateId='etsyfolger-v1';
   if(p.settings.templateId==='etsyfolger-v1')activateBuiltinTemplate();
   return '';

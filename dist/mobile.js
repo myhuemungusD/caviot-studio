@@ -5,10 +5,10 @@
 (()=>{
 const D=CaviotDevice,isPhone=()=>D.phoneLayout(),sidebar=document.querySelector('.sidebar');
 
-// ---------- Overflow menu (Save / Open / Guide / OBJ / STL template / Reset view) ----------
+// ---------- Overflow menu (Save / Open / Guide / OBJ / Reset view) ----------
 const more=document.createElement('button');more.type='button';more.id='mobileMoreBtn';more.className='btn btn-ghost mobile-only';more.setAttribute('aria-label','More actions');more.setAttribute('aria-haspopup','menu');more.setAttribute('aria-expanded','false');more.innerHTML='<span aria-hidden="true">⋮</span>';
 const menu=document.createElement('div');menu.id='mobileMenu';menu.className='mobile-menu';menu.setAttribute('role','menu');menu.hidden=true;
-const items=[['startNewDesign','Start new design…'],['saveProject','Save project'],['openProject','Open project…'],['downloadObjBtn','Export OBJ'],['openSTL','Import STL template…'],['resetViewBtn','Reset view'],['guideBtn','Guide']];
+const items=[['startNewDesign','Start new design…'],['saveProject','Save project'],['openProject','Open project…'],['downloadObjBtn','Export OBJ'],['resetViewBtn','Reset view'],['guideBtn','Guide']];
 for(const [id,label]of items){const b=document.createElement('button');b.type='button';b.setAttribute('role','menuitem');b.dataset.target=id;b.textContent=label;b.onclick=()=>{closeMenu();const t=$(id);if(t&&!t.disabled)t.click();};menu.appendChild(b);}
 document.querySelector('.project-actions').append(more);document.body.appendChild(menu);
 function openMenu(){for(const b of menu.querySelectorAll('button')){const t=$(b.dataset.target);b.disabled=!t||t.disabled;}menu.hidden=false;more.setAttribute('aria-expanded','true');menu.querySelector('button:not(:disabled)')?.focus({preventScroll:true});}

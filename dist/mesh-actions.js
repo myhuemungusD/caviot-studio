@@ -229,5 +229,3 @@ function exportFitRing() {
   downloadBlob(new Blob([buf], { type: 'model/stl' }), 'fitring_' + lighter + '_5mm.stl');
   toast('Fit ring exported — print to confirm fit', 'success');
 }
-
-// ---------- Patterns ----------
