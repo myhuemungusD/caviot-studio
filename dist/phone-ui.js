@@ -78,7 +78,7 @@ function mountPhone(){
   const order=[document.querySelector('.template-select-panel'),$('designSidesPanel')?.closest('section'),$('imageScale')?.closest('section'),$('templatePlacement'),$('crisp')?.closest('section'),$('bottomBrandPanel'),document.querySelector('.export-quality-panel'),document.querySelector('.output-mode-panel'),$('sleevePanel'),$('flatPanel'),$('bendSection')];
   for(const node of order)if(node&&node.parentNode===sidebar)move(node,all);
   const repair=document.querySelector('.mesh-repair-panel');if(repair)all.appendChild(repair);// mobile.js moves it back on desktop
-  // Section numbers from the desktop panel ("01 /", "03 /", "03 /") contradict the phone order: drop them.
+  // Drop a leftover "01 /" style prefix if a panel label still has one. The desktop labels no longer use section numbers.
   for(const label of sidebar.querySelectorAll('.panel-label')){const m=/^\s*\d+\s*\/\s*/.exec(label.textContent);if(m){labelRenames.push([label,label.textContent]);label.textContent=label.textContent.slice(m[0].length)}}
   document.body.classList.add('phone-ui');syncAll();
 }
@@ -314,7 +314,7 @@ exportReliefTag=function(){
 // Phones without iOS's file-ready sheet (Android) also get Share first when the browser can share the file.
 const priorDownload=downloadBlob;
 downloadBlob=function(blob,filename){
-  if(phoneDevice()&&!D.iOS&&typeof showFileReady==='function'&&typeof canShareFile==='function'&&canShareFile(new File([blob],filename,{type:blob.type||'application/octet-stream'}))){showFileReady(blob,filename);return}
+  if(phoneDevice()&&!D.iOS&&typeof showFileReady==='function'&&typeof canShareFiles==='function'&&canShareFiles()){showFileReady(blob,filename);return true}
   return priorDownload(blob,filename)};
 
 // ======================= Glue =======================

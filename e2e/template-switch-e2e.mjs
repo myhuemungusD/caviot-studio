@@ -24,7 +24,7 @@ async function run(label,breakCustomPreview){
   await p.goto(base,{waitUntil:'load'});await p.waitForFunction(()=>typeof templateBase!=='undefined'&&!!templateBase,null,{timeout:120000});await settle(p);
   await p.setInputFiles('#fileInput',IMAGE);await p.waitForFunction(()=>!!AppState.image,null,{timeout:30000});ok(await settle(p),'design formed on ETSYFOLGER');
   const before=await shown(p);ok(!before.custom&&Math.abs(before.height-89)<.5,'ETSYFOLGER shown with the design ('+before.height.toFixed(1)+' mm tall)');
-  const chooser=p.waitForEvent('filechooser');await p.click('#openSTL');await (await chooser).setFiles(STL);
+  const chooser=p.waitForEvent('filechooser');await p.click('#uploadTemplateBtn');await (await chooser).setFiles(STL);
   await p.waitForFunction(()=>AppState.templateId==='custom-stl'&&templateBase!==builtinTemplateBase&&!customActivatePending,null,{timeout:120000});
   // Immediately after the import (before the preview with the artwork returns) the tube is on screen.
   const early=await shown(p);ok(early.custom&&Math.abs(early.height-50)<.5,'imported template shown at once ('+early.height.toFixed(1)+' mm tall, template '+early.templateHeight.toFixed(1)+' mm)');

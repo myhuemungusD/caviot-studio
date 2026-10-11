@@ -17,10 +17,12 @@
   .btn{min-height:44px}
   .btn-sm{min-height:44px}
   .sidebar input[type=text],.sidebar input[type=number],.sidebar select{min-height:44px;font-size:16px}
+  /* 44px is the row you can grab; the orange thumb stays visible inside it. */
   .sidebar input[type=range]{height:44px;touch-action:pan-y}
-  .sidebar input[type=range]::-webkit-slider-runnable-track{height:6px}
-  .sidebar input[type=range]::-webkit-slider-thumb{width:28px;height:28px;margin-top:-12px}
-  .sidebar input[type=range]::-moz-range-thumb{width:26px;height:26px}
+  .sidebar input[type=range]::-webkit-slider-runnable-track{height:8px}
+  .sidebar input[type=range]::-webkit-slider-thumb{width:28px;height:28px;margin-top:-10px}
+  .sidebar input[type=range]::-moz-range-thumb{width:28px;height:28px}
+  .sidebar input.slider-num{min-height:44px;font-size:16px}
   .sidebar .check{min-height:44px;align-items:center}
   .sidebar input[type=checkbox],.sidebar input[type=radio]{width:22px;height:22px}
   .sidebar summary{min-height:44px;display:flex;align-items:center}
@@ -64,7 +66,7 @@
   .tools-heading{flex:1 1 auto}
   #mobileSettingsBtn{display:inline-flex!important;align-items:center;justify-content:center;height:48px;min-width:110px;padding:0 18px!important;font-size:16px}
   .top-actions{margin-left:auto;gap:8px}
-  .top-actions>#openSTL,.top-actions>#downloadObjBtn,.top-actions kbd{display:none!important}
+  .top-actions>#downloadObjBtn,.top-actions kbd{display:none!important}
   #generateBtn{height:48px;padding:0 22px!important;font-size:16px;white-space:nowrap}
 
   /* Full-screen 3D view */
@@ -103,7 +105,6 @@
   .product-dialog{width:calc(100vw - 20px)!important;max-height:calc(100dvh - 24px - var(--safe-t) - var(--safe-b));padding:20px!important}
   .product-dialog .btn{min-height:46px}
   .file-ready-actions .btn{flex:1 1 140px}
-  .modal-box{max-width:calc(100vw - 20px)}
 }
 
 /* ---------- Phone in landscape: one slim top row, tools in a side sheet ---------- */

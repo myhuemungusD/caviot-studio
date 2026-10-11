@@ -38,8 +38,8 @@ for(const name of names){
   if(phone){
     const small=await p.evaluate(()=>[...document.querySelectorAll('.projectbar button,.topbar button,.template-toolbar button')].filter(b=>b.offsetParent&&getComputedStyle(b).visibility!=='hidden').map(b=>{const r=b.getBoundingClientRect();return {id:b.id||b.textContent.trim(),w:Math.round(r.width),h:Math.round(r.height)}}).filter(b=>b.h<44||b.w<44));
     ok(!small.length,'visible bar buttons are finger-sized '+JSON.stringify(small));
-    const hidden=await p.evaluate(()=>['saveProject','openProject','guideBtn','downloadObjBtn','openSTL'].every(id=>!$(id).offsetParent));
-    ok(hidden,'Save/Open/Guide/OBJ/STL moved to the overflow menu');
+    const hidden=await p.evaluate(()=>['saveProject','openProject','guideBtn','downloadObjBtn'].every(id=>!$(id).offsetParent));
+    ok(hidden,'Save/Open/Guide/OBJ moved to the overflow menu');
     await tap(cdp,await p.evaluate(()=>{const r=$('mobileMoreBtn').getBoundingClientRect();return [r.x+r.width/2,r.y+r.height/2]}));await sleep(200);
     const menu=await p.evaluate(()=>({open:!$('mobileMenu').hidden,items:[...$('mobileMenu').querySelectorAll('button')].map(b=>b.textContent)}));
     ok(menu.open&&menu.items.includes('Save project')&&menu.items.includes('Export OBJ')&&menu.items.includes('Guide'),'overflow menu: '+menu.items.join(' / '));

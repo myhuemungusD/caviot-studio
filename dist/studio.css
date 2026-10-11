@@ -305,51 +305,99 @@
     padding-right: 26px;
   }
 
-  /* ─── Range sliders ─── */
+  /* ─── Range sliders ───
+     24px thumb on an 8px track. The input is taller than the track so a click
+     anywhere on the row hits the control (browsers jump the thumb there).
+     --fill is the active portion, set from the value in slider-ui.js. */
   .sidebar input[type=range] {
     -webkit-appearance: none;
     appearance: none;
     width: 100%;
-    height: 18px;
+    height: 36px;
     background: transparent;
     cursor: pointer;
     padding: 0;
-    margin: 0;
+    margin: 2px 0;
+    --fill: 0%;
+  }
+  .sidebar input[type=range]:focus { outline: none; }
+  .sidebar input[type=range]:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+    border-radius: 999px;
   }
   .sidebar input[type=range]::-webkit-slider-runnable-track {
-    height: 4px;
-    background: var(--s3);
-    border: 1px solid var(--b1);
-    border-radius: 3px;
+    height: 8px;
+    background: linear-gradient(90deg, var(--accent) var(--fill), var(--s4) var(--fill));
+    box-shadow: inset 0 0 0 1px var(--b2);
+    border-radius: 999px;
   }
   .sidebar input[type=range]::-webkit-slider-thumb {
     -webkit-appearance: none;
     appearance: none;
-    width: 14px; height: 14px;
-    background: var(--t1);
-    border: 2px solid var(--s1);
+    box-sizing: border-box;
+    width: 24px; height: 24px;
+    margin-top: -8px;
+    background: var(--accent);
+    border: 2px solid var(--s0);
     border-radius: 50%;
-    margin-top: -6px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.4);
-    transition: transform 120ms ease, background 120ms ease;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.45);
+    cursor: grab;
+    transition: transform 120ms ease, background 120ms ease, box-shadow 120ms ease;
   }
-  .sidebar input[type=range]:hover::-webkit-slider-thumb { background: var(--accent); transform: scale(1.15); }
-  .sidebar input[type=range]:active::-webkit-slider-thumb { background: var(--accent); transform: scale(1.2); }
+  .sidebar input[type=range]:hover::-webkit-slider-thumb { background: var(--accent-hover); transform: scale(1.08); }
+  .sidebar input[type=range]:active::-webkit-slider-thumb { background: var(--accent-hover); transform: scale(1.14); cursor: grabbing; }
+  .sidebar input[type=range]:focus-visible::-webkit-slider-thumb {
+    box-shadow: 0 0 0 3px var(--s1), 0 0 0 6px var(--accent);
+  }
   .sidebar input[type=range]::-moz-range-track {
-    height: 4px;
-    background: var(--s3);
-    border: 1px solid var(--b1);
-    border-radius: 3px;
+    height: 8px;
+    background: var(--s4);
+    border: 1px solid var(--b2);
+    border-radius: 999px;
+  }
+  .sidebar input[type=range]::-moz-range-progress {
+    height: 8px;
+    background: var(--accent);
+    border-radius: 999px;
   }
   .sidebar input[type=range]::-moz-range-thumb {
-    width: 12px; height: 12px;
-    background: var(--t1);
-    border: 2px solid var(--s1);
+    box-sizing: border-box;
+    width: 24px; height: 24px;
+    background: var(--accent);
+    border: 2px solid var(--s0);
     border-radius: 50%;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.4);
-    transition: background 120ms ease, transform 120ms ease;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.45);
+    cursor: grab;
   }
-  .sidebar input[type=range]:hover::-moz-range-thumb { background: var(--accent); transform: scale(1.15); }
+  .sidebar input[type=range]:hover::-moz-range-thumb { background: var(--accent-hover); transform: scale(1.08); }
+  .sidebar input[type=range]:active::-moz-range-thumb { background: var(--accent-hover); transform: scale(1.14); }
+  .sidebar input[type=range]:focus-visible::-moz-range-thumb {
+    box-shadow: 0 0 0 3px var(--s1), 0 0 0 6px var(--accent);
+  }
+  .slider-readout-off {
+    position: absolute !important;
+    width: 1px !important; height: 1px !important;
+    padding: 0 !important; margin: -1px !important;
+    overflow: hidden !important; clip: rect(0,0,0,0) !important;
+    white-space: nowrap !important; border: 0 !important;
+  }
+  .sidebar input.slider-num { width: 5.2em; text-align: right; font-variant-numeric: tabular-nums; }
+  /* Beats the later .sidebar input[type=number] size in product.css, so Depth
+     and Logo size keep a large typeable figure instead of a small field. */
+  .sidebar .big-field-value input.slider-num-lg {
+    width: 4.6em; height: 36px; padding: 0 4px;
+    font-size: 22px; font-weight: 400; letter-spacing: -0.01em;
+    background: transparent; border-color: transparent; box-shadow: none;
+  }
+  .sidebar .big-field-value input.slider-num-lg:hover,
+  .sidebar .big-field-value input.slider-num-lg:focus {
+    background: var(--s4); border-color: var(--b2);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .sidebar input[type=range]::-webkit-slider-thumb,
+    .sidebar input[type=range]::-moz-range-thumb { transition: none; }
+  }
 
   /* ─── Big slider (logo size, depth) ─── */
   .big-field { margin-bottom: 16px; }
@@ -378,17 +426,7 @@
     font-weight: 400;
   }
   .big-field-value .unit { font-size: 12px; color: var(--t3); margin-left: 2px; }
-  .big-field input[type=range] { height: 22px; }
-  .big-field input[type=range]::-webkit-slider-runnable-track { height: 6px; }
-  .big-field input[type=range]::-webkit-slider-thumb {
-    width: 18px; height: 18px;
-    margin-top: -7px;
-    background: var(--accent);
-    border-color: var(--s1);
-    box-shadow: 0 1px 4px var(--accent-glow);
-  }
-  .big-field input[type=range]:hover::-webkit-slider-thumb,
-  .big-field input[type=range]:active::-webkit-slider-thumb { transform: scale(1.1); background: var(--accent); }
+  .big-field input[type=range]::-webkit-slider-thumb { box-shadow: 0 1px 4px var(--accent-glow); }
   .big-field-context {
     display: flex;
     justify-content: space-between;
@@ -767,97 +805,11 @@
   .toast.error { border-color: var(--danger); color: var(--danger); }
   .toast.success { border-color: var(--success); color: var(--success); }
 
-  /* ─── Modal (override old) ─── */
-  .modal-overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.7);
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 300;
-    padding: 24px;
-  }
-  .modal-overlay.hidden { display: none; }
-  .modal-box {
-    background: var(--s1);
-    border: 1px solid var(--b2);
-    border-radius: 10px;
-    max-width: 720px;
-    width: 100%;
-    max-height: 86vh;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-    box-shadow: 0 24px 60px rgba(0,0,0,0.6);
-  }
-  .modal-head {
-    padding: 14px 18px;
-    border-bottom: 1px solid var(--b1);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-  }
-  .modal-head h3 {
-    margin: 0;
-    font-size: 12px;
-    font-family: var(--mono);
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: var(--t1);
-    font-weight: 500;
-  }
-  .modal-close {
-    background: transparent;
-    border: 1px solid var(--b2);
-    color: var(--t2);
-    width: 28px; height: 28px;
-    border-radius: 5px;
-    font-size: 16px;
-    cursor: pointer;
-    line-height: 1;
-    transition: color 140ms, border-color 140ms;
-    font-family: inherit;
-  }
-  .modal-close:hover { color: var(--accent); border-color: var(--accent); }
-  .modal-body { padding: 18px; overflow-y: auto; }
-  .pattern-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-    gap: 10px;
-  }
-  .pattern-card {
-    background: var(--s2);
-    border: 1px solid var(--b1);
-    border-radius: 6px;
-    padding: 8px;
-    cursor: pointer;
-    text-align: center;
-    transition: border-color 140ms, transform 120ms ease;
-    user-select: none;
-  }
-  .pattern-card:hover { border-color: var(--accent); transform: translateY(-1px); }
-  .pattern-card canvas {
-    width: 100%;
-    aspect-ratio: 1;
-    background: #fff;
-    border-radius: 4px;
-    margin-bottom: 6px;
-    display: block;
-  }
-  .pattern-card .name { font-size: 12px; color: var(--t1); font-weight: 500; }
-  .pattern-card .desc { font-size: 10.5px; color: var(--t3); margin-top: 2px; line-height: 1.3; }
-
   /* ─── Utility ─── */
   .muted-tip { font-size: 11px; color: var(--t3); line-height: 1.45; margin: 6px 0 0; }
   details summary { cursor: pointer; font-size: 11px; color: var(--t3); padding: 4px 0; transition: color 140ms ease; }
   details summary:hover { color: var(--t1); }
   details > div { margin-top: 6px; display: grid; gap: 6px; }
-
-  /* Hide unused legacy nodes still in DOM */
-  #advancedToggle, #advancedContent, #stats { display: none !important; }
 
   /* Responsive: collapse sidebar on narrow viewports */
   @media (max-width: 900px) {
@@ -1002,15 +954,6 @@ details.adv[open] > summary::before { content: '▾ '; }
   background: var(--accent-soft);
 }
 
-/* Pattern cards */
-.pattern-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-.pattern-card {
-  display: flex; flex-direction: column; gap: 6px; align-items: center;
-  background: var(--s3); border: 1px solid var(--b1); border-radius: 8px;
-  padding: 8px; cursor: pointer; color: var(--t2); font-size: 11px;
-}
-.pattern-card:hover { border-color: var(--accent); color: var(--t1); }
-.pattern-card canvas { width: 100%; border-radius: 4px; background: #111; }
 .drop.drag { border-color: var(--accent); background: var(--accent-soft); }
 body.is-rebuilding .canvas-meta .dot { background: var(--warning); }
 .filename { font-size: 11px; color: var(--t2); margin-top: 6px; word-break: break-all; }

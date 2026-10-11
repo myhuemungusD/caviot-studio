@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Caviot Studio 2026.09.21 — Design it. Print it.</title>
-<meta name="description" content="Turn your images, patterns and lettering into custom 3D-printable sleeves and reliefs. Design locally, calibrate your fit, and export STL or OBJ." />
+<meta name="description" content="Turn your images and lettering into custom 3D-printable sleeves and reliefs. Design locally, calibrate your fit, and export STL or OBJ." />
 <meta name="theme-color" content="#101114" />
 <link rel="manifest" href="manifest.webmanifest" />
 <link rel="icon" type="image/png" sizes="32x32" href="branding/icons/favicon-32.png" />
@@ -67,10 +67,6 @@
           <button class="icon-btn" id="rotCw" type="button" title="Rotate 90° CW" disabled>↻</button>
           <button class="icon-btn" id="flipH" type="button" title="Mirror horizontally" disabled>⇄</button>
         </div>
-        <div class="source-actions">
-          <button class="btn btn-ghost btn-sm" id="openPatterns" type="button">Pattern</button>
-          <button class="btn btn-ghost btn-sm" id="openSTL" type="button" title="Use any STL file as the template for your artwork">Import STL template</button>
-        </div>
         <div class="divider"></div>
         <input type="text" id="textInput" placeholder="Or type text…" maxlength="60" />
         <div id="textStretchField" style="margin-top:8px;display:none">
@@ -129,10 +125,10 @@
         </div>
       </section>
 
-      <section class="panel" id="templatePlacement"><div class="panel-label">03 / Place on the sleeve</div><button class="btn btn-ghost" id="moveDesign" aria-pressed="false" type="button">Move design on sleeve</button><p class="muted-tip"><span class="desktop-only">Hold the scroll wheel on a logo and drag to move it. Or turn this button on for left-button dragging.</span><span class="touch-only">Tap a design to select it, then drag it with one finger. Drag anywhere else to orbit; pinch to zoom; two fingers to pan.</span></p><label class="check"><input id="uniformDepth" type="checkbox" checked><span>Even depth (logos)</span></label><p class="muted-tip">Uses the artwork silhouette. Remove the background to isolate your logo.</p><div class="source-actions" id="templateStatusHome"><button class="btn btn-ghost btn-sm" id="centerDesign" type="button">Center on front</button><button class="btn btn-ghost btn-sm" id="clearDesign" type="button">Clear design</button></div></section>
+      <section class="panel" id="templatePlacement"><div class="panel-label">Place on the sleeve</div><button class="btn btn-ghost" id="moveDesign" aria-pressed="false" type="button">Move design on sleeve</button><p class="muted-tip"><span class="desktop-only">Hold the scroll wheel on a logo and drag to move it. Or turn this button on for left-button dragging.</span><span class="touch-only">Tap a design to select it, then drag it with one finger. Drag anywhere else to orbit; pinch to zoom; two fingers to pan.</span></p><label class="check"><input id="uniformDepth" type="checkbox" checked><span>Even depth (logos)</span></label><p class="muted-tip">Uses the artwork silhouette. Remove the background to isolate your logo.</p><div class="source-actions" id="templateStatusHome"><button class="btn btn-ghost btn-sm" id="centerDesign" type="button">Center on front</button><button class="btn btn-ghost btn-sm" id="clearDesign" type="button">Clear design</button></div></section>
       <!-- DEVICE (lighter / vape) -->
       <section class="panel" id="sleevePanel">
-        <div class="panel-label">03 / Size &amp; fit</div>
+        <div class="panel-label">Size &amp; fit</div>
         <div class="field">
           <select id="lighterChoice" aria-label="Device template">
             <optgroup label="Lighters">
@@ -369,7 +365,7 @@
     <div class="stat-cell"><span class="k">MESH</span><span class="v" id="statQuality">—</span></div>
     <div class="stat-cell"><span class="k">QUAL</span><span class="v" id="statQualityMode">—</span></div>
     <div class="status-right">
-      <button id="runMeshTests" class="tips-link" type="button" title="Run watertight mesh self-tests">▶ Mesh tests</button>
+      <button id="runMeshTests" class="tips-link" type="button" hidden title="Run watertight mesh self-tests">▶ Mesh tests</button>
       <button id="tipsToggle" class="tips-link" type="button">▸ Print tips</button>
     </div>
   </footer>
@@ -378,19 +374,6 @@
 <div class="tips-drawer hidden" id="tipsContent"><strong>Measure → Fit ring → Design → Slice</strong><p>Presets are starting dimensions with elliptical cavities. Test the 5 mm fit ring on the actual object, then adjust fit. A half sleeve exports one 180° shell; a whole sleeve exports 360°. Inspect the model in your slicer and choose settings for your printer and material. See the Guide for details.</p></div>
 
 <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
-
-<div class="modal-overlay hidden" id="patternModal" role="dialog" aria-modal="true" aria-labelledby="patternModalTitle">
-  <div class="modal-box" tabindex="-1">
-    <div class="modal-head">
-      <h3 id="patternModalTitle">Pick a pattern</h3>
-      <button class="modal-close" id="patternModalClose" type="button" aria-label="Close">×</button>
-    </div>
-    <div class="modal-body">
-      <p class="muted-tip" style="margin:0 0 12px">Knurl, hex, plain, lines, diamond — click to apply.</p>
-      <div class="pattern-grid" id="patternGrid"></div>
-    </div>
-  </div>
-</div>
 
 <script src="device-tier.js"></script>
 <script src="vendor/three.min.js"></script>
@@ -413,6 +396,7 @@
 <script src="mobile.js"></script>
 <script src="project-store.js"></script>
 <script src="phone-ui.js"></script>
+<script src="slider-ui.js"></script>
 <script src="pwa.js"></script>
 </body>
 </html>
