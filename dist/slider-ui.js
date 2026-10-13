@@ -13,7 +13,8 @@
     curveDiamIn: 'millimeters', curveAngleIn: 'degrees', curveFalloffIn: 'percent',
     bgTol: '', resIn: '', smoothIn: '', edgeSmoothIn: '', uniformScaleRange: 'percent',
     designWidthRange: 'millimeters', designHeightRange: 'millimeters', designRotationRange: 'degrees',
-    designAngleRange: 'degrees', designYRange: 'millimeters'
+    designAngleRange: 'degrees', designYRange: 'millimeters',
+    photoDetail: '', photoLine: 'millimeters', photoBrightness: '', photoContrast: '', photoGamma: ''
   };
   const READOUT = {
     letterSpacingIn: 'letterSpacingVal', letterThicknessIn: 'letterThicknessVal',
@@ -22,7 +23,9 @@
     wrapCapHole: 'wrapCapHoleVal', outlineMarginIn: 'outlineMarginVal',
     curveDiamIn: 'curveDiamVal', curveAngleIn: 'curveAngleVal', curveFalloffIn: 'curveFalloffVal',
     bgTol: 'bgTolVal', resIn: 'resVal', smoothIn: 'smoothVal', edgeSmoothIn: 'edgeSmoothVal',
-    uniformScaleRange: 'uniformScaleVal'
+    uniformScaleRange: 'uniformScaleVal',
+    photoDetail: 'photoDetailVal', photoLine: 'photoLineVal', photoBrightness: 'photoBrightnessVal',
+    photoContrast: 'photoContrastVal', photoGamma: 'photoGammaVal'
   };
   // Placement angles wrap past ±180. Curve angle is a clamped amount, not a heading.
   const WRAPS = new Set(['designAngleRange', 'designRotationRange']);

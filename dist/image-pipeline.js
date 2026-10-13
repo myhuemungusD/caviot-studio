@@ -322,7 +322,12 @@ function buildHeightmapAtDetail(targetSize, image, state = AppState) {
   // Dark parts stick out on a trimmed plate: the plate is the subject's outline, so only the background outside
   // the artwork is removed. Light areas inside it stay as plate (height 0) instead of becoming holes.
   const edgeOnly = useSilhouette && !state.invert;
-  const sourceCanvas = state.bgEnable ? applyBgRemoval(img, state, edgeOnly) : img;
+  // A photo style already simplified the picture. Keying the background out again would punch holes
+  // in a white silhouette. Tone styles (poster, smooth, lithophane) keep their gray levels.
+  const photoStyle = state.photo && state.photo.style;
+  const photoTone = photoStyle === 'poster' || photoStyle === 'smooth' || photoStyle === 'lithophane';
+  const photoActive = !!(photoStyle && photoStyle !== 'off');
+  const sourceCanvas = state.bgEnable && !photoActive ? applyBgRemoval(img, state, edgeOnly) : img;
   const tmp = document.createElement('canvas');
   tmp.width = cols;
   tmp.height = rows;
@@ -345,7 +350,7 @@ function buildHeightmapAtDetail(targetSize, image, state = AppState) {
   tctx.restore();
   const data = tctx.getImageData(0, 0, cols, rows).data;
 
-  const crispMode = state.crisp;
+  const crispMode = photoTone ? false : state.crisp;
   let hm = new Float32Array(rows * cols);
   const alphaMap = new Uint8Array(rows * cols);
   for (let i = 0; i < rows; i++) {
@@ -371,8 +376,8 @@ function buildHeightmapAtDetail(targetSize, image, state = AppState) {
       if (alphaMap[i] < 128) hm[i] = 0;
     }
   }
-  if (templateActive() && state.uniformDepth) for(let i=0;i<hm.length;i++) hm[i]=alphaMap[i]/255;
-  if (!(templateActive() && state.uniformDepth && state.crisp)) for (let p = 0; p < state.smoothPasses; p++) hm = boxBlur(hm, rows, cols);
+  if (templateActive() && state.uniformDepth && !photoTone) for(let i=0;i<hm.length;i++) hm[i]=alphaMap[i]/255;
+  if (!(templateActive() && state.uniformDepth && crispMode)) for (let p = 0; p < state.smoothPasses; p++) hm = boxBlur(hm, rows, cols);
 
   let mask = null;
   let toastMsg = null;

@@ -254,6 +254,20 @@ it, change depth, Emboss/Deboss or the surface, pick the earlier Design Mainline
   default in the browser, a closed STL with the raised logo where expected, middle-drag and touch moving, logo
   switching, older projects, and that with the logo off the STL is byte-identical to a baseline build.
 
+## Photo to sleeve
+
+A regular photo (a person, a pet, a beach) is too detailed for a 0.4 mm nozzle on a small sleeve. **Image processing → Photo to sleeve** converts it before the existing heightmap and sleeve mapping run. The sleeve's fit and wall thickness are unchanged. The choice is off by default, so a logo, lettering, or a plain sleeve still exports the same file as before.
+
+Why these styles, and not a raw heightmap or a neural cutout, is written up in `PHOTO-RESEARCH.md`.
+
+- **Styles.** Bold silhouette, thickened line art, a 3-level relief, smooth gray (faces and pets), and a lithophane thickness map meant for a flat plate held up to a light. Each one shows a 2D preview of the pixels that will print.
+- **Sliders.** Detail / Simplify, line thickness in millimetres (never under 0.8 mm, two nozzle widths, at the real print size), brightness, contrast, and gamma. Changing the design size or switching to the flat plate runs the conversion again so the line width still matches that size. A note appears when the chosen size cannot hold the detail.
+- **Crop.** A crop box with free, square, sleeve-face, portrait, and landscape shapes. Arrow keys move it; Shift+arrow keys resize it.
+- **Focus on subject** drops a background that touches the edges of the crop. It does not download a segmentation model.
+- **Non-destructive.** The original photo and the settings are stored on the design. Turning the style off, or opening the project again, restores them. Undo covers the conversion.
+- **HEIC.** iPhone photos decode with the browser when it can, otherwise with libheif-js 1.23.5 (LGPL-3.0) in `dist/vendor/libheif/`. That wasm is loaded only when needed and is not precached. See `dist/vendor/libheif/SOURCE.txt`.
+- **Tests.** `node photo-relief-tests.mjs` checks the pixel transforms, the 0.8 mm floor, the HEIC fixture, and project round-trip. `node e2e/photo-sleeve-e2e.mjs <url>` runs the styles on a public-domain labrador photo (`e2e/fixtures/labrador.jpg`, see `e2e/fixtures/PHOTO-LICENSE.txt`).
+
 ## Mac desktop app
 
 `desktop/` is a macOS app that opens this same `dist/` build offline. It does not change the studio. Build, install, and the unsigned-app first launch (right-click the app, then Open) are documented in `desktop/README.md`.

@@ -86,9 +86,13 @@ function loadImageFile(file) {
   if (!file) return;
   const uploadSide=typeof activeDesignSide==='number'&&templateActive()?activeDesignSide:null;
   // Accept any image the browser can decode (PNG, JPG, WebP, GIF, HEIC on Safari); camera photos arrive as JPEG.
+  if (typeof Heic !== 'undefined' && Heic.looksLikeHeic(file)) {
+    loadHeicFile(file, uploadSide);
+    return;
+  }
   const looksLikeImage = /^image\//i.test(file.type || '') || (!file.type && /\.(png|jpe?g|webp|gif|heic|heif|avif|bmp)$/i.test(file.name || ''));
   if (!looksLikeImage) {
-    toast('Use a PNG or JPG image', 'error');
+    toast('Use a PNG, JPG or HEIC image', 'error');
     return;
   }
   if (file.size > MAX_IMAGE_BYTES) {
@@ -132,9 +136,70 @@ function loadImageFile(file) {
   };
   img.onerror = () => {
     URL.revokeObjectURL(url);
-    toast('Could not read this image — use a PNG or JPG', 'error');
+    const sniff = file.slice ? file.slice(0, 64).arrayBuffer() : Promise.reject();
+    sniff.then((buf) => {
+      if (typeof Heic !== 'undefined' && Heic.isHeicBytes(new Uint8Array(buf))) loadHeicFile(file, uploadSide);
+      else toast('Could not read this image — use a PNG, JPG or HEIC', 'error');
+    }).catch(() => toast('Could not read this image — use a PNG, JPG or HEIC', 'error'));
   };
   img.src = url;
+}
+
+function deliverLoadedImage(image, name, uploadSide) {
+  if (uploadSide !== null && typeof receiveSideUpload === 'function') receiveSideUpload(image, name, uploadSide);
+  else setDesignImage(image, name);
+}
+
+function downscalePhotoCanvas(canvas) {
+  const mobile = typeof CaviotDevice !== 'undefined' && (CaviotDevice.touch || CaviotDevice.tier === 'light') && (CaviotDevice.iOS || CaviotDevice.android || CaviotDevice.phone);
+  const limit = mobile ? Math.min(MAX_IMAGE_PIXELS, CaviotDevice.limits.maxImagePixels) : MAX_IMAGE_PIXELS;
+  const maxSide = mobile && CaviotDevice.device ? CaviotDevice.device.maxImageSide : Infinity;
+  const longSide = Math.max(canvas.width, canvas.height);
+  if (canvas.width * canvas.height <= limit && longSide <= maxSide) return canvas;
+  if (!mobile) {
+    toast('Image dimensions are too large — use 24 megapixels or less', 'error');
+    return null;
+  }
+  const scale = Math.min(Math.sqrt(limit / (canvas.width * canvas.height)) * 0.999, maxSide / longSide);
+  const c = document.createElement('canvas');
+  c.width = Math.max(1, Math.floor(canvas.width * scale));
+  c.height = Math.max(1, Math.floor(canvas.height * scale));
+  const ctx = c.getContext('2d');
+  if (!ctx) { toast('Not enough memory to read this photo — try a smaller image', 'error'); return null; }
+  ctx.drawImage(canvas, 0, 0, c.width, c.height);
+  canvas.width = canvas.height = 0;
+  toast('Large photo resized to ' + c.width + '×' + c.height + ' to save memory on this device', 'success');
+  return c;
+}
+
+async function loadHeicFile(file, uploadSide) {
+  if (file.size > MAX_IMAGE_BYTES) {
+    toast('Image is too large — maximum 20 MB', 'error');
+    return;
+  }
+  try {
+    toast('Reading HEIC photo…', 'success');
+    const decoded = await Heic.decodeFile(file);
+    const canvas = document.createElement('canvas');
+    if (decoded.bitmap) {
+      canvas.width = decoded.bitmap.width;
+      canvas.height = decoded.bitmap.height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) throw Error('Not enough memory to read this photo — try a smaller image');
+      ctx.drawImage(decoded.bitmap, 0, 0);
+      if (typeof decoded.bitmap.close === 'function') decoded.bitmap.close();
+    } else {
+      canvas.width = decoded.width;
+      canvas.height = decoded.height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) throw Error('Not enough memory to read this photo — try a smaller image');
+      ctx.putImageData(new ImageData(decoded.rgba, decoded.width, decoded.height), 0, 0);
+    }
+    const scaled = downscalePhotoCanvas(canvas);
+    if (scaled) deliverLoadedImage(scaled, file.name || 'photo.heic', uploadSide);
+  } catch (error) {
+    toast((error && error.message) || 'Could not read this HEIC photo. Export a JPEG from the Photos app and try that.', 'error');
+  }
 }
 
 function transformImage(fn) {

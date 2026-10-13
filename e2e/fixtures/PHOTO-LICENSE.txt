@@ -1,0 +1,11 @@
+labrador.jpg
+
+A real photograph used as the Photo-to-Sleeve end-to-end fixture.
+
+Title: Labrador Retriever portrait
+Author: Herwig Kavallar
+Source: https://commons.wikimedia.org/wiki/File:Labrador_Retriever_portrait.jpg
+Direct file: https://upload.wikimedia.org/wikipedia/commons/9/90/Labrador_Retriever_portrait.jpg
+Licence: Public domain
+
+The file in this folder is a 960×638 JPEG scaled down from that photograph so the test fixture stays small. The pixels are still the original photograph, not a drawing.

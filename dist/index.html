@@ -45,7 +45,7 @@
 
   <div class="app">
     <aside class="sidebar" id="appSidebar">
-      <input type="file" id="fileInput" accept="image/*" hidden />
+      <input type="file" id="fileInput" accept="image/*,.heic,.heif,image/heic,image/heif" hidden />
       <input type="file" id="stlInput" accept=".stl,model/stl" hidden />
       <input type="file" id="fontInput" accept=".ttf,.otf,.woff,.woff2,font/ttf,font/otf,font/woff,font/woff2" multiple hidden />
       <input type="file" id="fontFolderInput" accept=".ttf,.otf,.woff,.woff2,font/ttf,font/otf,font/woff,font/woff2" webkitdirectory directory multiple hidden />
@@ -58,7 +58,7 @@
         <div id="uploadBtn" class="drop" role="button" tabindex="0">
           <span class="glyph">▣</span>
           <strong>Drop or click image</strong>
-          <small>PNG · JPG<span class="desktop-only"> · Ctrl+V paste</span><span class="touch-only"> · photos or camera</span></small>
+          <small>PNG · JPG · HEIC<span class="desktop-only"> · Ctrl+V paste</span><span class="touch-only"> · photos or camera</span></small>
         </div>
         <div id="fileName" class="filename" style="display:none"></div>
         <div class="img-tools" id="imgTools" hidden>
@@ -281,6 +281,78 @@
       <!-- IMAGE PROCESSING -->
       <section class="panel">
         <div class="panel-label">Image processing</div>
+        <div id="photoPanel">
+          <div class="panel-label">Photo to sleeve</div>
+          <p class="muted-tip">A regular photo is simplified so a 0.4 mm nozzle can print it on a small sleeve. The original is kept.</p>
+          <div class="pill-toggle wrap" role="radiogroup" aria-label="Photo style">
+            <input type="radio" name="photoStyle" id="photoStyleOff" value="off" checked />
+            <label for="photoStyleOff">Off</label>
+            <input type="radio" name="photoStyle" id="photoStyleSilhouette" value="silhouette" />
+            <label for="photoStyleSilhouette" title="One solid shape">Bold silhouette</label>
+            <input type="radio" name="photoStyle" id="photoStyleLine" value="line" />
+            <label for="photoStyleLine" title="Outlines thickened for the nozzle">Line art</label>
+            <input type="radio" name="photoStyle" id="photoStylePoster" value="poster" />
+            <label for="photoStylePoster" title="Three heights">3-level relief</label>
+            <input type="radio" name="photoStyle" id="photoStyleSmooth" value="smooth" />
+            <label for="photoStyleSmooth" title="Gray tones for a face or a pet">Smooth relief</label>
+            <input type="radio" name="photoStyle" id="photoStyleLithophane" value="lithophane" />
+            <label for="photoStyleLithophane" title="Thickness map for a back-lit plate">Lithophane</label>
+          </div>
+          <div id="photoTools" hidden>
+            <p class="muted-tip" id="photoTip"></p>
+            <p id="photoWarning" class="photo-warning" role="status" aria-live="polite"></p>
+            <select id="photoAspect" aria-label="Crop shape">
+              <option value="free">Crop · free</option>
+              <option value="square">Crop · square</option>
+              <option value="sleeve">Crop · sleeve face</option>
+              <option value="portrait">Crop · portrait 3:4</option>
+              <option value="landscape">Crop · landscape 4:3</option>
+            </select>
+            <canvas id="photoCrop" class="photo-crop" tabindex="0" role="application" aria-label="Crop the photo" aria-describedby="photoCropHelp"></canvas>
+            <p class="muted-tip" id="photoCropHelp">Arrow keys move the crop. Shift+arrow keys resize it.</p>
+            <label class="check"><input type="checkbox" id="photoFocus" /> <span>Focus on subject</span></label>
+            <div class="big-field">
+              <div class="big-field-row">
+                <span class="big-field-label">Detail / Simplify</span>
+                <span class="big-field-value"><span id="photoDetailVal">40</span></span>
+              </div>
+              <input type="range" id="photoDetail" value="40" min="0" max="100" step="1" aria-label="Detail or simplify" />
+              <div class="big-field-context"><span>simple</span><span>detail</span></div>
+            </div>
+            <div class="big-field">
+              <div class="big-field-row">
+                <span class="big-field-label">Line thickness</span>
+                <span class="big-field-value"><span id="photoLineVal">1.2</span><span class="unit"> mm</span></span>
+              </div>
+              <input type="range" id="photoLine" value="1.2" min="0.8" max="3" step="0.1" aria-label="Line thickness" />
+              <div class="big-field-context"><span>0.8 mm</span><span>two nozzles</span><span>3 mm</span></div>
+            </div>
+            <div class="big-field">
+              <div class="big-field-row">
+                <span class="big-field-label">Brightness</span>
+                <span class="big-field-value"><span id="photoBrightnessVal">0</span></span>
+              </div>
+              <input type="range" id="photoBrightness" value="0" min="-100" max="100" step="1" aria-label="Brightness" />
+            </div>
+            <div class="big-field">
+              <div class="big-field-row">
+                <span class="big-field-label">Contrast</span>
+                <span class="big-field-value"><span id="photoContrastVal">0</span></span>
+              </div>
+              <input type="range" id="photoContrast" value="0" min="-100" max="100" step="1" aria-label="Contrast" />
+            </div>
+            <div class="big-field">
+              <div class="big-field-row">
+                <span class="big-field-label">Gamma</span>
+                <span class="big-field-value"><span id="photoGammaVal">1</span></span>
+              </div>
+              <input type="range" id="photoGamma" value="1" min="0.3" max="3" step="0.05" aria-label="Gamma" />
+            </div>
+            <div class="panel-label">What prints</div>
+            <canvas id="photoPreview" class="photo-preview" aria-label="Preview of the relief that will print"></canvas>
+          </div>
+        </div>
+        <div class="divider"></div>
         <label class="check">
           <input type="checkbox" id="bgEnable" checked />
           <span>Remove background</span>
@@ -396,6 +468,9 @@
 <script src="mobile.js"></script>
 <script src="project-store.js"></script>
 <script src="phone-ui.js"></script>
+<script src="photo-relief.js"></script>
+<script src="heic.js"></script>
+<script src="photo-ui.js"></script>
 <script src="slider-ui.js"></script>
 <script src="pwa.js"></script>
 </body>

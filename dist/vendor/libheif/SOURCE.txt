@@ -1,0 +1,27 @@
+libheif-js 1.23.5
+https://github.com/catdad-experiments/libheif-js
+https://cdn.jsdelivr.net/npm/libheif-js@1.23.5/libheif-wasm/libheif.js
+https://cdn.jsdelivr.net/npm/libheif-js@1.23.5/libheif-wasm/libheif.wasm
+
+What this is
+An Emscripten build of libheif (with libde265) that decodes HEIC/HEIF photos in the browser.
+Caviot Studio loads these two files only after a HEIC photo fails the browser's own decoder.
+The photo never leaves the device.
+
+Licence
+libheif, libde265, and the libheif-js wrapper are LGPL-3.0. The full text is LICENSE in this folder.
+Copyright (c) struktur AG, Dirk Farin, and the libheif and libde265 contributors.
+libheif-js wrapper by Kiril Vatev and contributors.
+
+How to replace the library (LGPL section 4)
+These files are loaded separately, not mixed into Caviot's own scripts:
+  vendor/libheif/libheif.js
+  vendor/libheif/libheif.wasm
+Replace both with your own build of the same interface and the studio will use them.
+heic.js expects:
+  a global factory libheif(options) when libheif.js is loaded in a page
+  options.wasmBinary, the wasm bytes fetched first (this build cannot read the wasm file synchronously on the page)
+  options.locateFile(name) to find libheif.wasm
+  options.onRuntimeInitialized
+  new module.HeifDecoder(); decoder.decode(Uint8Array) -> images
+  image.get_width(), image.get_height(), image.display({data, width, height}, callback), image.free()
