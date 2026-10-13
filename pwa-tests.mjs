@@ -9,6 +9,8 @@ await test('dist/sw.js is current (run node build-sw.mjs after changing dist/)',
   const m=manifest();for(const must of ['index.html','mobile.js','mobile.css','device-tier.js','pwa.js','manifest.webmanifest','vendor/three.min.js','templates/ETSYFOLGER-preview.mesh','fonts/catalog.js','fonts/Blockletter-0ca48c09.otf'])assert(m.precache.includes(must),must+' precached');
   assert(!m.precache.includes('templates/ETSYFOLGER-print.mesh')&&m.files['templates/ETSYFOLGER-print.mesh'],'print surface on demand but versioned');
   assert(!m.precache.some(p=>/^fonts\/.+\.ttf$/.test(p)),'fonts on demand');
+  assert(m.precache.includes('photo-relief.js')&&m.precache.includes('photo-ui.js')&&m.precache.includes('heic.js'),'photo scripts precached');
+  assert(!m.precache.some(p=>p.startsWith('vendor/libheif/'))&&m.files['vendor/libheif/libheif.wasm'],'HEIC decoder on demand but versioned');
 });
 await test('manifest, icons and page wiring',()=>{
   const m=JSON.parse(read('manifest.webmanifest'));assert.equal(m.name,'Caviot Studio');assert.equal(m.display,'standalone');assert.equal(m.start_url,'./');
@@ -17,7 +19,7 @@ await test('manifest, icons and page wiring',()=>{
   const html=read('index.html').toString();
   assert.match(html,/name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/);
   assert.match(html,/<link rel="manifest" href="manifest.webmanifest"/);assert.match(html,/apple-touch-icon/);
-  assert.match(html,/id="fileInput" accept="image\/\*"/);
+  assert.match(html,/id="fileInput" accept="image\/\*,\.heic,\.heif,image\/heic,image\/heif"/);
   const order=['device-tier.js','vendor/three.min.js','three-preview.js','tool-layout.js','mobile.js','pwa.js'].map(f=>html.indexOf('<script src="'+f+'"'));
   assert(order.every((v,i)=>v>0&&(i===0||v>order[i-1])),'script order '+order);
   assert(html.indexOf('mobile.css')>html.indexOf('template.css'),'mobile.css loads last');

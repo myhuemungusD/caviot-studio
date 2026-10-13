@@ -33,7 +33,7 @@ for(const name of names){
   const info=await p.evaluate(()=>({sw:document.documentElement.scrollWidth,iw:innerWidth,sh:document.documentElement.scrollHeight,ih:innerHeight,vp:document.querySelector('meta[name=viewport]').content,manifest:!!document.querySelector('link[rel=manifest]'),accept:$('fileInput').accept,tier:CaviotDevice.tier}));
   ok(info.sw<=info.iw,'no horizontal scroll ('+info.sw+' <= '+info.iw+')');
   ok(/viewport-fit=cover/.test(info.vp)&&info.manifest,'viewport-fit=cover and manifest link');
-  ok(info.accept==='image/*','file picker accepts image/* (camera roll and camera)');
+  ok(/^image\/\*/.test(info.accept)&&/heic/i.test(info.accept),'file picker accepts images, including HEIC ('+info.accept+')');
   ok(info.tier===(isIPad?'full':'light'),'device tier '+info.tier);
   if(phone){
     const small=await p.evaluate(()=>[...document.querySelectorAll('.projectbar button,.topbar button,.template-toolbar button')].filter(b=>b.offsetParent&&getComputedStyle(b).visibility!=='hidden').map(b=>{const r=b.getBoundingClientRect();return {id:b.id||b.textContent.trim(),w:Math.round(r.width),h:Math.round(r.height)}}).filter(b=>b.h<44||b.w<44));
