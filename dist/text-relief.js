@@ -265,15 +265,29 @@
  function cleanAll(loops,minLen){return loops.map(l=>clean(l,minLen)).filter(Boolean)}
 
  // Poster photo: plate at the low step, a middle slab, and a high slab. Absent on lettering.
+ // A photo outline can be noisy enough that the first triangulation has a gap; a coarser pass is tried before giving up.
  function buildPhotoTiers(o,MC){
+  let error;
+  for(const extra of [0,.45,.9]){try{return buildPhotoTiersAt(o,MC,extra);}catch(e){error=e;}}
+  throw error;
+ }
+ function buildPhotoTiersAt(o,MC,extra){
   const t=o.textRelief,width=Math.max(1,+o.width||100),depth=Math.max(1,+t.depth||width*(o.rows/o.cols)),base=Math.max(.1,+o.base||1),maxH=Math.max(0,+o.maxHeight||0),negative=!!o.negative;
   if(!(maxH>=.005))throw Error('Relief needs some depth.');
-  const fx=u=>(u-.5)*width,fy=v=>(v-.5)*depth,minLen=1e-4;
+  const fx=u=>(u-.5)*width,fy=v=>(v-.5)*depth,minLen=Math.max(1e-4,extra*.25);
   const spacing=o.curveEnable?curveSpacing(width*depth,Math.max(1,+o.curveRadius||50)):0;
   const unitH=u=>{const v=t.inkHigh===false?1-u:u;return negative?base+maxH-v*maxH:base+v*maxH};
   const h0=unitH(0),h1=unitH(.5),h2=unitH(1);
-  const prep=loops=>orient(cleanAll(mapLoops(loops||[],fx,fy),minLen)).map(l=>densify(l,spacing));
-  const mid=prep(t.midLoops),high=prep(t.loops);
+  const prep=loops=>{
+   let mapped=cleanAll(mapLoops(loops||[],fx,fy),minLen);
+   if(extra>0)mapped=mapped.map(l=>clean(simplify(l,extra),minLen)).filter(Boolean);
+   return orient(mapped).map(l=>densify(l,spacing));
+  };
+  let mid=prep(t.midLoops),high=prep(t.loops);
+  if(mid.length&&high.length){
+   const nest=nesting([...mid,...high]);
+   high=high.filter((_,i)=>{const p=nest.parent[mid.length+i];return p>=0&&p<mid.length&&nest.depth[p]%2===0;});
+  }
   if(!mid.length&&!high.length)throw Error('No poster outline found.');
   const B=[densify(Float64Array.from([-width/2,-depth/2,width/2,-depth/2,width/2,depth/2,-width/2,depth/2]),spacing)];
   const V={X:[],Y:[],Z:[]},faces=[];

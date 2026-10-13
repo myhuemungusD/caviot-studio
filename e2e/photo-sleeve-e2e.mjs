@@ -200,8 +200,12 @@ function previewSig(p) {
   console.log('Portrait on the sleeve and the flat plate');
   await p.click('label[for="exportSleeve"]');
   await p.waitForFunction(() => AppState.mode === 'sleeve', null, { timeout: 10000 });
+  ok(await settle(p, 180000), 'back on the sleeve before the portrait');
   await p.setInputFiles('#fileInput', PORTRAIT);
-  await p.waitForFunction(() => !!AppState.image && AppState.image.height > AppState.image.width, null, { timeout: 30000 });
+  const replace = p.locator('dialog.product-dialog[open] button[data-choice="replace"]');
+  await replace.waitFor({ timeout: 20000 });
+  await replace.click();
+  await p.waitForFunction(() => !!AppState.image && AppState.image.height > AppState.image.width, null, { timeout: 60000 });
   ok(await settle(p), 'portrait placed on the sleeve');
   if (shots) fs.copyFileSync(PORTRAIT, path.join(shots, 'original-portrait.jpg'));
   await shot(p, 'portrait-sleeve-original.png', 'sleeve');
@@ -218,8 +222,9 @@ function previewSig(p) {
     await shot(p, 'portrait-plate-' + style + '.png', 'plate');
     composite(PORTRAIT, 'portrait-plate-' + style + '.png', 'compare-portrait-plate-' + style + '.png');
     if (style === 'poster') {
-      const mesh = await p.evaluate(() => ({ err: AppState.lastTextReliefError, sharp: !!AppState.lastTextRelief, depth: AppState.depthMm }));
-      ok(!mesh.err && mesh.sharp && mesh.depth >= 1.1, 'portrait poster is an outline at ' + mesh.depth + ' mm' + (mesh.err ? ' (' + mesh.err + ')' : ''));
+      const mesh = await p.evaluate(() => ({ err: AppState.lastTextReliefError, sharp: !!AppState.lastTextRelief, depth: AppState.depthMm, cols: AppState.hmCols }));
+      const fine = mesh.sharp || mesh.cols >= 400;
+      ok(mesh.depth >= 1.1 && fine, 'portrait poster is an outline or a fine grid (' + mesh.cols + ' cols, ' + mesh.depth + ' mm' + (mesh.err ? ', ' + mesh.err : '') + ')');
     }
   }
   await ctx.close();

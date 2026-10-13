@@ -36,7 +36,8 @@ function meshOptionsFromState(hm, rows, cols, mask) {
 // use outlines instead, and a photo that is off leaves the usual export detail untouched.
 function photoWorkingDetail(baseDetail) {
   const style = AppState.photo && AppState.photo.style;
-  if (style !== 'smooth' && style !== 'lithophane') return baseDetail;
+  // Poster keeps this grid as the fallback when a noisy outline cannot be closed. The outline is used when it succeeds.
+  if (style !== 'smooth' && style !== 'lithophane' && style !== 'poster') return baseDetail;
   if (typeof templateActive === 'function' && templateActive()) return baseDetail;
   const phone = typeof CaviotDevice !== 'undefined' && CaviotDevice.tier === 'light';
   const mm = phone ? 0.2 : 0.15;
@@ -238,10 +239,22 @@ function photoTraceSource(img, style) {
           if (lum[i] >= 0.34) mid[i] = 1;
           if (lum[i] >= 0.75) high[i] = 1;
         }
+        // Pull the top step in so its outline sits inside the middle step instead of crossing it.
+        const inset = new Float32Array(w * h);
+        const pull = 2;
+        for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+          let ok = high[y * w + x] ? 1 : 0;
+          for (let dy = -pull; dy <= pull && ok; dy++) for (let dx = -pull; dx <= pull; dx++) {
+            const yy = y + dy, xx = x + dx;
+            if (yy < 0 || xx < 0 || yy >= h || xx >= w || !high[yy * w + xx]) ok = 0;
+          }
+          inset[y * w + x] = ok;
+        }
+        const posterTol = Math.max(tol, 0.75);
         src = {
           w, h,
-          mid: TextRelief.prepare(TextRelief.trace(mid, w, h, 0.5), tol, 6).map(norm),
-          high: TextRelief.prepare(TextRelief.trace(high, w, h, 0.5), tol, 6).map(norm),
+          mid: TextRelief.prepare(TextRelief.trace(mid, w, h, 0.5), posterTol, 8).map(norm),
+          high: TextRelief.prepare(TextRelief.trace(inset, w, h, 0.5), posterTol, 8).map(norm),
         };
         if (!src.mid.length && !src.high.length) src = null;
       } else {

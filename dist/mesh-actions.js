@@ -24,7 +24,7 @@ function regenerate() {
   document.body.classList.remove('is-rebuilding');
 
   const exportRes = photoWorkingDetail(MC.getExportDetail(AppState.detail));
-  const photoTone = AppState.photo && (AppState.photo.style === 'smooth' || AppState.photo.style === 'lithophane');
+  const photoTone = AppState.photo && (AppState.photo.style === 'smooth' || AppState.photo.style === 'lithophane' || AppState.photo.style === 'poster');
   const previewRes = templateActive() ? 768 : (photoTone ? exportRes : MC.getPreviewDetail(AppState.detail, AppState.fullPreview));
   const built = buildHeightmapAtDetail(previewRes);
   if (!built) return;
