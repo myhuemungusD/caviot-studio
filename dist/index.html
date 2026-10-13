@@ -310,6 +310,12 @@
             </select>
             <canvas id="photoCrop" class="photo-crop" tabindex="0" role="application" aria-label="Crop the photo" aria-describedby="photoCropHelp"></canvas>
             <p class="muted-tip" id="photoCropHelp">Arrow keys move the crop. Shift+arrow keys resize it.</p>
+            <div class="photo-subject">
+              <button class="btn btn-ghost btn-sm" id="photoFind" type="button">Find subject</button>
+              <button class="btn btn-ghost btn-sm" id="photoTap" type="button" aria-pressed="false">Tap the subject</button>
+              <label class="check"><input type="checkbox" id="photoSwap" /> <span>Swap subject / background</span></label>
+            </div>
+            <p class="muted-tip" id="photoSubjectHelp">The subject is whatever covers the middle. Tap the subject if that picked the background.</p>
             <label class="check"><input type="checkbox" id="photoFocus" /> <span>Focus on subject</span></label>
             <div class="big-field">
               <div class="big-field-row">

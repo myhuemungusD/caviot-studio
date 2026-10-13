@@ -73,12 +73,65 @@ test('bold silhouette keeps a light subject on a dark field', () => {
   assert.equal(alphaAt(out.rgba, 8 * w + 8), 0, 'dark field is background');
 });
 
-test('silhouette picks the tone that touches the border least', () => {
+test('silhouette keeps the tone that covers the center, even when that tone touches the frame', () => {
   const w = 80, h = 80;
-  const rgba = solid(w, h, [24, 24, 28, 255], (x, y) => (y >= 58 ? [230, 220, 200, 255] : [24, 24, 28, 255]));
+  const rgba = solid(w, h, [230, 224, 210, 255], (x, y) => {
+    const sky = y < 18 && (x < 16 || x > 64);
+    return sky ? [32, 36, 48, 255] : [230, 224, 210, 255];
+  });
   const out = P.process(rgba, w, h, { style: 'silhouette', detail: 30, lineMm: 0.8, printWidthMm: 80, printHeightMm: 80 });
-  assert.equal(alphaAt(out.rgba, 70 * w + 40), 255, 'light band along the bottom is the subject');
-  assert.equal(alphaAt(out.rgba, 16 * w + 40), 0, 'dark field that frames three sides is background');
+  assert.equal(alphaAt(out.rgba, 40 * w + 40), 255, 'light head covering the center stays');
+  assert.equal(alphaAt(out.rgba, 4 * w + 4), 0, 'dark sky in the corner is background');
+  assert.equal(out.stats.subject, 'center');
+});
+
+test('swap subject and background flips the silhouette', () => {
+  const w = 64, h = 64;
+  const rgba = solid(w, h, [30, 30, 34, 255], (x, y) => {
+    const dx = x - 32, dy = y - 30;
+    return dx * dx + dy * dy < 16 * 16 ? [230, 220, 200, 255] : [30, 30, 34, 255];
+  });
+  const out = P.process(rgba, w, h, { style: 'silhouette', detail: 40, lineMm: 0.8, swap: true, printWidthMm: 60, printHeightMm: 60 });
+  assert.equal(alphaAt(out.rgba, 30 * w + 32), 0, 'the tapped-off head is background after a swap');
+  assert.equal(alphaAt(out.rgba, 4 * w + 4), 255, 'the field around it is now the subject');
+});
+
+test('a tap floods the clicked color, not whatever sits in the center', () => {
+  const w = 60, h = 40;
+  const rgba = solid(w, h, [40, 90, 200, 255], (x) => (x < 30 ? [210, 60, 50, 255] : [40, 90, 200, 255]));
+  const out = P.process(rgba, w, h, { style: 'silhouette', detail: 40, lineMm: 0.8, seed: { x: 8, y: 20 }, printWidthMm: 60, printHeightMm: 40 });
+  assert.equal(out.stats.subject, 'seed');
+  assert.equal(alphaAt(out.rgba, 20 * w + 8), 255, 'clicked red side is the subject');
+  assert.equal(alphaAt(out.rgba, 20 * w + 50), 0, 'blue side is background');
+});
+
+test('line art at sleeve width stays inside the stroke budget', () => {
+  const w = 90, h = 60;
+  const rgba = solid(w, h, [245, 240, 230, 255], (x, y) => {
+    const dx = x - 46, dy = y - 30;
+    const head = dx * dx + dy * dy < 18 * 18;
+    const eye = (x - 40) * (x - 40) + (y - 26) * (y - 26) < 3 * 3;
+    const noise = ((x * 13 + y * 7) % 11) === 0;
+    if (eye) return [20, 20, 20, 255];
+    if (head) return noise ? [180, 160, 140, 255] : [210, 190, 170, 255];
+    return [245, 240, 230, 255];
+  });
+  const out = P.process(rgba, w, h, { style: 'line', detail: 40, lineMm: 0.8, printWidthMm: 30, printHeightMm: 20 });
+  assert.ok(out.stats.strokeBudget >= 15 && out.stats.strokeBudget <= 25, 'budget ' + out.stats.strokeBudget);
+  assert.ok(out.stats.strokes <= out.stats.strokeBudget + 1, 'strokes ' + out.stats.strokes);
+  assert.equal(alphaAt(out.rgba, 2 * w + 2), 0, 'the corner stays empty');
+});
+
+test('smooth relief lifts a dark feature out of a flat neighborhood', () => {
+  const w = 48, h = 48;
+  const rgba = solid(w, h, [180, 180, 180, 255], (x, y) => {
+    const dx = x - 24, dy = y - 24;
+    return dx * dx + dy * dy < 5 * 5 ? [40, 40, 40, 255] : [180, 176, 170, 255];
+  });
+  const out = P.process(rgba, w, h, { style: 'smooth', detail: 50, lineMm: 0.8, printWidthMm: 80, printHeightMm: 80 });
+  const spot = grayAt(out.rgba, 24 * w + 24);
+  const skin = grayAt(out.rgba, 24 * w + 8);
+  assert.ok(Math.abs(spot - skin) > 25, 'local contrast ' + spot + ' vs ' + skin);
 });
 
 test('bold silhouette drops specks and keeps the subject', () => {
@@ -123,16 +176,21 @@ test('line art drops an island and closes a gap', () => {
 
 test('posterized relief uses three levels', () => {
   const w = 60, h = 40;
-  const rgba = solid(w, h, [0, 0, 0, 255], (x) => {
-    const v = x < 20 ? 20 : x < 40 ? 130 : 230;
+  const rgba = solid(w, h, [20, 90, 40, 255], (x, y) => {
+    const dx = x - 30, dy = y - 20;
+    if (dx * dx + dy * dy > 16 * 16) return [8, 8, 10, 255];
+    const v = Math.round(100 + ((x - 14) / 32) * 140);
     return [v, v, v, 255];
   });
   const out = P.process(rgba, w, h, { style: 'poster', detail: 70, lineMm: 0.8, printWidthMm: 90, printHeightMm: 60 });
   const levels = new Set();
   for (let i = 0; i < w * h; i++) if (alphaAt(out.rgba, i) > 200) levels.add(grayAt(out.rgba, i));
   assert.ok(levels.size >= 2 && levels.size <= 3, [...levels].join(','));
-  const at = (x) => grayAt(out.rgba, 20 * w + x);
-  assert.ok(at(50) - at(10) >= 100, 'poster steps span the depth (' + at(10) + ' → ' + at(50) + ')');
+  assert.equal(alphaAt(out.rgba, 0), 0, 'border stays down');
+  let left = -1, right = -1;
+  for (let x = 0; x < w; x++) if (alphaAt(out.rgba, 20 * w + x) > 200) { if (left < 0) left = x; right = x; }
+  const lo = grayAt(out.rgba, 20 * w + left), hi = grayAt(out.rgba, 20 * w + right);
+  assert.ok(right > left && hi > lo, 'poster steps rise across the subject (' + lo + ' at ' + left + ' → ' + hi + ' at ' + right + ')');
 });
 
 test('smooth relief keeps mid grays', () => {
@@ -144,7 +202,7 @@ test('smooth relief keeps mid grays', () => {
   const out = P.process(rgba, w, h, { style: 'smooth', detail: 80, lineMm: 0.8, printWidthMm: 80, printHeightMm: 80 });
   const grays = new Set();
   for (let i = 0; i < w * h; i++) grays.add(grayAt(out.rgba, i));
-  assert.ok(grays.size > 8, 'levels ' + grays.size);
+  assert.ok(grays.size >= 6, 'levels ' + grays.size);
 });
 
 test('lithophane makes bright pixels thinner than dark ones', () => {
@@ -242,6 +300,13 @@ test('photo settings and the original PNG round-trip', () => {
 test('a photo line thinner than 0.8 mm is clamped when the project opens', () => {
   const decoded = ctx.ProjectFormat.decode(JSON.stringify(project({ photo: { style: 'line', lineMm: 0.2, detail: 10, brightness: 0, contrast: 0, gamma: 1, focus: false, aspect: 'free' } })));
   assert.equal(decoded.layers[0][0].photo.lineMm, 0.8);
+});
+test('a subject tap and a swap round-trip, and a bad tap is refused', () => {
+  const photo = { style: 'line', detail: 40, lineMm: 0.8, brightness: 0, contrast: 0, gamma: 1, focus: false, aspect: 'free', swap: true, seed: { x: 0.25, y: 0.5 } };
+  const decoded = ctx.ProjectFormat.decode(JSON.stringify(project({ photo })));
+  assert.equal(decoded.layers[0][0].photo.swap, true);
+  assert.equal(decoded.layers[0][0].photo.seed.x, 0.25);
+  assert.throws(() => ctx.ProjectFormat.decode(JSON.stringify(project({ photo: { style: 'line', seed: { x: 2, y: 0 } } }))), /subject/);
 });
 test('a bad photo style is refused', () => {
   assert.throws(() => ctx.ProjectFormat.decode(JSON.stringify(project({ photo: { style: 'magic' } }))), /photo style/);

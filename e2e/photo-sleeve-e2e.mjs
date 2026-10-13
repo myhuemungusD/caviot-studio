@@ -41,38 +41,72 @@ async function open() {
 }
 async function frame(p, kind) {
   await p.evaluate((kind) => {
-    if (kind === 'sleeve') {
-      if (typeof templateView === 'function') templateView('front');
-      return;
+    if (typeof meshObj === 'undefined' || !meshObj || !camera || !controls || !scene || !renderer) return;
+    if (typeof gridHelper !== 'undefined' && gridHelper) gridHelper.visible = false;
+    if (typeof axesHelper !== 'undefined' && axesHelper) axesHelper.visible = false;
+    const mats = meshObj.material ? (Array.isArray(meshObj.material) ? meshObj.material : [meshObj.material]) : [];
+    for (const material of mats) {
+      material.vertexColors = false;
+      material.color.setHex(0xd0d0d0);
+      material.metalness = 0;
+      material.roughness = 0.58;
+      material.needsUpdate = true;
     }
-    if (typeof meshObj === 'undefined' || !meshObj || !camera || !controls) return;
-    const box = new THREE.Box3().setFromObject(meshObj);
+    const ambients = [];
+    const directs = [];
+    scene.traverse((obj) => {
+      if (obj.isAmbientLight) ambients.push(obj);
+      if (obj.isDirectionalLight) directs.push(obj);
+    });
+    ambients.forEach((light) => { light.intensity = 0.16; light.color.setHex(0xffffff); });
+    directs.forEach((light, index) => { light.color.setHex(0xffffff); light.intensity = index === 0 ? 1.75 : 0; });
+    const box = new THREE.Box3();
+    const color = meshObj.geometry && meshObj.geometry.attributes && meshObj.geometry.attributes.color;
+    const pos = meshObj.geometry && meshObj.geometry.attributes && meshObj.geometry.attributes.position;
+    if (color && pos) {
+      const v = new THREE.Vector3();
+      for (let i = 0; i < color.count; i++) if (color.getY(i) < 0.62) box.expandByPoint(v.fromBufferAttribute(pos, i));
+    }
+    if (box.isEmpty()) box.setFromObject(meshObj);
+    else box.expandByScalar(Math.max(box.getSize(new THREE.Vector3()).length() * 0.04, 0.6));
     const size = new THREE.Vector3();
     const center = new THREE.Vector3();
     box.getSize(size);
     box.getCenter(center);
-    const maxDim = Math.max(size.x, size.y, size.z, 1);
     const fov = ((camera.fov || 40) * Math.PI) / 180;
-    const dist = (maxDim * 0.62) / Math.tan(fov / 2);
-    const elev = (30 * Math.PI) / 180;
-    const az = (16 * Math.PI) / 180;
-    camera.up.set(0, 1, 0);
-    camera.position.set(
-      center.x + dist * Math.cos(elev) * Math.sin(az),
-      center.y + dist * Math.sin(elev),
-      center.z + dist * Math.cos(elev) * Math.cos(az),
-    );
+    const aspect = camera.aspect || 1;
+    const key = directs[0];
+    if (kind === 'sleeve') {
+      const distY = (size.y * 0.5) / Math.tan(fov / 2);
+      const distX = (size.x * 0.5) / (Math.tan(fov / 2) * aspect);
+      const dist = Math.max(distX, distY, 1) * 1.08;
+      camera.up.set(0, 1, 0);
+      camera.position.set(center.x, center.y, center.z + dist);
+      if (key) key.position.set(center.x + size.x * 1.5, center.y + size.y * 0.12, center.z + dist * 0.25);
+    } else {
+      const distZ = (size.z * 0.5) / Math.tan(fov / 2);
+      const distX = (size.x * 0.5) / (Math.tan(fov / 2) * aspect);
+      const dist = Math.max(distX, distZ, 1) * 1.06;
+      camera.up.set(0, 0, -1);
+      camera.position.set(center.x, center.y + dist, center.z);
+      if (key) key.position.set(center.x + size.x * 1.7, center.y + Math.max(12, size.y * 3), center.z + size.z * 0.1);
+    }
     controls.target.copy(center);
     camera.lookAt(center);
     controls.update();
+    renderer.setClearColor(0x141416, 1);
+    renderer.render(scene, camera);
   }, kind);
-  await sleep(400);
+  await sleep(300);
 }
 async function shot(p, name, kind) {
   if (!shots) return;
   fs.mkdirSync(shots, { recursive: true });
   await frame(p, kind);
-  await p.locator('#threeContainer').screenshot({ path: path.join(shots, name) });
+  const file = path.join(shots, name);
+  await p.locator('#threeContainer canvas').screenshot({ path: file });
+  const judge = path.join(shots, 'judge-' + name);
+  execFileSync('ffmpeg', ['-y', '-i', file, '-vf', 'scale=200:-1', judge], { stdio: 'ignore' });
 }
 function composite(original, resultName, outName) {
   if (!shots) return;
@@ -138,6 +172,14 @@ function previewSig(p) {
       const depth = await p.evaluate(() => AppState.depthMm);
       ok(depth >= 1.1 && depth <= 1.3, 'poster depth defaults to 1.2 mm (' + depth + ')');
     }
+    if (style === 'smooth') {
+      const depth = await p.evaluate(() => AppState.depthMm);
+      ok(depth >= 1.5 && depth <= 2.05, 'smooth depth defaults to 2 mm (' + depth + ')');
+    }
+    if (style === 'lithophane') {
+      const depth = await p.evaluate(() => AppState.depthMm);
+      ok(depth >= 2.05 && depth <= 2.35, 'lithophane depth defaults to 2.2 mm (' + depth + ')');
+    }
     await shot(p, 'sleeve-' + style + '.png', 'sleeve');
     composite(IMAGE, 'sleeve-' + style + '.png', 'compare-sleeve-' + style + '.png');
     const previewShot = path.join(shots || '', 'preview-' + style + '.png');
@@ -193,8 +235,13 @@ function previewSig(p) {
       ok(!mesh.err && mesh.sharp, 'flat ' + style + ' uses an outline mesh' + (mesh.err ? ' (' + mesh.err + ')' : ''));
     }
   }
-  const plate = await p.evaluate(() => ({ mode: AppState.mode, wall: AppState.wall, style: AppState.photo && AppState.photo.style }));
+  const plate = await p.evaluate(() => ({ mode: AppState.mode, wall: AppState.wall, style: AppState.photo && AppState.photo.style, base: AppState.baseThickness, depth: AppState.depthMm }));
   ok(plate.mode === 'flat' && plate.style === 'lithophane' && plate.wall === wall, 'flat plate lithophane, wall still ' + plate.wall);
+  ok(Math.abs(plate.base - 0.8) < 0.05 && plate.depth >= 2.05 && plate.depth <= 2.35, 'lithophane thickness runs about 0.8 mm to 3 mm (base ' + plate.base + ', depth ' + plate.depth + ')');
+  ok(await p.evaluate(() => !!document.getElementById('photoFind') && !!document.getElementById('photoTap') && !!document.getElementById('photoSwap')), 'subject tools are on the page');
+  await p.click('#photoFind');
+  await p.waitForFunction(() => !!(AppState.photo && typeof AppState.photo.subjectBits === 'string' && AppState.photo.subjectBits.length > 16 && !photoBusy), null, { timeout: 120000 });
+  ok(true, 'find subject stored a mask without precaching it into the first paint');
   ok(!errors.some((e) => /PhotoRelief|photo-worker|is not defined/.test(e)), 'no photo script errors ' + errors.slice(0, 4).join(' | '));
 
   console.log('Portrait on the sleeve and the flat plate');

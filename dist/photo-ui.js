@@ -5,10 +5,10 @@
   const TIPS = {
     off: '',
     silhouette: 'One solid shape. The easiest to recognize on a small sleeve.',
-    line: 'Outlines thickened to the line width. Nothing is left thinner than 0.8 mm.',
+    line: 'The outline plus a few long strokes (eyes, nose, mouth). At 30 mm wide that is about 15 to 25 strokes, thickened to the line width.',
     poster: 'Three heights. The steps default to 0.6 mm and 1.2 mm so they stay readable.',
-    smooth: 'Keeps gray, for a face or a pet. It needs a larger print or it turns soft.',
-    lithophane: 'A thickness map for a flat plate held up to a light. Bright areas are thinner. The sleeve wall is not changed. Set the plate backing near 0.8 mm and the depth so the thickest part is about 3 mm.',
+    smooth: 'Keeps gray, for a face or a pet. Depth defaults to 2 mm so the relief is visible.',
+    lithophane: 'A thickness map for a flat plate held up to a light. Bright areas are thinner. Depth defaults to 2.2 mm and the plate backing to 0.8 mm, so the thickness runs from 0.8 mm to 3 mm. The sleeve wall is not changed.',
   };
 
   let jobId = 0;
@@ -20,7 +20,9 @@
   let fittedKey = '';
   let autoDepth = null;
   let depthTouched = false;
-  const PHOTO_DEPTH = { silhouette: 0.8, line: 0.8, poster: 1.2 };
+  const PHOTO_DEPTH = { silhouette: 0.8, line: 0.8, poster: 1.2, smooth: 2, lithophane: 2.2 };
+  let autoBase = null;
+  let baseTouched = false;
   let worker = null;
   let workerBroken = false;
   const priorSchedule = scheduleRebuild;
@@ -77,6 +79,48 @@
     if (depthTouched || autoDepth == null) return;
     autoDepth = null;
     writeDepth(0.4);
+  }
+  function writeBase(mm) {
+    AppState.baseThickness = mm;
+    const input = $('baseIn');
+    const label = $('baseVal');
+    if (input) input.value = String(mm);
+    if (label) label.textContent = mm.toFixed(1);
+  }
+  function applyAutoBase(style) {
+    if (style !== 'lithophane' || AppState.mode !== 'flat') return;
+    const current = AppState.baseThickness;
+    const untouched = !baseTouched && (Math.abs(current - 1) < 0.011 || (autoBase != null && Math.abs(current - autoBase) < 0.011));
+    if (!untouched) return;
+    autoBase = 0.8;
+    writeBase(0.8);
+  }
+  function restoreAutoBase() {
+    if (baseTouched || autoBase == null) return;
+    autoBase = null;
+    writeBase(1);
+  }
+  function packMask(mask) {
+    const bytes = new Uint8Array(Math.ceil(mask.length / 8));
+    for (let i = 0; i < mask.length; i++) if (mask[i]) bytes[i >> 3] |= 1 << (i & 7);
+    let text = '';
+    const step = 0x8000;
+    for (let i = 0; i < bytes.length; i += step) text += String.fromCharCode.apply(null, bytes.subarray(i, i + step));
+    return btoa(text);
+  }
+  function unpackMask(text, width, height) {
+    if (!text || width < 2 || height < 2) return null;
+    const bin = atob(text);
+    const mask = new Uint8Array(width * height);
+    for (let i = 0; i < mask.length; i++) mask[i] = (bin.charCodeAt(i >> 3) >> (i & 7)) & 1;
+    return mask;
+  }
+  function clearSubjectPick() {
+    if (!AppState.photo) return;
+    AppState.photo.seed = null;
+    AppState.photo.subjectBits = null;
+    AppState.photo.subjectW = null;
+    AppState.photo.subjectH = null;
   }
   function num(id, fallback) {
     const el = $(id);
@@ -146,6 +190,8 @@
     photo.gamma = num('photoGamma', photo.gamma);
     const focus = $('photoFocus');
     if (focus) photo.focus = focus.checked;
+    const swap = $('photoSwap');
+    if (swap) photo.swap = swap.checked;
     const aspect = $('photoAspect');
     if (aspect) photo.aspect = aspect.value;
     AppState.photo = photo;
@@ -187,6 +233,14 @@
       setRange('photoGamma', d.gamma);
       const focus = $('photoFocus');
       if (focus) focus.checked = !!(photo && photo.focus);
+      const swap = $('photoSwap');
+      if (swap) swap.checked = !!(photo && photo.swap);
+      const find = $('photoFind');
+      if (find) {
+        const phone = typeof CaviotDevice !== 'undefined' && CaviotDevice.tier === 'light';
+        find.disabled = phone;
+        find.title = phone ? 'Find subject needs a computer. Tap the subject on this phone.' : 'Separate the subject. Loaded only when you click, and not kept for offline use.';
+      }
       const aspect = $('photoAspect');
       if (aspect && photo && photo.aspect) aspect.value = photo.aspect;
       drawCrop();
@@ -245,6 +299,7 @@
     globalThis.photoBusy = false;
     if (AppState.photoSource) AppState.image = AppState.photoSource;
     restoreAutoDepth();
+    restoreAutoBase();
     AppState.photo = null;
     AppState.photoSource = null;
     lastPrintKey = '';
@@ -272,6 +327,7 @@
     const picked = document.querySelector('input[name="photoStyle"]:checked');
     const style = picked ? picked.value : 'off';
     if (style === 'off') { turnOff(); return; }
+    restoreAutoBase();
     if (!ensureSource()) {
       const off = $('photoStyleOff');
       if (off) off.checked = true;
@@ -281,6 +337,7 @@
     readPhoto();
     AppState.photo.style = style;
     applyAutoDepth(style);
+    applyAutoBase(style);
     maybeFit(true);
     syncUI();
     queueProcess();
@@ -291,6 +348,7 @@
     readPhoto();
     if (AppState.photo.aspect !== before) {
       if (AppState.photo.aspect === 'free') AppState.photo.crop = null;
+      clearSubjectPick();
       maybeFit(true);
       drawCrop();
     }
@@ -328,6 +386,11 @@
       contrast: photo.contrast,
       gamma: photo.gamma,
       focus: photo.focus,
+      swap: !!photo.swap,
+      seed: photo.seed ? { x: photo.seed.x * (pixels.width - 1), y: photo.seed.y * (pixels.height - 1) } : null,
+      subjectMask: photo.subjectBits ? unpackMask(photo.subjectBits, photo.subjectW, photo.subjectH) : null,
+      subjectWidth: photo.subjectW || 0,
+      subjectHeight: photo.subjectH || 0,
       printWidthMm: size.width,
       printHeightMm: size.height,
       width: pixels.width,
@@ -362,7 +425,7 @@
         finish(reject, Error('Photo conversion took too long'));
         try { thread.terminate(); } catch (_) { /* already gone */ }
         if (worker === thread) worker = null;
-      }, 20000);
+      }, 30000);
       function onMsg(event) {
         const data = event.data || {};
         if (data.id !== id) return;
@@ -401,6 +464,7 @@
     try {
       if (id !== jobId || !photoOn()) return;
       maybeFit(false);
+      applyAutoBase(AppState.photo.style);
       const pixels = sampleCanvas();
       const options = optionsFor(pixels);
       if (pixels.width * pixels.height > 4e6) throw Error('Photo is too large to convert. It will be scaled down first.');
@@ -480,6 +544,54 @@
     }
     return clampCrop(crop);
   }
+  let picking = false;
+  function setPicking(on) {
+    picking = !!on;
+    const button = $('photoTap');
+    const canvas = $('photoCrop');
+    if (button) button.setAttribute('aria-pressed', picking ? 'true' : 'false');
+    if (canvas) canvas.classList.toggle('is-picking', picking);
+    const help = $('photoSubjectHelp');
+    if (help) help.textContent = picking
+      ? 'Click the subject in the photo.'
+      : 'The subject is whatever covers the middle. Tap the subject if that picked the background.';
+  }
+  function rememberSeed(x, y) {
+    if (!AppState.photo) return;
+    clearSubjectPick();
+    AppState.photo.seed = { x: Math.min(1, Math.max(0, x)), y: Math.min(1, Math.max(0, y)) };
+    setPicking(false);
+    queueProcess();
+  }
+  async function findSubject() {
+    if (!photoOn() || !ensureSource()) return;
+    const find = $('photoFind');
+    if (find && find.disabled) {
+      toast('Find subject needs a computer. Tap the subject on this phone.', 'error');
+      return;
+    }
+    if (!globalThis.PhotoSegment) {
+      await new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = 'photo-segment.js';
+        script.onload = () => resolve();
+        script.onerror = () => reject(Error('Could not load the subject finder.'));
+        document.head.appendChild(script);
+      });
+    }
+    if (!PhotoSegment.allowed()) {
+      toast('Find subject needs a computer. Tap the subject on this phone.', 'error');
+      return;
+    }
+    const pixels = sampleCanvas();
+    const mask = await PhotoSegment.findSubject(pixels);
+    if (!AppState.photo) return;
+    clearSubjectPick();
+    AppState.photo.subjectBits = packMask(mask);
+    AppState.photo.subjectW = pixels.width;
+    AppState.photo.subjectH = pixels.height;
+    queueProcess();
+  }
   function bindCrop() {
     const canvas = $('photoCrop');
     if (!canvas) return;
@@ -489,6 +601,14 @@
       const rect = canvas.getBoundingClientRect();
       const x = (event.clientX - rect.left) / rect.width;
       const y = (event.clientY - rect.top) / rect.height;
+      if (picking) {
+        const crop = currentCrop();
+        if (x >= crop.x && y >= crop.y && x <= crop.x + crop.w && y <= crop.y + crop.h) {
+          rememberSeed((x - crop.x) / crop.w, (y - crop.y) / crop.h);
+        }
+        event.preventDefault();
+        return;
+      }
       const mode = hitHandle(currentCrop(), x, y);
       if (!mode) return;
       drag = { mode, x, y, crop: Object.assign({}, currentCrop()), pointer: event.pointerId };
@@ -510,6 +630,7 @@
     const end = (event) => {
       if (!drag || (event && event.pointerId !== drag.pointer)) return;
       drag = null;
+      clearSubjectPick();
       queueProcess();
     };
     canvas.addEventListener('pointerup', end);
@@ -589,7 +710,9 @@
     jobId++;
     clearTimeout(timer);
     restoreAutoDepth();
+    restoreAutoBase();
     depthTouched = false;
+    baseTouched = false;
     AppState.photo = null;
     AppState.photoSource = null;
     lastPrintKey = '';
@@ -628,6 +751,29 @@
     return result;
   };
 
+  const preview = $('photoPreview');
+  if (preview) preview.addEventListener('pointerdown', (event) => {
+    if (!picking || !photoOn()) return;
+    const rect = preview.getBoundingClientRect();
+    rememberSeed((event.clientX - rect.left) / rect.width, (event.clientY - rect.top) / rect.height);
+    event.preventDefault();
+  });
+  const tap = $('photoTap');
+  if (tap) tap.addEventListener('click', () => { if (photoOn()) setPicking(!picking); });
+  const find = $('photoFind');
+  if (find) find.addEventListener('click', () => {
+    findSubject().catch((error) => toast(error.message || 'Could not find a subject', 'error'));
+  });
+  const swap = $('photoSwap');
+  if (swap) swap.addEventListener('change', onControl);
+  const baseIn = $('baseIn');
+  if (baseIn) baseIn.addEventListener('input', () => {
+    const v = Number(baseIn.value);
+    if (autoBase == null || Math.abs(v - autoBase) > 0.05) {
+      baseTouched = true;
+      autoBase = null;
+    }
+  });
   const depthIn = $('depthIn');
   if (depthIn) depthIn.addEventListener('input', () => {
     const v = Number(depthIn.value);

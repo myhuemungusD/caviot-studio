@@ -42,9 +42,22 @@ globalThis.ProjectFormat={
     const num=(v,lo,hi,fallback)=>{if(v===undefined)return fallback;if(typeof v!=='number'||!Number.isFinite(v))throw Error('Invalid photo setting.');return Math.min(hi,Math.max(lo,v));};
     const focus=photo.focus===undefined?false:photo.focus;
     if(typeof focus!=='boolean')throw Error('Invalid photo setting.');
+    const swap=photo.swap===undefined?false:photo.swap;
+    if(typeof swap!=='boolean')throw Error('Invalid photo setting.');
     const aspect=photo.aspect===undefined?'free':photo.aspect;
     if(!aspects.includes(aspect))throw Error('Invalid photo crop.');
     const out={style:photo.style||'off',detail:num(photo.detail,0,100,40),lineMm:num(photo.lineMm,0.8,3,1.2),brightness:num(photo.brightness,-100,100,0),contrast:num(photo.contrast,-100,100,0),gamma:num(photo.gamma,0.3,3,1),focus,aspect};
+    if(swap)out.swap=true;
+    if(photo.seed!=null){
+      const s=photo.seed;
+      if(!s||typeof s!=='object'||Array.isArray(s)||typeof s.x!=='number'||typeof s.y!=='number'||!Number.isFinite(s.x)||!Number.isFinite(s.y)||s.x<0||s.y<0||s.x>1||s.y>1)throw Error('Invalid photo subject.');
+      out.seed={x:s.x,y:s.y};
+    }
+    if(photo.subjectBits!=null||photo.subjectW!=null||photo.subjectH!=null){
+      const w=photo.subjectW,h=photo.subjectH,bits=photo.subjectBits;
+      if(!Number.isInteger(w)||!Number.isInteger(h)||w<8||h<8||w>1024||h>1024||typeof bits!=='string'||bits.length<4||bits.length>200000||!/^[A-Za-z0-9+/]+=*$/.test(bits))throw Error('Invalid photo subject.');
+      out.subjectBits=bits;out.subjectW=w;out.subjectH=h;
+    }
     if(photo.crop!=null){
       const c=photo.crop;
       if(!c||typeof c!=='object'||Array.isArray(c))throw Error('Invalid photo crop.');

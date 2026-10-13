@@ -11,6 +11,7 @@ await test('dist/sw.js is current (run node build-sw.mjs after changing dist/)',
   assert(!m.precache.some(p=>/^fonts\/.+\.ttf$/.test(p)),'fonts on demand');
   assert(m.precache.includes('photo-relief.js')&&m.precache.includes('photo-ui.js')&&m.precache.includes('heic.js'),'photo scripts precached');
   assert(!m.precache.some(p=>p.startsWith('vendor/libheif/'))&&m.files['vendor/libheif/libheif.wasm'],'HEIC decoder on demand but versioned');
+  assert(!m.precache.some(p=>p.startsWith('vendor/onnx/')||p.startsWith('vendor/u2net/'))&&m.files['vendor/u2net/u2netp.onnx']&&m.files['vendor/onnx/ort-wasm-simd.wasm'],'subject finder on demand but versioned');
 });
 await test('manifest, icons and page wiring',()=>{
   const m=JSON.parse(read('manifest.webmanifest'));assert.equal(m.name,'Caviot Studio');assert.equal(m.display,'standalone');assert.equal(m.start_url,'./');

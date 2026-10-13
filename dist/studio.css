@@ -999,6 +999,9 @@ body:not(.using-template) .project-context #templateStatus:not(.error) { display
 #photoPanel { margin-bottom: 4px; }
 #photoPanel .panel-label { margin-top: 0; }
 #photoAspect { width: 100%; margin: 8px 0; }
+.photo-subject { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0; }
+.photo-crop.is-picking, #photoTap[aria-pressed="true"] { outline: 2px solid var(--accent); outline-offset: 2px; }
+.photo-crop.is-picking { cursor: crosshair; }
 .photo-crop, .photo-preview { width: 100%; height: auto; border-radius: 8px; background: #16171a; touch-action: none; }
 .photo-crop:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .photo-preview { image-rendering: pixelated; background: repeating-conic-gradient(#1c1d21 0% 25%, #26272c 0% 50%) 50% / 12px 12px; }
