@@ -27,8 +27,35 @@ function meshOptionsFromState(hm, rows, cols, mask) {
     curveRadius: Math.max(1, AppState.curveDiam / 2),
     curveAngle: AppState.curveAngle,
     curveFalloff: AppState.curveFalloff,
-    textRelief: textReliefOptions(),
+    textRelief: textReliefOptions() || photoOutlineOptions(),
   };
+}
+
+// Smooth and lithophane stay heightmaps. Their grid is scaled to the print so a pixel is about
+// 0.15 mm (0.2 mm on a phone), capped by that device's triangle budget. Binary photo styles
+// use outlines instead, and a photo that is off leaves the usual export detail untouched.
+function photoWorkingDetail(baseDetail) {
+  const style = AppState.photo && AppState.photo.style;
+  if (style !== 'smooth' && style !== 'lithophane') return baseDetail;
+  if (typeof templateActive === 'function' && templateActive()) return baseDetail;
+  const phone = typeof CaviotDevice !== 'undefined' && CaviotDevice.tier === 'light';
+  const mm = phone ? 0.2 : 0.15;
+  const width = AppState.mode === 'flat' ? (AppState.plateWidth || 100) : (AppState.designWidth || 30);
+  const img = AppState.image;
+  const aspect = img && img.width && img.height ? img.width / Math.max(1, img.height) : 1;
+  const height = AppState.mode === 'flat' ? width / Math.max(0.05, aspect) : (AppState.designHeight || width);
+  const longMm = Math.max(width, height);
+  const shortMm = Math.max(1, Math.min(width, height));
+  let detail = Math.ceil(longMm / mm);
+  const limits = typeof CaviotDevice !== 'undefined' && CaviotDevice.limits ? CaviotDevice.limits : null;
+  const meshBudget = limits && limits.meshBudget ? limits.meshBudget : 1400000;
+  const exportBudget = limits && limits.exportTriangleBudget < Infinity ? limits.exportTriangleBudget : meshBudget;
+  const budget = Math.min(meshBudget, exportBudget);
+  const cells = (longMm / mm) * (shortMm / mm);
+  if (cells * 2 > budget) detail = Math.max(80, Math.floor(detail * Math.sqrt(budget / (cells * 2))));
+  const device = typeof CaviotDevice !== 'undefined' && CaviotDevice.DEVICE ? CaviotDevice.DEVICE[CaviotDevice.tier] : null;
+  if (device && Number.isFinite(device.maxImageSide)) detail = Math.min(detail, device.maxImageSide);
+  return Math.max(baseDetail, Math.min(detail, 1400));
 }
 
 // ---------- Sharp lettering ----------
@@ -177,6 +204,83 @@ function textReliefOptions(state = AppState) {
       lastBackingError = msg;
     }
   } else lastBackingError = '';
+  return opts;
+}
+
+// Silhouette, line and poster on a flat plate are traced like sharp lettering, so the edge is a
+// curve instead of the 160-column preview grid. Sleeve templates keep their own contour path.
+const photoTraceCache = new WeakMap();
+function photoTraceSource(img, style) {
+  if (!img) return null;
+  const cached = photoTraceCache.get(img);
+  if (cached && cached.style === style) return cached.src;
+  let src = null;
+  try {
+    const w = img.naturalWidth || img.width, h = img.naturalHeight || img.height;
+    if (w >= 8 && h >= 8 && w * h <= TEXT_TRACE_MAX_PIXELS) {
+      const c = document.createElement('canvas');
+      c.width = w; c.height = h;
+      const cx = c.getContext('2d', { willReadFrequently: true });
+      cx.drawImage(img, 0, 0);
+      const data = cx.getImageData(0, 0, w, h).data;
+      const lum = new Float32Array(w * h);
+      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+        const p = (y * w + x) * 4;
+        // A 1 px clear frame keeps a subject that touches the photo edge from welding to the plate rim.
+        const edge = x === 0 || y === 0 || x === w - 1 || y === h - 1;
+        lum[y * w + x] = edge ? 0 : (0.299 * data[p] + 0.587 * data[p + 1] + 0.114 * data[p + 2]) * data[p + 3] / 65025;
+      }
+      const tol = Math.max(0.4, Math.min(1.1, Math.max(w, h) / 800));
+      const norm = (l) => Float32Array.from(l, (v, i) => (i % 2 ? v / h : v / w));
+      if (style === 'poster') {
+        const mid = new Float32Array(w * h), high = new Float32Array(w * h);
+        for (let i = 0; i < lum.length; i++) {
+          if (lum[i] >= 0.34) mid[i] = 1;
+          if (lum[i] >= 0.75) high[i] = 1;
+        }
+        src = {
+          w, h,
+          mid: TextRelief.prepare(TextRelief.trace(mid, w, h, 0.5), tol, 6).map(norm),
+          high: TextRelief.prepare(TextRelief.trace(high, w, h, 0.5), tol, 6).map(norm),
+        };
+        if (!src.mid.length && !src.high.length) src = null;
+      } else {
+        const loops = TextRelief.prepare(TextRelief.trace(lum, w, h, 0.5), tol, 6).map(norm);
+        src = loops.length ? { w, h, loops } : null;
+      }
+    }
+  } catch (e) {
+    console.warn('Photo outline unavailable; using the grid.', e);
+    src = null;
+  }
+  photoTraceCache.set(img, { style, src });
+  return src;
+}
+
+function photoOutlineOptions(state = AppState) {
+  if (typeof TextRelief === 'undefined' || templateActive() || state.mode !== 'flat') return null;
+  const style = state.photo && state.photo.style;
+  if (style !== 'silhouette' && style !== 'line' && style !== 'poster') return null;
+  const src = photoTraceSource(state.image, style);
+  if (!src) return null;
+  const s = Math.max(0.1, Math.min(1, state.logoSizePct / 100));
+  const place = (loops) => (loops || []).map((l) => {
+    const out = new Float32Array(l.length);
+    for (let i = 0; i < l.length; i += 2) {
+      const u = 0.5 + (l[i] - 0.5) * s;
+      out[i] = state.mirror ? 1 - u : u;
+      out[i + 1] = 0.5 + (l[i + 1] - 0.5) * s;
+    }
+    return out;
+  });
+  const depth = state.plateWidth * src.h / src.w;
+  const limits = textDeviceLimits();
+  const opts = style === 'poster'
+    ? { photoTiers: true, loops: place(src.high), midLoops: place(src.mid), backing: 'plate', inkHigh: state.invert !== false, depth }
+    : { loops: place(src.loops), backing: 'plate', inkHigh: state.invert !== false, depth };
+  if (limits) opts.maxFaces = limits.maxFaces;
+  if (style === 'poster' && !opts.loops.length && !opts.midLoops.length) return null;
+  if (style !== 'poster' && !opts.loops.length) return null;
   return opts;
 }
 

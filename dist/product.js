@@ -105,7 +105,7 @@ function exportCurrent(format){
   setTimeout(()=>{
     let worker;
     try{
-      const built=buildHeightmapAtDetail(MC.getExportDetail(AppState.detail));
+      const built=buildHeightmapAtDetail(photoWorkingDetail(MC.getExportDetail(AppState.detail)));
       if(!built)throw Error('Add a valid image first.');
       const options=meshOptionsFromState(built.hm,built.rows,built.cols,built.mask);
       worker=new Worker('export-worker.js');

@@ -2,12 +2,14 @@
 // usage: node e2e/photo-sleeve-e2e.mjs <baseURL> [shotDir]
 // needs: npm i playwright-core; Chrome at $CHROME (default /usr/bin/google-chrome).
 import { chromium } from 'playwright-core';
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
 const base = (process.argv[2] || 'http://127.0.0.1:4173/').replace(/\/?$/, '/');
 const shots = process.argv[3] || '';
 const IMAGE = new URL('./fixtures/labrador.jpg', import.meta.url).pathname;
+const PORTRAIT = new URL('./fixtures/portrait.jpg', import.meta.url).pathname;
 const HEIC = path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'test-fixtures', 'tiny.heic');
 const browser = await chromium.launch({
   executablePath: process.env.CHROME || '/usr/bin/google-chrome',
@@ -37,10 +39,49 @@ async function open() {
   await settle(p);
   return { ctx, p, errors };
 }
-async function shot(p, name) {
+async function frame(p, kind) {
+  await p.evaluate((kind) => {
+    if (kind === 'sleeve') {
+      if (typeof templateView === 'function') templateView('front');
+      return;
+    }
+    if (typeof meshObj === 'undefined' || !meshObj || !camera || !controls) return;
+    const box = new THREE.Box3().setFromObject(meshObj);
+    const size = new THREE.Vector3();
+    const center = new THREE.Vector3();
+    box.getSize(size);
+    box.getCenter(center);
+    const maxDim = Math.max(size.x, size.y, size.z, 1);
+    const fov = ((camera.fov || 40) * Math.PI) / 180;
+    const dist = (maxDim * 0.62) / Math.tan(fov / 2);
+    const elev = (30 * Math.PI) / 180;
+    const az = (16 * Math.PI) / 180;
+    camera.up.set(0, 1, 0);
+    camera.position.set(
+      center.x + dist * Math.cos(elev) * Math.sin(az),
+      center.y + dist * Math.sin(elev),
+      center.z + dist * Math.cos(elev) * Math.cos(az),
+    );
+    controls.target.copy(center);
+    camera.lookAt(center);
+    controls.update();
+  }, kind);
+  await sleep(400);
+}
+async function shot(p, name, kind) {
   if (!shots) return;
   fs.mkdirSync(shots, { recursive: true });
+  await frame(p, kind);
   await p.locator('#threeContainer').screenshot({ path: path.join(shots, name) });
+}
+function composite(original, resultName, outName) {
+  if (!shots) return;
+  const result = path.join(shots, resultName);
+  const out = path.join(shots, outName);
+  if (!fs.existsSync(original) || !fs.existsSync(result)) return;
+  execFileSync('ffmpeg', ['-y', '-i', original, '-i', result, '-filter_complex',
+    '[0:v]scale=640:640:force_original_aspect_ratio=decrease,pad=640:640:(ow-iw)/2:(oh-ih)/2:color=white[a];[1:v]scale=640:640:force_original_aspect_ratio=decrease,pad=640:640:(ow-iw)/2:(oh-ih)/2:color=0x1a1a1a[b];[a][b]hstack=inputs=2',
+    out], { stdio: 'ignore' });
 }
 async function useStyle(p, value) {
   await p.click('label[for="photoStyle' + value.charAt(0).toUpperCase() + value.slice(1) + '"]');
@@ -80,7 +121,7 @@ function previewSig(p) {
     fs.mkdirSync(shots, { recursive: true });
     fs.copyFileSync(IMAGE, path.join(shots, 'original-labrador.jpg'));
   }
-  await shot(p, 'sleeve-original.png');
+  await shot(p, 'sleeve-original.png', 'sleeve');
 
   const styles = ['silhouette', 'line', 'poster', 'smooth', 'lithophane'];
   const sigs = [];
@@ -89,7 +130,16 @@ function previewSig(p) {
     const sig = await previewSig(p);
     sigs.push(sig.sum + ':' + sig.ink);
     ok(sig.w > 8 && sig.h > 8, style + ' preview is drawn (' + sig.w + '×' + sig.h + ')');
-    await shot(p, 'sleeve-' + style + '.png');
+    if (style === 'silhouette') {
+      const depth = await p.evaluate(() => AppState.depthMm);
+      ok(Math.abs(depth - 0.8) < 0.05, 'silhouette depth defaults to 0.8 mm (' + depth + ')');
+    }
+    if (style === 'poster') {
+      const depth = await p.evaluate(() => AppState.depthMm);
+      ok(depth >= 1.1 && depth <= 1.3, 'poster depth defaults to 1.2 mm (' + depth + ')');
+    }
+    await shot(p, 'sleeve-' + style + '.png', 'sleeve');
+    composite(IMAGE, 'sleeve-' + style + '.png', 'compare-sleeve-' + style + '.png');
     const previewShot = path.join(shots || '', 'preview-' + style + '.png');
     if (shots) await p.locator('#photoPreview').screenshot({ path: previewShot });
   }
@@ -136,11 +186,42 @@ function previewSig(p) {
   ok(await settle(p), 'flat plate mode');
   for (const style of styles) {
     await useStyle(p, style);
-    await shot(p, 'plate-' + style + '.png');
+    await shot(p, 'plate-' + style + '.png', 'plate');
+    composite(IMAGE, 'plate-' + style + '.png', 'compare-plate-' + style + '.png');
+    if (style === 'silhouette' || style === 'line' || style === 'poster') {
+      const mesh = await p.evaluate(() => ({ err: AppState.lastTextReliefError, sharp: !!AppState.lastTextRelief }));
+      ok(!mesh.err && mesh.sharp, 'flat ' + style + ' uses an outline mesh' + (mesh.err ? ' (' + mesh.err + ')' : ''));
+    }
   }
   const plate = await p.evaluate(() => ({ mode: AppState.mode, wall: AppState.wall, style: AppState.photo && AppState.photo.style }));
   ok(plate.mode === 'flat' && plate.style === 'lithophane' && plate.wall === wall, 'flat plate lithophane, wall still ' + plate.wall);
   ok(!errors.some((e) => /PhotoRelief|photo-worker|is not defined/.test(e)), 'no photo script errors ' + errors.slice(0, 4).join(' | '));
+
+  console.log('Portrait on the sleeve and the flat plate');
+  await p.click('label[for="exportSleeve"]');
+  await p.waitForFunction(() => AppState.mode === 'sleeve', null, { timeout: 10000 });
+  await p.setInputFiles('#fileInput', PORTRAIT);
+  await p.waitForFunction(() => !!AppState.image && AppState.image.height > AppState.image.width, null, { timeout: 30000 });
+  ok(await settle(p), 'portrait placed on the sleeve');
+  if (shots) fs.copyFileSync(PORTRAIT, path.join(shots, 'original-portrait.jpg'));
+  await shot(p, 'portrait-sleeve-original.png', 'sleeve');
+  for (const style of styles) {
+    await useStyle(p, style);
+    await shot(p, 'portrait-sleeve-' + style + '.png', 'sleeve');
+    composite(PORTRAIT, 'portrait-sleeve-' + style + '.png', 'compare-portrait-sleeve-' + style + '.png');
+  }
+  await p.click('label[for="exportFlat"]');
+  await p.waitForFunction(() => AppState.mode === 'flat', null, { timeout: 10000 });
+  ok(await settle(p), 'portrait flat plate');
+  for (const style of styles) {
+    await useStyle(p, style);
+    await shot(p, 'portrait-plate-' + style + '.png', 'plate');
+    composite(PORTRAIT, 'portrait-plate-' + style + '.png', 'compare-portrait-plate-' + style + '.png');
+    if (style === 'poster') {
+      const mesh = await p.evaluate(() => ({ err: AppState.lastTextReliefError, sharp: !!AppState.lastTextRelief, depth: AppState.depthMm }));
+      ok(!mesh.err && mesh.sharp && mesh.depth >= 1.1, 'portrait poster is an outline at ' + mesh.depth + ' mm' + (mesh.err ? ' (' + mesh.err + ')' : ''));
+    }
+  }
   await ctx.close();
 }
 

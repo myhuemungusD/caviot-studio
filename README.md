@@ -59,7 +59,7 @@ When text lands on a flat plate, the letters start 2 mm tall (with the default 1
 
 Known, not changed: on main, a closed bottom with a push-out hole builds the hole wall with reversed winding (80 duplicate directed edges in the test). Fixing it would change image exports, so it is left as is and noted here.
 
-Tests: `node text-relief-tests.mjs` (131 checks: trace accuracy, closed meshes in every shape, exact volumes, deviation against the grid, fallback, byte-identical image meshes, a tight face budget coarsens bent lettering, and an outline backing over the pixel budget is refused). `node e2e/text-relief-e2e.mjs http://127.0.0.1:4190/` (83 checks in Chrome: five fonts within 0.05 mm with no stair steps; every flat backing, logo only and sleeve exported through Export STL closed and wound; spacing/thickness; templates and images untouched; text defaults; Uniform scale with undo).
+Tests: `node text-relief-tests.mjs` (135 checks: trace accuracy, closed meshes in every shape, exact volumes, deviation against the grid, fallback, byte-identical image meshes, a tight face budget coarsens bent lettering, and an outline backing over the pixel budget is refused). `node e2e/text-relief-e2e.mjs http://127.0.0.1:4190/` (83 checks in Chrome: five fonts within 0.05 mm with no stair steps; every flat backing, logo only and sleeve exported through Export STL closed and wound; spacing/thickness; templates and images untouched; text defaults; Uniform scale with undo).
 
 ## Validation boundaries
 
@@ -266,7 +266,7 @@ Why these styles, and not a raw heightmap or a neural cutout, is written up in `
 - **Focus on subject** drops a background that touches the edges of the crop. It does not download a segmentation model.
 - **Non-destructive.** The original photo and the settings are stored on the design. Turning the style off, or opening the project again, restores them. Undo covers the conversion.
 - **HEIC.** iPhone photos decode with the browser when it can, otherwise with libheif-js 1.23.5 (LGPL-3.0) in `dist/vendor/libheif/`. That wasm is loaded only when needed and is not precached. See `dist/vendor/libheif/SOURCE.txt`.
-- **Tests.** `node photo-relief-tests.mjs` checks the pixel transforms, the 0.8 mm floor, the HEIC fixture, and project round-trip. `node e2e/photo-sleeve-e2e.mjs <url>` runs the styles on a public-domain labrador photo (`e2e/fixtures/labrador.jpg`, see `e2e/fixtures/PHOTO-LICENSE.txt`).
+- **Tests.** `node photo-relief-tests.mjs` checks the pixel transforms, border-least silhouette polarity, line-art cleanup, the 0.8 mm floor, the HEIC fixture, and project round-trip. `node e2e/photo-sleeve-e2e.mjs <url>` runs the styles on a public-domain labrador and a public-domain portrait (`e2e/fixtures/`, see `PHOTO-LICENSE.txt`). Flat silhouette, line and poster plates are meshed from outlines. Smooth and lithophane grids follow the print size (about 0.15 mm per pixel, 0.2 mm on a phone).
 
 ## Mac desktop app
 

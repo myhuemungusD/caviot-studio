@@ -78,8 +78,9 @@ const PhotoRelief = (() => {
   }
 
   // Edge-preserving smooth. A small range sigma keeps a face outline; a large one melts texture.
-  function bilateral(src, width, height, sigmaS, sigmaR) {
-    const radius = Math.max(1, Math.min(5, Math.ceil(sigmaS * 1.6)));
+  // radiusCap stays at 5 for the usual pass. Tonal separation asks for a wider window.
+  function bilateral(src, width, height, sigmaS, sigmaR, radiusCap) {
+    const radius = Math.max(1, Math.min(radiusCap || 5, Math.ceil(sigmaS * 1.6)));
     const spatial = new Float32Array(radius + 1);
     for (let i = 0; i <= radius; i++) spatial[i] = Math.exp(-(i * i) / (2 * sigmaS * sigmaS));
     const twoR = 2 * sigmaR * sigmaR;
@@ -244,17 +245,48 @@ const PhotoRelief = (() => {
     return close(open(mask, width, height, 1), width, height, 1);
   }
 
-  function xdog(lum, width, height, sigma) {
+  function xdog(lum, width, height, sigma, strictness) {
+    const s = strictness || 0;
     const fine = blur(lum, width, height, Math.max(0.6, sigma));
-    const coarse = blur(lum, width, height, Math.max(0.8, sigma * 1.6));
+    const coarse = blur(lum, width, height, Math.max(0.8, sigma * (1.6 + s * 0.5)));
     const ink = new Uint8Array(lum.length);
-    const tau = 0.98, epsilon = 0.004, phi = 32;
+    const tau = 0.98, epsilon = 0.004 + s * 0.008, phi = 32, cutoff = 0.82 - s * 0.12;
     for (let i = 0; i < lum.length; i++) {
       const dog = fine[i] - tau * coarse[i];
       const shaped = dog >= epsilon ? 1 : 1 + Math.tanh(phi * (dog - epsilon));
-      ink[i] = shaped < 0.82 ? 1 : 0;
+      ink[i] = shaped < cutoff ? 1 : 0;
     }
     return ink;
+  }
+
+  // How many mask pixels sit on the image border.
+  function borderContact(mask, width, height) {
+    let n = 0;
+    for (let x = 0; x < width; x++) {
+      if (mask[x]) n++;
+      if (height > 1 && mask[(height - 1) * width + x]) n++;
+    }
+    for (let y = 1; y < height - 1; y++) {
+      const row = y * width;
+      if (mask[row]) n++;
+      if (width > 1 && mask[row + width - 1]) n++;
+    }
+    return n;
+  }
+
+  // Subject is the tone that touches the border least: a light head on a dark field, or a dark head on a light one.
+  function chooseSubject(lum, width, height, level) {
+    const dark = new Uint8Array(lum.length), light = new Uint8Array(lum.length);
+    for (let i = 0; i < lum.length; i++) {
+      if (lum[i] < level) dark[i] = 1;
+      else light[i] = 1;
+    }
+    const darkBorder = borderContact(dark, width, height);
+    const lightBorder = borderContact(light, width, height);
+    if (darkBorder !== lightBorder) return darkBorder < lightBorder ? dark : light;
+    let darkN = 0, lightN = 0;
+    for (let i = 0; i < lum.length; i++) { darkN += dark[i]; lightN += light[i]; }
+    return darkN <= lightN ? dark : light;
   }
 
   function quantize3(lum) {
@@ -369,7 +401,7 @@ const PhotoRelief = (() => {
 
   function process(rgba, width, height, options) {
     if (!rgba || rgba.length !== width * height * 4 || width < 8 || height < 8) throw Error('Photo is too small to convert.');
-    if (width * height > 1.2e6) throw Error('Photo is too large to convert. It will be scaled down first.');
+    if (width * height > 4e6) throw Error('Photo is too large to convert. It will be scaled down first.');
     const style = options && options.style;
     if (STYLES.indexOf(style) === -1 || style === 'off') throw Error('Unknown photo style: ' + style);
     const detail = clamp(Number(options.detail) || 0, 0, 100);
@@ -390,8 +422,17 @@ const PhotoRelief = (() => {
     const sigmaS = 0.7 + simplify * 3.2;
     const sigmaR = 0.05 + simplify * 0.16;
     let lum = luminanceOf(adjusted.rgba, width, height);
-    lum = bilateral(lum, width, height, sigmaS, sigmaR);
-    if (style !== 'lithophane') lum = stretch(lum, 0.02, 0.98);
+    if (style === 'silhouette') {
+      // Flatten fur and skin first, then threshold. A wide range melts texture; the subject/background step stays.
+      const flatS = 2.2 + simplify * 3.4;
+      const flatR = 0.18 + simplify * 0.14;
+      lum = bilateral(lum, width, height, flatS, flatR, 12);
+      lum = bilateral(lum, width, height, Math.max(1.5, flatS * 0.75), flatR, 12);
+      lum = stretch(lum, 0.04, 0.96);
+    } else {
+      lum = bilateral(lum, width, height, sigmaS, sigmaR);
+      if (style !== 'lithophane') lum = stretch(lum, 0.02, 0.98);
+    }
     const featureMm = lineMm;
     const radius = radiusForMm(featureMm, printWidthMm, width);
     const minArea = Math.max(4, Math.round(Math.pow(Math.max(1, featureMm * pxPerMm(printWidthMm, width)), 2) * 0.35));
@@ -399,34 +440,30 @@ const PhotoRelief = (() => {
     let values, alpha, lostNote = '';
 
     if (style === 'silhouette') {
-      let ink;
-      if (focus) ink = Uint8Array.from(focus);
-      else {
-        const level = otsu(lum);
-        let borderDark = 0, borderN = 0;
-        const band = Math.max(1, Math.round(Math.min(width, height) * 0.06));
-        for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
-          if (x >= band && y >= band && x < width - band && y < height - band) continue;
-          borderN++;
-          if (lum[y * width + x] < level) borderDark++;
-        }
-        const darkIsSubject = borderDark < borderN * 0.5;
-        ink = new Uint8Array(lum.length);
-        for (let i = 0; i < lum.length; i++) ink[i] = (lum[i] < level) === darkIsSubject ? 1 : 0;
-      }
-      const sealed = close(ink, width, height, Math.max(1, Math.ceil(radius * 0.45)));
-      const opened = open(sealed, width, height, Math.max(1, Math.ceil(radius)));
-      const kept = components(opened, width, height, minArea, 0.12);
+      // A 1 px open drops salt. Closing joins ears to the head. Opening by the full line width
+      // eats the head down to a couple of blobs, so that step is not used.
+      let ink = focus ? Uint8Array.from(focus) : chooseSubject(lum, width, height, otsu(lum));
+      ink = open(ink, width, height, 1);
+      const seal = Math.max(1, Math.round(radius * 0.35));
+      ink = close(ink, width, height, seal);
+      const kept = components(ink, width, height, minArea, 0.02);
       values = new Float32Array(kept.mask.length);
       for (let i = 0; i < kept.mask.length; i++) values[i] = kept.mask[i] ? 1 : 0;
       alpha = kept.mask;
     } else if (style === 'line') {
       const sigma = 0.7 + simplify * 2.4;
-      let ink = xdog(lum, width, height, sigma);
+      let ink = xdog(lum, width, height, sigma, simplify);
       if (focus) for (let i = 0; i < ink.length; i++) if (!focus[i]) ink[i] = 0;
-      const specks = components(ink, width, height, Math.max(3, Math.round(minArea * 0.25)), 0);
-      ink = dilate(specks.mask, width, height, Math.max(1, Math.ceil(radius)));
-      const kept = components(ink, width, height, minArea, 0);
+      // Join one-pixel breaks first so a real stroke is one piece, then drop islands under the
+      // minimum feature area before they get thickened into specks.
+      ink = close(ink, width, height, 1);
+      const featurePx = Math.max(1, featureMm * pxPerMm(printWidthMm, width));
+      const island = Math.max(minArea, Math.round(featurePx * featurePx));
+      let kept = components(ink, width, height, island, 0);
+      const gap = Math.max(1, Math.ceil(radius * 0.65));
+      ink = close(kept.mask, width, height, gap);
+      ink = dilate(ink, width, height, Math.max(1, Math.ceil(radius)));
+      kept = components(ink, width, height, minArea, 0);
       values = new Float32Array(kept.mask.length);
       for (let i = 0; i < kept.mask.length; i++) values[i] = kept.mask[i] ? 1 : 0;
       alpha = kept.mask;
@@ -441,7 +478,7 @@ const PhotoRelief = (() => {
       }
       const levels = cleanLevels(quantize3(work), width, height, minArea);
       values = new Float32Array(levels.length);
-      const step = [0.12, 0.56, 1];
+      const step = [0, 0.5, 1];
       for (let i = 0; i < levels.length; i++) values[i] = step[levels[i]];
       alpha = focus ? Uint8Array.from(focus) : null;
       if (focus) for (let i = 0; i < focus.length; i++) if (!focus[i]) values[i] = 0;

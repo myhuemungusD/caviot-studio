@@ -23,8 +23,9 @@ function regenerate() {
   }
   document.body.classList.remove('is-rebuilding');
 
-  const exportRes = MC.getExportDetail(AppState.detail);
-  const previewRes = templateActive() ? 768 : MC.getPreviewDetail(AppState.detail, AppState.fullPreview);
+  const exportRes = photoWorkingDetail(MC.getExportDetail(AppState.detail));
+  const photoTone = AppState.photo && (AppState.photo.style === 'smooth' || AppState.photo.style === 'lithophane');
+  const previewRes = templateActive() ? 768 : (photoTone ? exportRes : MC.getPreviewDetail(AppState.detail, AppState.fullPreview));
   const built = buildHeightmapAtDetail(previewRes);
   if (!built) return;
 
@@ -52,7 +53,7 @@ function regenerate() {
 
 function buildExportMesh() {
   if (!AppState.image) return null;
-  const detail = MC.getExportDetail(AppState.detail);
+  const detail = photoWorkingDetail(MC.getExportDetail(AppState.detail));
   const built = buildHeightmapAtDetail(detail);
   if (!built) return null;
   return MC.buildMesh(meshOptionsFromState(built.hm, built.rows, built.cols, built.mask));

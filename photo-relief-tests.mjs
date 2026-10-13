@@ -59,6 +59,28 @@ test('Otsu splits a two-tone image', () => {
   assert.ok(t > 0.3 && t < 0.7, String(t));
 });
 
+test('bold silhouette keeps a light subject on a dark field', () => {
+  const w = 80, h = 80;
+  const rgba = solid(w, h, [28, 32, 36, 255], (x, y) => {
+    const dx = x - 40, dy = y - 36;
+    if (dx * dx + dy * dy < 20 * 20) return [236, 228, 210, 255];
+    if (x === 0 && y === 12) return [250, 250, 250, 255];
+    return [28, 32, 36, 255];
+  });
+  const out = P.process(rgba, w, h, { style: 'silhouette', detail: 40, lineMm: 0.8, printWidthMm: 80, printHeightMm: 80 });
+  assert.equal(alphaAt(out.rgba, 36 * w + 40), 255, 'light head stays');
+  assert.equal(alphaAt(out.rgba, 12), 0, 'light border speck is dropped');
+  assert.equal(alphaAt(out.rgba, 8 * w + 8), 0, 'dark field is background');
+});
+
+test('silhouette picks the tone that touches the border least', () => {
+  const w = 80, h = 80;
+  const rgba = solid(w, h, [24, 24, 28, 255], (x, y) => (y >= 58 ? [230, 220, 200, 255] : [24, 24, 28, 255]));
+  const out = P.process(rgba, w, h, { style: 'silhouette', detail: 30, lineMm: 0.8, printWidthMm: 80, printHeightMm: 80 });
+  assert.equal(alphaAt(out.rgba, 70 * w + 40), 255, 'light band along the bottom is the subject');
+  assert.equal(alphaAt(out.rgba, 16 * w + 40), 0, 'dark field that frames three sides is background');
+});
+
 test('bold silhouette drops specks and keeps the subject', () => {
   const w = 80, h = 80;
   const rgba = solid(w, h, [240, 240, 240, 255], (x, y) => {
@@ -84,6 +106,21 @@ test('line art thickens a hairline to the nozzle floor', () => {
   assert.ok(thick + 0.51 >= need, 'run ' + thick + ' px, need about ' + need);
 });
 
+test('line art drops an island and closes a gap', () => {
+  const w = 200, h = 80;
+  const rgba = solid(w, h, [250, 250, 250, 255], (x, y) => {
+    const onLine = y >= 38 && y <= 42 && (x < 96 || x > 98);
+    const speck = x === 8 && y === 6;
+    if (onLine || speck) return [0, 0, 0, 255];
+    return [250, 250, 250, 255];
+  });
+  const out = P.process(rgba, w, h, { style: 'line', detail: 50, lineMm: 0.8, printWidthMm: 40, printHeightMm: 16 });
+  let gapInk = 0;
+  for (let y = 0; y < h; y++) if (alphaAt(out.rgba, y * w + 97) > 128 && grayAt(out.rgba, y * w + 97) > 128) gapInk++;
+  assert.ok(gapInk >= 2, 'gap in the stroke is closed (' + gapInk + ' px)');
+  assert.equal(alphaAt(out.rgba, 6 * w + 8), 0, 'isolated speck is removed');
+});
+
 test('posterized relief uses three levels', () => {
   const w = 60, h = 40;
   const rgba = solid(w, h, [0, 0, 0, 255], (x) => {
@@ -94,6 +131,8 @@ test('posterized relief uses three levels', () => {
   const levels = new Set();
   for (let i = 0; i < w * h; i++) if (alphaAt(out.rgba, i) > 200) levels.add(grayAt(out.rgba, i));
   assert.ok(levels.size >= 2 && levels.size <= 3, [...levels].join(','));
+  const at = (x) => grayAt(out.rgba, 20 * w + x);
+  assert.ok(at(50) - at(10) >= 100, 'poster steps span the depth (' + at(10) + ' → ' + at(50) + ')');
 });
 
 test('smooth relief keeps mid grays', () => {

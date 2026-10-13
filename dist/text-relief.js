@@ -264,10 +264,53 @@
  function addCopy(V,loop,z){const ids=new Int32Array(loop.length/2);for(let i=0;i<loop.length;i+=2){ids[i/2]=V.X.length;V.X.push(loop[i]);V.Y.push(loop[i+1]);V.Z.push(z)}return ids}
  function cleanAll(loops,minLen){return loops.map(l=>clean(l,minLen)).filter(Boolean)}
 
+ // Poster photo: plate at the low step, a middle slab, and a high slab. Absent on lettering.
+ function buildPhotoTiers(o,MC){
+  const t=o.textRelief,width=Math.max(1,+o.width||100),depth=Math.max(1,+t.depth||width*(o.rows/o.cols)),base=Math.max(.1,+o.base||1),maxH=Math.max(0,+o.maxHeight||0),negative=!!o.negative;
+  if(!(maxH>=.005))throw Error('Relief needs some depth.');
+  const fx=u=>(u-.5)*width,fy=v=>(v-.5)*depth,minLen=1e-4;
+  const spacing=o.curveEnable?curveSpacing(width*depth,Math.max(1,+o.curveRadius||50)):0;
+  const unitH=u=>{const v=t.inkHigh===false?1-u:u;return negative?base+maxH-v*maxH:base+v*maxH};
+  const h0=unitH(0),h1=unitH(.5),h2=unitH(1);
+  const prep=loops=>orient(cleanAll(mapLoops(loops||[],fx,fy),minLen)).map(l=>densify(l,spacing));
+  const mid=prep(t.midLoops),high=prep(t.loops);
+  if(!mid.length&&!high.length)throw Error('No poster outline found.');
+  const B=[densify(Float64Array.from([-width/2,-depth/2,width/2,-depth/2,width/2,depth/2,-width/2,depth/2]),spacing)];
+  const V={X:[],Y:[],Z:[]},faces=[];
+  const bBot=B.map(l=>addCopy(V,l,0)),bTop=B.map(l=>addCopy(V,l,h0));
+  const plateHoles=mid.length?mid:high,holeBg=plateHoles.map(l=>addCopy(V,l,h0));
+  triangulate([...B,...plateHoles],[...bTop,...holeBg],true,faces,V.X,V.Y,V.Z,h0,spacing);
+  triangulate(B,bBot,false,faces,V.X,V.Y,V.Z,0,spacing);
+  B.forEach((l,k)=>walls(bBot[k],bTop[k],V.X,V.Y,false,faces));
+  const tierWall=(loops,idsOut,idsIn,zOut,zIn)=>{
+   if(!loops.length||Math.abs(zIn-zOut)<.005)return;
+   loops.forEach((l,k)=>zIn>zOut?walls(idsOut[k],idsIn[k],V.X,V.Y,false,faces):walls(idsIn[k],idsOut[k],V.X,V.Y,true,faces));
+  };
+  if(mid.length&&high.length){
+   const m1=mid.map(l=>addCopy(V,l,h1)),hAt1=high.map(l=>addCopy(V,l,h1)),hAt2=high.map(l=>addCopy(V,l,h2));
+   triangulate([...mid,...high],[...m1,...hAt1],true,faces,V.X,V.Y,V.Z,h1,spacing);
+   triangulate(high,hAt2,true,faces,V.X,V.Y,V.Z,h2,spacing);
+   tierWall(mid,holeBg,m1,h0,h1);tierWall(high,hAt1,hAt2,h1,h2);
+  }else{
+   const loops=mid.length?mid:high,zIn=mid.length?h1:h2,top=loops.map(l=>addCopy(V,l,zIn));
+   triangulate(loops,top,true,faces,V.X,V.Y,V.Z,zIn,spacing);
+   tierWall(loops,holeBg,top,h0,zIn);
+  }
+  const F=faces,n=V.X.length,positions=new Float32Array(n*3);
+  for(let i=0;i<n;i++){positions[i*3]=V.X[i];positions[i*3+1]=V.Z[i];positions[i*3+2]=V.Y[i]}
+  const indices=new Array(F.length);for(let f=0;f<F.length;f+=3){indices[f]=F[f];indices[f+1]=F[f+2];indices[f+2]=F[f+1]}
+  if(o.curveEnable)MC.curlPositions(positions,width,depth,o.curveDirection||'horizontal',Math.max(1,+o.curveRadius||50),+o.curveAngle||0,+o.curveFalloff||0);
+  check(positions,indices,MC);
+  const outlinePoints=mid.reduce((s,l)=>s+l.length/2,0)+high.reduce((s,l)=>s+l.length/2,0);
+  return {positions,indices,textRelief:true,info:{pieces:(mid.length?mid:high).filter(l=>area(l)>0).length,outlinePoints}};
+ }
+
  // Flat plate. o: MeshCore flat options plus o.textRelief = {loops, backing: 'plate'|'outline'|'letters', backingLoops}.
  // Plate coordinates: x = (u - .5) * width, z = (v - .5) * depth, y up; backing from y = 0.
  function buildFlat(o,MC){
-  const t=o.textRelief,width=Math.max(1,+o.width||100),depth=Math.max(1,+t.depth||width*(o.rows/o.cols)),base=Math.max(.1,+o.base||1),maxH=Math.max(0,+o.maxHeight||0),negative=!!o.negative,backing=t.backing||'plate';
+  const t=o.textRelief;
+  if(t&&t.photoTiers)return buildPhotoTiers(o,MC);
+  const width=Math.max(1,+o.width||100),depth=Math.max(1,+t.depth||width*(o.rows/o.cols)),base=Math.max(.1,+o.base||1),maxH=Math.max(0,+o.maxHeight||0),negative=!!o.negative,backing=t.backing||'plate';
   if(!(maxH>=.005))throw Error('Lettering needs some depth.');
   const fx=u=>(u-.5)*width,fy=v=>(v-.5)*depth,minLen=1e-4;
   // A curved plate is bent after meshing, so outlines and faces then get points at least every `spacing`.

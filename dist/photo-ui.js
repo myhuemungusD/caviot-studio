@@ -6,7 +6,7 @@
     off: '',
     silhouette: 'One solid shape. The easiest to recognize on a small sleeve.',
     line: 'Outlines thickened to the line width. Nothing is left thinner than 0.8 mm.',
-    poster: 'Three heights. A depth under about 0.6 mm makes the steps hard to see.',
+    poster: 'Three heights. The steps default to 0.6 mm and 1.2 mm so they stay readable.',
     smooth: 'Keeps gray, for a face or a pet. It needs a larger print or it turns soft.',
     lithophane: 'A thickness map for a flat plate held up to a light. Bright areas are thinner. The sleeve wall is not changed. Set the plate backing near 0.8 mm and the depth so the thickest part is about 3 mm.',
   };
@@ -18,6 +18,9 @@
   let syncing = false;
   let lastPrintKey = '';
   let fittedKey = '';
+  let autoDepth = null;
+  let depthTouched = false;
+  const PHOTO_DEPTH = { silhouette: 0.8, line: 0.8, poster: 1.2 };
   let worker = null;
   let workerBroken = false;
   const priorSchedule = scheduleRebuild;
@@ -35,7 +38,45 @@
   }
   function longSideCap() {
     const phone = typeof CaviotDevice !== 'undefined' && CaviotDevice.tier === 'light';
-    return phone ? 384 : 512;
+    const mmPerPx = phone ? 0.2 : 0.15;
+    const size = printSizeMm();
+    const longMm = Math.max(size.width, size.height);
+    const shortMm = Math.max(1, Math.min(size.width, size.height));
+    const limits = typeof CaviotDevice !== 'undefined' && CaviotDevice.limits ? CaviotDevice.limits : null;
+    const device = typeof CaviotDevice !== 'undefined' && CaviotDevice.DEVICE ? CaviotDevice.DEVICE[CaviotDevice.tier] : null;
+    const sideCap = device && Number.isFinite(device.maxImageSide) ? device.maxImageSide : 4096;
+    const pixelCap = Math.min(limits && limits.maxImagePixels ? limits.maxImagePixels : 24e6, 4e6);
+    let side = Math.ceil(longMm / mmPerPx);
+    const maxSide = Math.floor(Math.sqrt(pixelCap * (longMm / shortMm)));
+    side = Math.min(side, sideCap, maxSide);
+    return Math.max(96, side);
+  }
+  function writeDepth(mm) {
+    AppState.depthMm = mm;
+    const input = $('depthIn');
+    const label = $('depthVal');
+    if (input) input.value = String(mm);
+    if (label) {
+      const arrow = AppState.relief === 'carved' ? '⬇' : '⬆';
+      label.textContent = arrow + ' ' + mm.toFixed(2);
+    }
+    if (typeof captureDesignSide === 'function') captureDesignSide();
+  }
+  function applyAutoDepth(style) {
+    const want = PHOTO_DEPTH[style];
+    if (!want) return;
+    const cap = typeof templateActive === 'function' && templateActive() ? 3 : 5;
+    const next = Math.min(cap, want);
+    const current = AppState.depthMm;
+    const untouched = !depthTouched && (Math.abs(current - 0.4) < 0.011 || (autoDepth != null && Math.abs(current - autoDepth) < 0.011));
+    if (!untouched) return;
+    autoDepth = next;
+    writeDepth(next);
+  }
+  function restoreAutoDepth() {
+    if (depthTouched || autoDepth == null) return;
+    autoDepth = null;
+    writeDepth(0.4);
   }
   function num(id, fallback) {
     const el = $(id);
@@ -203,6 +244,7 @@
     else if (worker) { try { worker.terminate(); } catch (_) { /* already gone */ } worker = null; }
     globalThis.photoBusy = false;
     if (AppState.photoSource) AppState.image = AppState.photoSource;
+    restoreAutoDepth();
     AppState.photo = null;
     AppState.photoSource = null;
     lastPrintKey = '';
@@ -238,6 +280,7 @@
     }
     readPhoto();
     AppState.photo.style = style;
+    applyAutoDepth(style);
     maybeFit(true);
     syncUI();
     queueProcess();
@@ -360,7 +403,7 @@
       maybeFit(false);
       const pixels = sampleCanvas();
       const options = optionsFor(pixels);
-      if (pixels.width * pixels.height > 1.2e6) throw Error('Photo is too large to convert. It will be scaled down first.');
+      if (pixels.width * pixels.height > 4e6) throw Error('Photo is too large to convert. It will be scaled down first.');
       let result;
       try { result = await processInWorker(pixels, options); }
       catch (error) {
@@ -545,6 +588,8 @@
   setDesignImage = function (img, label) {
     jobId++;
     clearTimeout(timer);
+    restoreAutoDepth();
+    depthTouched = false;
     AppState.photo = null;
     AppState.photoSource = null;
     lastPrintKey = '';
@@ -583,6 +628,14 @@
     return result;
   };
 
+  const depthIn = $('depthIn');
+  if (depthIn) depthIn.addEventListener('input', () => {
+    const v = Number(depthIn.value);
+    if (autoDepth == null || Math.abs(v - autoDepth) > 0.015) {
+      depthTouched = true;
+      autoDepth = null;
+    }
+  });
   document.querySelectorAll('input[name="photoStyle"]').forEach((el) => el.addEventListener('change', onStyle));
   ['photoDetail', 'photoLine', 'photoBrightness', 'photoContrast', 'photoGamma'].forEach((id) => {
     const el = $(id);

@@ -9,3 +9,15 @@ Direct file: https://upload.wikimedia.org/wikipedia/commons/9/90/Labrador_Retrie
 Licence: Public domain
 
 The file in this folder is a 960×638 JPEG scaled down from that photograph so the test fixture stays small. The pixels are still the original photograph, not a drawing.
+
+portrait.jpg
+
+A second photograph, a person's face, used for the same end-to-end check.
+
+Title: Migrant Mother
+Author: Dorothea Lange
+Source: https://commons.wikimedia.org/wiki/File:Lange-MigrantMother02.jpg
+Direct file: https://upload.wikimedia.org/wikipedia/commons/5/54/Lange-MigrantMother02.jpg
+Licence: Public domain (U.S. Farm Security Administration)
+
+The file in this folder is a 960×1248 JPEG scaled down from that photograph.
