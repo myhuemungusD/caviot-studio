@@ -50,6 +50,7 @@ For reflected light on a small sleeve, the order that keeps the subject recogniz
 2. **Brightness, contrast, gamma**, then stretch the histogram (clip the darkest and lightest couple of percent). This is the “clip, then boost” step from the lithophane thread, and it helps every other style too.
 3. **Bilateral smooth** (Tomasi and Manduchi). A normal blur melts the outline of a face along with the skin texture. Bilateral blur melts texture and keeps the outline. The Detail slider is this: low detail uses a wider, more tolerant blur.
 4. **Reduce to a few shapes**, picked by style:
+   - **Shadow** — the usual photo style. The subject mask (U2-Netp when the phone can run it, otherwise a tap) is kept as one solid shape: the largest piece plus large pieces next to it, interior holes filled, a small close, a rounded contour, then only the thin parts (a leg, an ear, a tail) are grown to 0.8 mm. The thick body is not dilated, so the shape does not turn into a blob. The relief is one height. Cut out makes a hole of that shape. It stays off until chosen, so a logo export is unchanged.
    - **Bold silhouette** — edge-preserving tonal separation, then Otsu. The subject is the tone that covers the middle of the picture, so a head that also touches the frame is still the subject. Gaps in the head are closed. A full-width open is not used, because it eats the head down to a couple of blobs.
    - **Line art** — heavy bilateral smoothing, then only the subject outline and the longest interior edges (eyes, nose, mouth, ear line). Short texture is dropped. At 30 mm wide the budget is about 15 to 25 strokes, then each stroke is thickened to the line width.
    - **3-level relief** — three-means posterize inside the subject, seeded from the 16th, 50th and 84th percentiles, then absorb blobs smaller than the nozzle. The background stays down. While depth is still the 0.4 mm default, choosing this style sets 1.2 mm so the steps are 0.6 mm and 1.2 mm. A depth you set yourself is left alone. Silhouette and line do the same with 0.8 mm.
@@ -79,6 +80,7 @@ Live search on X was not available in this environment (the X connection was not
 
 | Style | When to use it | What it does |
 | --- | --- | --- |
+| Shadow | The usual photo style | One solid shape, one height, subject found automatically, thin parts at least 0.8 mm |
 | Bold silhouette | Small sleeve, any subject | One shape, thickened, specks removed |
 | Line art | A clear outline (a pet in profile, a building) | XDoG, then strokes at least 0.8 mm |
 | 3-level relief | “It should still look like the photo” | Three printable heights |

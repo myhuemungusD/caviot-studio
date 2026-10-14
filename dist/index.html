@@ -283,8 +283,10 @@
         <div class="panel-label">Image processing</div>
         <div id="photoPanel">
           <div class="panel-label">Photo to sleeve</div>
-          <p class="muted-tip">A regular photo is simplified so a 0.4 mm nozzle can print it on a small sleeve. The original is kept.</p>
+          <p class="muted-tip">Shadow is the usual photo style: one solid shape of the subject. It stays off until you choose it, so a logo is unchanged. The original photo is kept.</p>
           <div class="pill-toggle wrap" role="radiogroup" aria-label="Photo style">
+            <input type="radio" name="photoStyle" id="photoStyleShadow" value="shadow" />
+            <label for="photoStyleShadow" title="One solid shape of the subject. This is the usual photo style.">Shadow</label>
             <input type="radio" name="photoStyle" id="photoStyleOff" value="off" checked />
             <label for="photoStyleOff">Off</label>
             <input type="radio" name="photoStyle" id="photoStyleSilhouette" value="silhouette" />
@@ -314,6 +316,7 @@
               <button class="btn btn-ghost btn-sm" id="photoFind" type="button">Find subject</button>
               <button class="btn btn-ghost btn-sm" id="photoTap" type="button" aria-pressed="false">Tap the subject</button>
               <label class="check"><input type="checkbox" id="photoSwap" /> <span>Swap subject / background</span></label>
+              <label class="check"><input type="checkbox" id="photoInverse" /> <span>Cut out</span></label>
             </div>
             <p class="muted-tip" id="photoSubjectHelp">The subject is whatever covers the middle. Tap the subject if that picked the background.</p>
             <label class="check"><input type="checkbox" id="photoFocus" /> <span>Focus on subject</span></label>

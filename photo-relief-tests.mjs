@@ -149,6 +149,68 @@ test('bold silhouette drops specks and keeps the subject', () => {
   assert.ok(out.warning, 'small print warns: ' + out.warning);
 });
 
+test('shadow raises nothing until a subject is chosen', () => {
+  const w = 32, h = 32;
+  const rgba = solid(w, h, [10, 10, 10, 255], (x, y) => (x > 8 && x < 24 && y > 8 && y < 24) ? [240, 240, 240, 255] : [10, 10, 10, 255]);
+  const out = P.process(rgba, w, h, { style: 'shadow', detail: 40, lineMm: 0.8, printWidthMm: 32, printHeightMm: 32 });
+  let ink = 0;
+  for (let i = 0; i < w * h; i++) if (alphaAt(out.rgba, i) > 128) ink++;
+  assert.equal(ink, 0);
+  assert.match(out.warning, /Tap the subject/);
+  assert.equal(out.stats.subject, 'none');
+});
+
+test('shadow keeps one solid shape and thickens only the thin parts', () => {
+  const w = 160, h = 80;
+  const mask = new Uint8Array(w * h);
+  const set = (x, y) => { mask[y * w + x] = 1; };
+  for (let y = 16; y <= 55; y++) for (let x = 20; x <= 99; x++) set(x, y);
+  for (let y = 28; y <= 42; y++) for (let x = 40; x <= 55; x++) mask[y * w + x] = 0;
+  for (let y = 56; y <= 76; y++) set(37, y);
+  for (let y = 56; y <= 76; y++) set(72, y);
+  for (let y = 24; y <= 39; y++) for (let x = 104; x <= 119; x++) set(x, y);
+  for (let y = 4; y <= 6; y++) for (let x = 150; x <= 152; x++) set(x, y);
+  const rgba = solid(w, h, [0, 0, 0, 255]);
+  const out = P.process(rgba, w, h, {
+    style: 'shadow', detail: 40, lineMm: 0.8, printWidthMm: 32, printHeightMm: 16,
+    subjectMask: mask, subjectWidth: w, subjectHeight: h,
+  });
+  const on = (x, y) => alphaAt(out.rgba, y * w + x) > 128 && grayAt(out.rgba, y * w + x) > 200;
+  assert.ok(on(48, 35), 'interior hole is filled');
+  assert.equal(on(151, 5), false, 'distant speck is dropped');
+  assert.ok(on(110, 30), 'large nearby part is kept');
+  let x0 = -1, x1 = -1;
+  for (let x = 20; x < 60; x++) if (on(x, 68)) { if (x0 < 0) x0 = x; x1 = x; }
+  const legW = x1 - x0 + 1;
+  assert.ok(legW >= 4, 'thin leg is at least 0.8 mm (' + legW + ' px)');
+  let gap = false;
+  for (let x = x1 + 1; x < 90; x++) if (!on(x, 68)) gap = true;
+  assert.ok(gap, 'the two legs do not merge');
+  let top = h;
+  for (let y = 0; y < 40; y++) if (on(50, y)) { top = y; break; }
+  assert.ok(top >= 13, 'the thick body is not grown into a blob (top row ' + top + ')');
+  let mid = 0;
+  for (let i = 0; i < w * h; i++) {
+    const a = alphaAt(out.rgba, i), g = grayAt(out.rgba, i);
+    if ((a > 8 && a < 247) || (a > 128 && g > 8 && g < 247)) mid++;
+  }
+  assert.equal(mid, 0);
+});
+
+test('shadow cut-out is a hole of the subject', () => {
+  const w = 64, h = 48;
+  const mask = new Uint8Array(w * h);
+  for (let y = 12; y <= 36; y++) for (let x = 16; x <= 48; x++) mask[y * w + x] = 1;
+  const rgba = solid(w, h, [0, 0, 0, 255]);
+  const out = P.process(rgba, w, h, {
+    style: 'shadow', detail: 40, lineMm: 0.8, inverse: true, printWidthMm: 64, printHeightMm: 48,
+    subjectMask: mask, subjectWidth: w, subjectHeight: h,
+  });
+  assert.equal(alphaAt(out.rgba, 24 * w + 32), 0);
+  assert.equal(alphaAt(out.rgba, 2 * w + 2), 255);
+  assert.ok(grayAt(out.rgba, 2 * w + 2) > 200);
+});
+
 test('line art thickens a hairline to the nozzle floor', () => {
   const w = 80, h = 40;
   const rgba = solid(w, h, [250, 250, 250, 255], (x, y) => y === 20 ? [0, 0, 0, 255] : [250, 250, 250, 255]);
@@ -310,6 +372,14 @@ test('a subject tap and a swap round-trip, and a bad tap is refused', () => {
 });
 test('a bad photo style is refused', () => {
   assert.throws(() => ctx.ProjectFormat.decode(JSON.stringify(project({ photo: { style: 'magic' } }))), /photo style/);
+});
+test('shadow settings and cut-out round-trip', () => {
+  const photo = { style: 'shadow', detail: 40, lineMm: 0.8, brightness: 0, contrast: 0, gamma: 1, focus: false, aspect: 'free', inverse: true };
+  const decoded = ctx.ProjectFormat.decode(JSON.stringify(project({ photo })));
+  assert.equal(decoded.layers[0][0].photo.style, 'shadow');
+  assert.equal(decoded.layers[0][0].photo.inverse, true);
+  const plain = ctx.ProjectFormat.decode(JSON.stringify(project({ photo: { style: 'shadow', detail: 40, lineMm: 1.2, brightness: 0, contrast: 0, gamma: 1, focus: false, aspect: 'free' } })));
+  assert.equal(plain.layers[0][0].photo.inverse, undefined);
 });
 
 let count = 0;

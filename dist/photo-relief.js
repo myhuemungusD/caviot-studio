@@ -6,7 +6,7 @@
 const PhotoRelief = (() => {
   const NOZZLE_MM = 0.4;
   const MIN_FEATURE_MM = 0.8;
-  const STYLES = ['off', 'silhouette', 'line', 'poster', 'smooth', 'lithophane'];
+  const STYLES = ['off', 'shadow', 'silhouette', 'line', 'poster', 'smooth', 'lithophane'];
   const TONE_STYLES = ['poster', 'smooth', 'lithophane'];
   const DEFAULTS = { style: 'off', detail: 40, lineMm: 1.2, brightness: 0, contrast: 0, gamma: 1, focus: false, swap: false, aspect: 'free', crop: null };
 
@@ -821,6 +821,247 @@ const PhotoRelief = (() => {
     return n;
   }
 
+  const diskCache = [];
+  function diskOffsets(radius) {
+    const r = Math.max(0, Math.round(radius));
+    if (diskCache[r]) return diskCache[r];
+    const list = [];
+    const lim = r * r + r * 0.2;
+    for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) if (dx * dx + dy * dy <= lim) list.push(dx, dy);
+    diskCache[r] = list;
+    return list;
+  }
+
+  function diskDilate(src, width, height, radius) {
+    const r = Math.round(radius);
+    if (r <= 0) return Uint8Array.from(src);
+    const offs = diskOffsets(r);
+    const out = new Uint8Array(src.length);
+    for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+      if (!src[y * width + x]) continue;
+      for (let k = 0; k < offs.length; k += 2) {
+        const xx = x + offs[k], yy = y + offs[k + 1];
+        if (xx < 0 || yy < 0 || xx >= width || yy >= height) continue;
+        out[yy * width + xx] = 1;
+      }
+    }
+    return out;
+  }
+
+  function diskErode(src, width, height, radius) {
+    const r = Math.round(radius);
+    if (r <= 0) return Uint8Array.from(src);
+    const offs = diskOffsets(r);
+    const out = new Uint8Array(src.length);
+    for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+      if (!src[y * width + x]) continue;
+      let ok = 1;
+      for (let k = 0; k < offs.length; k += 2) {
+        const xx = x + offs[k], yy = y + offs[k + 1];
+        if (xx < 0 || yy < 0 || xx >= width || yy >= height || !src[yy * width + xx]) { ok = 0; break; }
+      }
+      out[y * width + x] = ok;
+    }
+    return out;
+  }
+
+  function groupsOf(mask, width, height) {
+    const seen = new Uint8Array(mask.length);
+    const groups = [];
+    for (let i = 0; i < mask.length; i++) {
+      if (!mask[i] || seen[i]) continue;
+      const stack = [i];
+      const pixels = [];
+      seen[i] = 1;
+      let minX = width, minY = height, maxX = 0, maxY = 0;
+      while (stack.length) {
+        const p = stack.pop();
+        pixels.push(p);
+        const x = p % width;
+        const y = (p - x) / width;
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
+        if (x > 0 && mask[p - 1] && !seen[p - 1]) { seen[p - 1] = 1; stack.push(p - 1); }
+        if (x + 1 < width && mask[p + 1] && !seen[p + 1]) { seen[p + 1] = 1; stack.push(p + 1); }
+        if (y > 0 && mask[p - width] && !seen[p - width]) { seen[p - width] = 1; stack.push(p - width); }
+        if (y + 1 < height && mask[p + width] && !seen[p + width]) { seen[p + width] = 1; stack.push(p + width); }
+      }
+      groups.push({ pixels, minX, minY, maxX, maxY, area: pixels.length });
+    }
+    return groups;
+  }
+
+  // The largest piece, plus other large pieces that sit next to it. Distant specks go.
+  function keepBody(mask, width, height, px) {
+    const groups = groupsOf(mask, width, height);
+    if (!groups.length) return new Uint8Array(mask.length);
+    groups.sort((a, b) => b.area - a.area);
+    const main = groups[0];
+    const gap = Math.max(1, Math.round(1.5 * px));
+    const mainMask = new Uint8Array(mask.length);
+    for (const p of main.pixels) mainMask[p] = 1;
+    const near = diskDilate(mainMask, width, height, gap);
+    const minLarge = Math.max(4, main.area * 0.08, px * px * 0.35);
+    const out = new Uint8Array(mask.length);
+    for (const p of main.pixels) out[p] = 1;
+    for (let g = 1; g < groups.length; g++) {
+      const group = groups[g];
+      if (group.area < minLarge) continue;
+      let touches = false;
+      for (const p of group.pixels) if (near[p]) { touches = true; break; }
+      if (!touches) {
+        const dx = group.maxX < main.minX ? main.minX - group.maxX : group.minX > main.maxX ? group.minX - main.maxX : 0;
+        const dy = group.maxY < main.minY ? main.minY - group.maxY : group.minY > main.maxY ? group.minY - main.maxY : 0;
+        touches = Math.hypot(dx, dy) <= gap;
+      }
+      if (touches) for (const p of group.pixels) out[p] = 1;
+    }
+    return out;
+  }
+
+  // Round the outline. A thin leg stays: only an isolated spike is dropped, and only a well-surrounded notch is filled.
+  function roundContour(mask, width, height, sigma) {
+    const src = new Float32Array(mask.length);
+    for (let i = 0; i < mask.length; i++) src[i] = mask[i] ? 1 : 0;
+    const blurred = blur(src, width, height, Math.max(0.45, sigma));
+    const out = new Uint8Array(mask.length);
+    for (let i = 0; i < mask.length; i++) {
+      if (mask[i]) out[i] = blurred[i] >= 0.12 ? 1 : 0;
+      else out[i] = blurred[i] >= 0.62 ? 1 : 0;
+    }
+    return out;
+  }
+
+  function distanceInside(mask, width, height) {
+    const inf = width + height;
+    const d = new Float32Array(mask.length);
+    const diag = 1.41421356;
+    for (let i = 0; i < mask.length; i++) d[i] = mask[i] ? inf : 0;
+    for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+      const i = y * width + x;
+      if (!mask[i]) { d[i] = 0; continue; }
+      let v = d[i];
+      if (x > 0) v = Math.min(v, d[i - 1] + 1);
+      if (y > 0) v = Math.min(v, d[i - width] + 1);
+      if (x > 0 && y > 0) v = Math.min(v, d[i - width - 1] + diag);
+      if (x + 1 < width && y > 0) v = Math.min(v, d[i - width + 1] + diag);
+      d[i] = v;
+    }
+    for (let y = height - 1; y >= 0; y--) for (let x = width - 1; x >= 0; x--) {
+      const i = y * width + x;
+      if (!mask[i]) continue;
+      let v = d[i];
+      if (x + 1 < width) v = Math.min(v, d[i + 1] + 1);
+      if (y + 1 < height) v = Math.min(v, d[i + width] + 1);
+      if (x + 1 < width && y + 1 < height) v = Math.min(v, d[i + width + 1] + diag);
+      if (x > 0 && y + 1 < height) v = Math.min(v, d[i + width - 1] + diag);
+      d[i] = v;
+    }
+    return d;
+  }
+
+  // Grow only the ridges that are thinner than 0.8 mm. A thick body is left alone, so the shape does not become a blob.
+  function thickenThin(mask, width, height, minRadius) {
+    if (!(minRadius > 0.6)) return Uint8Array.from(mask);
+    const d = distanceInside(mask, width, height);
+    const out = Uint8Array.from(mask);
+    const lim = minRadius * minRadius + 0.2;
+    const rr = Math.ceil(minRadius);
+    for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+      const i = y * width + x;
+      if (!mask[i] || d[i] <= 0 || d[i] >= minRadius) continue;
+      let peak = true;
+      for (let dy = -1; dy <= 1 && peak; dy++) for (let dx = -1; dx <= 1; dx++) {
+        if (!dx && !dy) continue;
+        const xx = x + dx, yy = y + dy;
+        if (xx < 0 || yy < 0 || xx >= width || yy >= height) continue;
+        if (d[yy * width + xx] > d[i] + 0.05) peak = false;
+      }
+      if (!peak) continue;
+      for (let dy = -rr; dy <= rr; dy++) for (let dx = -rr; dx <= rr; dx++) {
+        if (dx * dx + dy * dy > lim) continue;
+        const xx = x + dx, yy = y + dy;
+        if (xx < 0 || yy < 0 || xx >= width || yy >= height) continue;
+        out[yy * width + xx] = 1;
+      }
+    }
+    return out;
+  }
+
+  function solidShadowAt(mask, width, height, printWidthMm, detail) {
+    const px = width / Math.max(1, printWidthMm);
+    const simplify = 1 - clamp(detail, 0, 100) / 100;
+    let ink = keepBody(mask, width, height, px);
+    ink = fillSmallHoles(ink, width, height, ink.length);
+    const closeR = Math.max(1, Math.round((0.25 + simplify * 0.2) * px));
+    ink = diskErode(diskDilate(ink, width, height, closeR), width, height, closeR);
+    ink = fillSmallHoles(ink, width, height, ink.length);
+    ink = roundContour(ink, width, height, (0.14 + simplify * 0.1) * px);
+    ink = fillSmallHoles(ink, width, height, ink.length);
+    ink = thickenThin(ink, width, height, 0.4 * px);
+    ink = roundContour(ink, width, height, Math.max(0.45, 0.08 * px));
+    ink = fillSmallHoles(ink, width, height, ink.length);
+    return keepBody(ink, width, height, px);
+  }
+
+  function solidShadow(mask, width, height, printWidthMm, detail) {
+    const px = width / Math.max(1, printWidthMm);
+    const thickenR = 0.4 * px;
+    if (thickenR > 5 && width > 48) {
+      const scale = 2.5 / thickenR;
+      const dw = Math.max(16, Math.round(width * scale));
+      const dh = Math.max(16, Math.round(height * scale));
+      const shaped = solidShadowAt(resampleMask(mask, width, height, dw, dh), dw, dh, printWidthMm, detail);
+      return resampleMask(shaped, dw, dh, width, height);
+    }
+    return solidShadowAt(mask, width, height, printWidthMm, detail);
+  }
+
+  function shadowResult(rgba, width, height, options, printWidthMm, printHeightMm, detail, lineMm) {
+    let mask = decodeSubject(options, width, height);
+    let how = mask ? 'mask' : '';
+    if (!mask && options && options.seed && Number.isFinite(options.seed.x) && Number.isFinite(options.seed.y)) {
+      mask = floodSubject(rgba, width, height, options.seed.x, options.seed.y);
+      how = 'seed';
+    }
+    if (mask && options && options.swap) {
+      const flipped = new Uint8Array(mask.length);
+      for (let i = 0; i < mask.length; i++) flipped[i] = mask[i] ? 0 : 1;
+      mask = flipped;
+    }
+    const values = new Float32Array(width * height);
+    const alpha = new Uint8Array(width * height);
+    let warning = '';
+    if (!mask) {
+      how = 'none';
+      warning = 'Tap the subject. Nothing is raised until the subject is separate from the background.';
+    } else {
+      const ink = solidShadow(mask, width, height, printWidthMm, detail);
+      const cut = !!(options && options.inverse);
+      if (cut) {
+        for (let i = 0; i < ink.length; i++) {
+          if (ink[i]) continue;
+          values[i] = 1;
+          alpha[i] = 1;
+        }
+      } else {
+        for (let i = 0; i < ink.length; i++) {
+          values[i] = ink[i] ? 1 : 0;
+          alpha[i] = ink[i] ? 1 : 0;
+        }
+      }
+      warning = warningFor('shadow', printWidthMm, printHeightMm, detail, '', false);
+    }
+    const stats = {
+      style: 'shadow', detail, lineMm, featureMm: MIN_FEATURE_MM, minFeatureMm: MIN_FEATURE_MM, nozzleMm: NOZZLE_MM,
+      focus: false, focusFailed: false, printWidthMm, printHeightMm, subject: how, strokes: 0, strokeBudget: 0,
+      inverse: !!(options && options.inverse),
+    };
+    return { rgba: paint(values, alpha, width, height), width, height, warning, stats };
+  }
+
   function warningFor(style, printWidthMm, printHeightMm, detail, lostNote, focusFailed) {
     const parts = [];
     const wide = Math.max(1, printWidthMm);
@@ -828,6 +1069,7 @@ const PhotoRelief = (() => {
     if (wide < 20) parts.push('At ' + wide.toFixed(0) + ' mm wide a 0.4 mm nozzle can only hold a bold shape. Fine detail in this photo will not print.');
     else if (style === 'smooth' && wide < 50) parts.push('Smooth gray needs room. At ' + wide.toFixed(0) + ' mm wide a face turns soft. Bold silhouette or 3-level relief will be easier to recognize.');
     else if (style === 'lithophane' && wide < 40) parts.push('A lithophane this small (' + wide.toFixed(0) + ' mm) holds little of the photo. It reads when a larger flat plate is held up to the light.');
+    else if (style === 'shadow' && wide < 50) parts.push('At ' + wide.toFixed(0) + ' mm wide the shape is kept. Anything thinner than 0.8 mm, such as a leg, an ear or a tail, is thickened.');
     else if ((style === 'line' || style === 'poster' || style === 'silhouette') && wide < 60) parts.push('At ' + wide.toFixed(0) + ' × ' + Math.max(1, printHeightMm).toFixed(0) + ' mm, anything thinner than 0.8 mm (two nozzle widths) is thickened or removed.');
     if (detail > 75 && wide < 70 && style !== 'smooth') parts.push('Detail is turned up, but this size cannot hold it. The result stays at the 0.8 mm minimum.');
     if (lostNote) parts.push(lostNote);
@@ -849,6 +1091,7 @@ const PhotoRelief = (() => {
     const printHeightMm = Math.max(1, Number(options.printHeightMm) || printWidthMm);
     const simplify = 1 - detail / 100;
     const adjusted = adjustRGBA(rgba, width, height, brightness, contrast, gamma);
+    if (style === 'shadow') return shadowResult(adjusted.rgba, width, height, options, printWidthMm, printHeightMm, detail, lineMm);
     const px = pxPerMm(printWidthMm, width);
     const featureMm = lineMm;
     const radius = radiusForMm(featureMm, printWidthMm, width);

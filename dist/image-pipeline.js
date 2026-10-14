@@ -208,7 +208,7 @@ function textReliefOptions(state = AppState) {
   return opts;
 }
 
-// Silhouette, line and poster on a flat plate are traced like sharp lettering, so the edge is a
+// Shadow, silhouette, line and poster on a flat plate are traced like sharp lettering, so the edge is a
 // curve instead of the 160-column preview grid. Sleeve templates keep their own contour path.
 const photoTraceCache = new WeakMap();
 function photoTraceSource(img, style) {
@@ -273,7 +273,7 @@ function photoTraceSource(img, style) {
 function photoOutlineOptions(state = AppState) {
   if (typeof TextRelief === 'undefined' || templateActive() || state.mode !== 'flat') return null;
   const style = state.photo && state.photo.style;
-  if (style !== 'silhouette' && style !== 'line' && style !== 'poster') return null;
+  if (style !== 'shadow' && style !== 'silhouette' && style !== 'line' && style !== 'poster') return null;
   const src = photoTraceSource(state.image, style);
   if (!src) return null;
   const s = Math.max(0.1, Math.min(1, state.logoSizePct / 100));

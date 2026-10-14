@@ -118,8 +118,10 @@ for(const name of names){
   await p.evaluate(()=>__lose.restoreContext());await sleep(800);
   ok(await p.evaluate(()=>!document.body.classList.contains('webgl-lost')&&!renderer.getContext().isContextLost()),'context restored');
   // Rotate the phone.
-  if(phone&&!landscape){await p.setViewportSize({width:dev.viewport.height,height:dev.viewport.width});await sleep(600);
-    const l=await p.evaluate(()=>({sw:document.documentElement.scrollWidth,iw:innerWidth,canvas:renderer.domElement.getBoundingClientRect().width,phone:CaviotDevice.phoneLayout()}));
+  if(phone&&!landscape){await p.setViewportSize({width:dev.viewport.height,height:dev.viewport.width});
+    let l=null;const until=Date.now()+4000;while(Date.now()<until){await sleep(200);
+      l=await p.evaluate(()=>({sw:document.documentElement.scrollWidth,iw:innerWidth,canvas:renderer.domElement.getBoundingClientRect().width,phone:CaviotDevice.phoneLayout()}));
+      if(l.phone&&l.sw<=l.iw&&l.canvas>=l.iw-2)break;}
     ok(l.phone&&l.sw<=l.iw&&l.canvas>=l.iw-2,'landscape: phone layout, full-width canvas, no horizontal scroll '+JSON.stringify(l));
     await p.tap('#mobileSettingsBtn');await sleep(900);await p.waitForFunction(()=>getComputedStyle(document.querySelector('.sidebar')).transform==='none',null,{timeout:8000}).catch(()=>{});const side=await p.evaluate(()=>{const r=document.querySelector('.sidebar').getBoundingClientRect();return {left:r.left,right:r.right,w:r.width,iw:innerWidth}});
     ok(side.right<=side.iw+1&&side.w<side.iw*.6,'landscape: tools open as a side sheet '+JSON.stringify(side));

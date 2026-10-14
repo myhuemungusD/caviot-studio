@@ -36,7 +36,7 @@ globalThis.ProjectFormat={
   sanitizePhoto(photo){
     if(photo==null)return null;
     if(typeof photo!=='object'||Array.isArray(photo))throw Error('Invalid photo settings.');
-    const styles=['off','silhouette','line','poster','smooth','lithophane'];
+    const styles=['off','shadow','silhouette','line','poster','smooth','lithophane'];
     const aspects=['free','square','sleeve','portrait','landscape'];
     if(photo.style!==undefined&&!styles.includes(photo.style))throw Error('Invalid photo style.');
     const num=(v,lo,hi,fallback)=>{if(v===undefined)return fallback;if(typeof v!=='number'||!Number.isFinite(v))throw Error('Invalid photo setting.');return Math.min(hi,Math.max(lo,v));};
@@ -44,10 +44,13 @@ globalThis.ProjectFormat={
     if(typeof focus!=='boolean')throw Error('Invalid photo setting.');
     const swap=photo.swap===undefined?false:photo.swap;
     if(typeof swap!=='boolean')throw Error('Invalid photo setting.');
+    const inverse=photo.inverse===undefined?false:photo.inverse;
+    if(typeof inverse!=='boolean')throw Error('Invalid photo setting.');
     const aspect=photo.aspect===undefined?'free':photo.aspect;
     if(!aspects.includes(aspect))throw Error('Invalid photo crop.');
     const out={style:photo.style||'off',detail:num(photo.detail,0,100,40),lineMm:num(photo.lineMm,0.8,3,1.2),brightness:num(photo.brightness,-100,100,0),contrast:num(photo.contrast,-100,100,0),gamma:num(photo.gamma,0.3,3,1),focus,aspect};
     if(swap)out.swap=true;
+    if(inverse)out.inverse=true;
     if(photo.seed!=null){
       const s=photo.seed;
       if(!s||typeof s!=='object'||Array.isArray(s)||typeof s.x!=='number'||typeof s.y!=='number'||!Number.isFinite(s.x)||!Number.isFinite(s.y)||s.x<0||s.y<0||s.x>1||s.y>1)throw Error('Invalid photo subject.');

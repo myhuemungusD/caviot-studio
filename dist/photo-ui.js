@@ -4,6 +4,7 @@
 (function () {
   const TIPS = {
     off: '',
+    shadow: 'One solid shape, one height. The subject is found automatically. A leg, ear or tail stays at least 0.8 mm thick. Cut out makes a hole of that shape.',
     silhouette: 'One solid shape. The easiest to recognize on a small sleeve.',
     line: 'The outline plus a few long strokes (eyes, nose, mouth). At 30 mm wide that is about 15 to 25 strokes, thickened to the line width.',
     poster: 'Three heights. The steps default to 0.6 mm and 1.2 mm so they stay readable.',
@@ -20,7 +21,7 @@
   let fittedKey = '';
   let autoDepth = null;
   let depthTouched = false;
-  const PHOTO_DEPTH = { silhouette: 0.8, line: 0.8, poster: 1.2, smooth: 2, lithophane: 2.2 };
+  const PHOTO_DEPTH = { shadow: 1.6, silhouette: 0.8, line: 0.8, poster: 1.2, smooth: 2, lithophane: 2.2 };
   let autoBase = null;
   let baseTouched = false;
   let worker = null;
@@ -192,6 +193,9 @@
     if (focus) photo.focus = focus.checked;
     const swap = $('photoSwap');
     if (swap) photo.swap = swap.checked;
+    const inverse = $('photoInverse');
+    if (inverse && inverse.checked) photo.inverse = true;
+    else delete photo.inverse;
     const aspect = $('photoAspect');
     if (aspect) photo.aspect = aspect.value;
     AppState.photo = photo;
@@ -235,11 +239,20 @@
       if (focus) focus.checked = !!(photo && photo.focus);
       const swap = $('photoSwap');
       if (swap) swap.checked = !!(photo && photo.swap);
+      const inverse = $('photoInverse');
+      if (inverse) {
+        inverse.checked = !!(photo && photo.inverse);
+        inverse.disabled = style !== 'shadow';
+      }
       const find = $('photoFind');
       if (find) {
         const phone = typeof CaviotDevice !== 'undefined' && CaviotDevice.tier === 'light';
         find.disabled = phone;
-        find.title = phone ? 'Find subject needs a computer. Tap the subject on this phone.' : 'Separate the subject. Loaded only when you click, and not kept for offline use.';
+        find.title = phone
+          ? 'Find subject needs a computer. Tap the subject on this phone.'
+          : (style === 'shadow'
+            ? 'Shadow runs this on its own. Click to try again. It is not kept for offline use.'
+            : 'Separate the subject. Loaded only when you click, and not kept for offline use.');
       }
       const aspect = $('photoAspect');
       if (aspect && photo && photo.aspect) aspect.value = photo.aspect;
@@ -387,6 +400,7 @@
       gamma: photo.gamma,
       focus: photo.focus,
       swap: !!photo.swap,
+      inverse: !!photo.inverse,
       seed: photo.seed ? { x: photo.seed.x * (pixels.width - 1), y: photo.seed.y * (pixels.height - 1) } : null,
       subjectMask: photo.subjectBits ? unpackMask(photo.subjectBits, photo.subjectW, photo.subjectH) : null,
       subjectWidth: photo.subjectW || 0,
@@ -466,6 +480,9 @@
       maybeFit(false);
       applyAutoBase(AppState.photo.style);
       const pixels = sampleCanvas();
+      if (id !== jobId || !photoOn()) return;
+      await ensureShadowMask(pixels, id);
+      if (id !== jobId || !photoOn()) return;
       const options = optionsFor(pixels);
       if (pixels.width * pixels.height > 4e6) throw Error('Photo is too large to convert. It will be scaled down first.');
       let result;
@@ -552,9 +569,14 @@
     if (button) button.setAttribute('aria-pressed', picking ? 'true' : 'false');
     if (canvas) canvas.classList.toggle('is-picking', picking);
     const help = $('photoSubjectHelp');
-    if (help) help.textContent = picking
-      ? 'Click the subject in the photo.'
-      : 'The subject is whatever covers the middle. Tap the subject if that picked the background.';
+    if (help) {
+      const shadow = AppState.photo && AppState.photo.style === 'shadow';
+      help.textContent = picking
+        ? 'Click the subject in the photo. The background is not raised.'
+        : (shadow
+          ? 'Shadow finds the subject on its own. Tap the subject if that picked the background.'
+          : 'The subject is whatever covers the middle. Tap the subject if that picked the background.');
+    }
   }
   function rememberSeed(x, y) {
     if (!AppState.photo) return;
@@ -563,6 +585,41 @@
     setPicking(false);
     queueProcess();
   }
+  function loadSegment() {
+    if (globalThis.PhotoSegment) return Promise.resolve();
+    return new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = 'photo-segment.js';
+      script.onload = () => resolve();
+      script.onerror = () => reject(Error('Could not load the subject finder.'));
+      document.head.appendChild(script);
+    });
+  }
+  async function segmentPixels(pixels, raw) {
+    await loadSegment();
+    if (!PhotoSegment.allowed()) throw Error('Find subject needs a computer. Tap the subject on this phone.');
+    return PhotoSegment.findSubject(pixels, raw ? { raw: true } : undefined);
+  }
+  async function ensureShadowMask(pixels, id) {
+    const photo = AppState.photo;
+    if (!photo || photo.style !== 'shadow' || photo.subjectBits || photo.seed) return;
+    const phone = typeof CaviotDevice !== 'undefined' && CaviotDevice.tier === 'light';
+    if (phone || (globalThis.PhotoSegment && !PhotoSegment.allowed())) {
+      setPicking(true);
+      return;
+    }
+    try {
+      const mask = await segmentPixels(pixels, true);
+      if (id !== jobId || !AppState.photo || AppState.photo.style !== 'shadow') return;
+      clearSubjectPick();
+      AppState.photo.subjectBits = packMask(mask);
+      AppState.photo.subjectW = pixels.width;
+      AppState.photo.subjectH = pixels.height;
+      setPicking(false);
+    } catch (_) {
+      if (id === jobId) setPicking(true);
+    }
+  }
   async function findSubject() {
     if (!photoOn() || !ensureSource()) return;
     const find = $('photoFind');
@@ -570,21 +627,9 @@
       toast('Find subject needs a computer. Tap the subject on this phone.', 'error');
       return;
     }
-    if (!globalThis.PhotoSegment) {
-      await new Promise((resolve, reject) => {
-        const script = document.createElement('script');
-        script.src = 'photo-segment.js';
-        script.onload = () => resolve();
-        script.onerror = () => reject(Error('Could not load the subject finder.'));
-        document.head.appendChild(script);
-      });
-    }
-    if (!PhotoSegment.allowed()) {
-      toast('Find subject needs a computer. Tap the subject on this phone.', 'error');
-      return;
-    }
     const pixels = sampleCanvas();
-    const mask = await PhotoSegment.findSubject(pixels);
+    const raw = AppState.photo && AppState.photo.style === 'shadow';
+    const mask = await segmentPixels(pixels, raw);
     if (!AppState.photo) return;
     clearSubjectPick();
     AppState.photo.subjectBits = packMask(mask);
@@ -766,6 +811,8 @@
   });
   const swap = $('photoSwap');
   if (swap) swap.addEventListener('change', onControl);
+  const inverse = $('photoInverse');
+  if (inverse) inverse.addEventListener('change', onControl);
   const baseIn = $('baseIn');
   if (baseIn) baseIn.addEventListener('input', () => {
     const v = Number(baseIn.value);

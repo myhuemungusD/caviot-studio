@@ -10,6 +10,8 @@ const base = (process.argv[2] || 'http://127.0.0.1:4173/').replace(/\/?$/, '/');
 const shots = process.argv[3] || '';
 const IMAGE = new URL('./fixtures/labrador.jpg', import.meta.url).pathname;
 const PORTRAIT = new URL('./fixtures/portrait.jpg', import.meta.url).pathname;
+const PERSON = new URL('./fixtures/person.jpg', import.meta.url).pathname;
+const OBJECT = new URL('./fixtures/object.jpg', import.meta.url).pathname;
 const HEIC = path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'test-fixtures', 'tiny.heic');
 const browser = await chromium.launch({
   executablePath: process.env.CHROME || '/usr/bin/google-chrome',
@@ -102,9 +104,20 @@ async function frame(p, kind) {
 async function shot(p, name, kind) {
   if (!shots) return;
   fs.mkdirSync(shots, { recursive: true });
-  await frame(p, kind);
   const file = path.join(shots, name);
-  await p.locator('#threeContainer canvas').screenshot({ path: file });
+  let last;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    await frame(p, kind);
+    try {
+      await p.locator('#threeContainer canvas').screenshot({ path: file });
+      last = null;
+      break;
+    } catch (err) {
+      last = err;
+      await sleep(500);
+    }
+  }
+  if (last) throw last;
   const judge = path.join(shots, 'judge-' + name);
   execFileSync('ffmpeg', ['-y', '-i', file, '-vf', 'scale=200:-1', judge], { stdio: 'ignore' });
 }
@@ -119,8 +132,16 @@ function composite(original, resultName, outName) {
 }
 async function useStyle(p, value) {
   await p.click('label[for="photoStyle' + value.charAt(0).toUpperCase() + value.slice(1) + '"]');
-  await p.waitForFunction((style) => !!(AppState.photo && AppState.photo.style === style && !photoBusy && document.getElementById('photoPreview').width > 8), value, { timeout: 60000 });
+  await p.waitForFunction((style) => !!(AppState.photo && AppState.photo.style === style && !photoBusy && document.getElementById('photoPreview').width > 8), value, { timeout: value === 'shadow' ? 180000 : 60000 });
   ok(await settle(p), value + ' preview settled');
+}
+async function replacePhoto(p, file) {
+  await p.setInputFiles('#fileInput', file);
+  const replace = p.locator('dialog.product-dialog[open] button[data-choice="replace"]');
+  await replace.waitFor({ timeout: 20000 });
+  await replace.click();
+  await p.waitForFunction(() => !!AppState.image && !photoBusy, null, { timeout: 60000 });
+  ok(await settle(p), 'photo replaced');
 }
 function previewSig(p) {
   return p.evaluate(() => {
@@ -147,7 +168,8 @@ function previewSig(p) {
   console.log('Photo styles on the sleeve and the flat plate');
   const { ctx, p, errors } = await open();
   const wall = await p.evaluate(() => AppState.wall);
-  ok(await p.evaluate(() => document.getElementById('photoTools').hidden && document.getElementById('photoStyleOff').checked), 'photo style starts off');
+  ok(await p.evaluate(() => document.getElementById('photoTools').hidden && document.getElementById('photoStyleOff').checked), 'photo style starts off, so a logo is unchanged');
+  ok(await p.evaluate(() => document.querySelector('#photoPanel input[name="photoStyle"]').value === 'shadow'), 'shadow is the first photo style');
   await p.setInputFiles('#fileInput', IMAGE);
   await p.waitForFunction(() => !!AppState.image, null, { timeout: 30000 });
   ok(await settle(p), 'labrador placed on the sleeve');
@@ -156,6 +178,21 @@ function previewSig(p) {
     fs.copyFileSync(IMAGE, path.join(shots, 'original-labrador.jpg'));
   }
   await shot(p, 'sleeve-original.png', 'sleeve');
+
+  await useStyle(p, 'shadow');
+  const shadowInfo = await p.evaluate(() => ({
+    depth: AppState.depthMm,
+    bits: AppState.photo && AppState.photo.subjectBits ? AppState.photo.subjectBits.length : 0,
+    first: document.querySelector('#photoPanel input[name="photoStyle"]').id,
+  }));
+  ok(shadowInfo.bits > 16, 'shadow finds a subject on its own (' + shadowInfo.bits + ' chars)');
+  ok(shadowInfo.depth >= 1.5 && shadowInfo.depth <= 1.7, 'shadow depth defaults to 1.6 mm (' + shadowInfo.depth + ')');
+  ok(shadowInfo.first === 'photoStyleShadow', 'shadow stays the first style');
+  const shadowSig = await previewSig(p);
+  ok(shadowSig.ink > 8, 'shadow preview is a solid shape (' + shadowSig.ink + ' ink samples)');
+  await shot(p, 'sleeve-shadow.png', 'sleeve');
+  composite(IMAGE, 'sleeve-shadow.png', 'compare-sleeve-shadow.png');
+  if (shots) await p.locator('#photoPreview').screenshot({ path: path.join(shots, 'preview-shadow.png') });
 
   const styles = ['silhouette', 'line', 'poster', 'smooth', 'lithophane'];
   const sigs = [];
@@ -226,6 +263,13 @@ function previewSig(p) {
   await p.click('label[for="exportFlat"]');
   await p.waitForFunction(() => AppState.mode === 'flat', null, { timeout: 10000 });
   ok(await settle(p), 'flat plate mode');
+  await useStyle(p, 'shadow');
+  await shot(p, 'plate-shadow.png', 'plate');
+  composite(IMAGE, 'plate-shadow.png', 'compare-plate-shadow.png');
+  {
+    const mesh = await p.evaluate(() => ({ err: AppState.lastTextReliefError, sharp: !!AppState.lastTextRelief }));
+    ok(!mesh.err && mesh.sharp, 'flat shadow uses an outline mesh' + (mesh.err ? ' (' + mesh.err + ')' : ''));
+  }
   for (const style of styles) {
     await useStyle(p, style);
     await shot(p, 'plate-' + style + '.png', 'plate');
@@ -256,6 +300,9 @@ function previewSig(p) {
   ok(await settle(p), 'portrait placed on the sleeve');
   if (shots) fs.copyFileSync(PORTRAIT, path.join(shots, 'original-portrait.jpg'));
   await shot(p, 'portrait-sleeve-original.png', 'sleeve');
+  await useStyle(p, 'shadow');
+  await shot(p, 'portrait-sleeve-shadow.png', 'sleeve');
+  composite(PORTRAIT, 'portrait-sleeve-shadow.png', 'compare-portrait-sleeve-shadow.png');
   for (const style of styles) {
     await useStyle(p, style);
     await shot(p, 'portrait-sleeve-' + style + '.png', 'sleeve');
@@ -264,6 +311,9 @@ function previewSig(p) {
   await p.click('label[for="exportFlat"]');
   await p.waitForFunction(() => AppState.mode === 'flat', null, { timeout: 10000 });
   ok(await settle(p), 'portrait flat plate');
+  await useStyle(p, 'shadow');
+  await shot(p, 'portrait-plate-shadow.png', 'plate');
+  composite(PORTRAIT, 'portrait-plate-shadow.png', 'compare-portrait-plate-shadow.png');
   for (const style of styles) {
     await useStyle(p, style);
     await shot(p, 'portrait-plate-' + style + '.png', 'plate');
@@ -274,6 +324,31 @@ function previewSig(p) {
       ok(mesh.depth >= 1.1 && fine, 'portrait poster is an outline or a fine grid (' + mesh.cols + ' cols, ' + mesh.depth + ' mm' + (mesh.err ? ', ' + mesh.err : '') + ')');
     }
   }
+  console.log('Shadow on a full-body person and an object');
+  await p.click('label[for="exportSleeve"]');
+  await p.waitForFunction(() => AppState.mode === 'sleeve', null, { timeout: 10000 });
+  ok(await settle(p, 180000), 'sleeve before the extra photos');
+  for (const [file, name] of [[PERSON, 'person'], [OBJECT, 'object']]) {
+    await replacePhoto(p, file);
+    if (shots) fs.copyFileSync(file, path.join(shots, 'original-' + name + '.jpg'));
+    await useStyle(p, 'shadow');
+    const found = await p.evaluate(() => !!(AppState.photo && AppState.photo.subjectBits && AppState.photo.subjectBits.length > 16));
+    ok(found, name + ' shadow found a subject');
+    const sig = await previewSig(p);
+    ok(sig.ink > 8, name + ' shadow has a solid shape (' + sig.ink + ')');
+    await shot(p, name + '-sleeve-shadow.png', 'sleeve');
+    composite(file, name + '-sleeve-shadow.png', 'compare-' + name + '-sleeve-shadow.png');
+    await p.click('label[for="exportFlat"]');
+    await p.waitForFunction(() => AppState.mode === 'flat', null, { timeout: 10000 });
+    ok(await settle(p), name + ' flat plate');
+    await useStyle(p, 'shadow');
+    await shot(p, name + '-plate-shadow.png', 'plate');
+    composite(file, name + '-plate-shadow.png', 'compare-' + name + '-plate-shadow.png');
+    await p.click('label[for="exportSleeve"]');
+    await p.waitForFunction(() => AppState.mode === 'sleeve', null, { timeout: 10000 });
+    ok(await settle(p, 180000), 'back to the sleeve after ' + name);
+  }
+  ok(await p.evaluate(() => !!document.getElementById('photoInverse')), 'cut out toggle is on the page');
   await ctx.close();
 }
 

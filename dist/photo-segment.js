@@ -82,7 +82,7 @@ const PhotoSegment = (() => {
     return mask;
   }
 
-  async function findSubject(imageData) {
+  async function findSubject(imageData, opts) {
     const sess = await session();
     const ort = globalThis.ort;
     const inputName = sess.inputNames[0];
@@ -92,7 +92,8 @@ const PhotoSegment = (() => {
     const output = result[outputName];
     if (!output || !output.data) throw Error('Find subject returned an empty result.');
     let mask = maskFrom(output.data, imageData.width, imageData.height);
-    if (globalThis.PhotoRelief) {
+    // Shadow does its own close, hole fill and thin-part thicken. Opening here would delete a leg.
+    if (!(opts && opts.raw) && globalThis.PhotoRelief) {
       mask = PhotoRelief.open(mask, imageData.width, imageData.height, 1);
       mask = PhotoRelief.close(mask, imageData.width, imageData.height, 2);
     }
