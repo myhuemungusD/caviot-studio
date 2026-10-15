@@ -184,7 +184,7 @@ for(const name of names){
   await tapEl(p,cdp,'#mobileMoreBtn');await sleep(250);
   ok(await p.evaluate(()=>[...$('mobileMenu').querySelectorAll('button')][0].textContent==='Start new design…'),'overflow menu starts with "Start new design…"');
   const nav=p.waitForNavigation({waitUntil:'load'});await tapEl(p,cdp,'#mobileMenu [data-target="startNewDesign"]');await nav;await boot(p);
-  ok((await record(p))===null&&await p.evaluate(()=>!AppState.image&&!$('phoneStart').hidden&&AppState.templateId==='etsyfolger-v1'&&bottomBrand.enabled),'Start new design: clean ETSYFOLGER with the DM bottom logo, saved design deleted');
+  ok((await record(p))===null&&await p.evaluate(()=>!AppState.image&&!$('phoneStart').hidden&&AppState.templateId==='etsyfolger-v1'&&bottomBrand.enabled),'Start new design: clean Foger Sleeve with the DM bottom logo, saved design deleted');
   // ---------- 7. Custom STL memory guards ----------
   await p.setInputFiles('#templateStlInput',fakeStl(1600000));await sleep(500);
   let dlg=await p.evaluate(()=>({open:$('phoneStlDialog').open,title:$('phoneStlTitle').textContent,go:!$('phoneStlDialog').querySelector('[data-choice="go"]').hidden,text:$('phoneStlText').textContent}));

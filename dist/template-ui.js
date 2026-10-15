@@ -5,7 +5,7 @@ const TEMPLATE_IDS=['etsyfolger-v1','custom-stl'];
 function templateActive(){return TEMPLATE_IDS.includes(AppState.templateId)&&AppState.mode==='sleeve'}
 // Overridden by custom-template-ui.js; the built-in template needs no extra job data.
 function templateJobData(worker,quality){return undefined}
-function templateInfo(){return{label:'ETSYFOLGER',file:'ETSYFOLGER',description:'Original cavity, openings and dimensions preserved.',surface:'ETSYFOLGER · curved surface',stats:'Original STL · '+(templateBase?Math.round(templateBase.height):89)+' mm tall',ready:'Your original sleeve is ready. Add an image or text.'}}
+function templateInfo(){return{label:'Foger Sleeve',file:'Foger-Sleeve',description:'Original cavity, openings and dimensions preserved.',surface:'Foger Sleeve · curved surface',stats:'Original STL · '+(templateBase?Math.round(templateBase.height):89)+' mm tall',ready:'Your original sleeve is ready. Add an image or text.'}}
 // Custom templates can be larger than the built-in sleeve; the built-in keeps its original slider ranges.
 function placementLimit(id,min,max){if(!templateBase||AppState.templateId!=='custom-stl')return max;if(id==='designY')return Math.ceil(templateBase.height);if(id==='designHeight')return Math.max(min,Math.ceil(templateBase.height));if(id==='designWidth')return Math.max(160,Math.ceil(Math.min(3000,templateBase.chart?.perimeter||SleeveTemplate.profile(templateBase).perimeter)));return max}
 function syncPlacementLimits(){for(const[id,,min,max]of placementSpecs){const lim=placementLimit(id,min,max);for(const suffix of ['Range','Number']){const el=$(id+suffix);if(el&&!(suffix==='Number'&&PLACEMENT_ANGLES.has(id)))el.max=String(lim)}}}

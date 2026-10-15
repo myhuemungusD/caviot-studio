@@ -134,7 +134,7 @@ function beforeTemplateChoice(value){
   if(value==='custom-stl'){
     // Keyboard users change selects with arrow keys, so never pop a file dialog from here.
     if(!customTemplate){$('customTemplatePanel').hidden=true;templateStatus('Upload an STL first with Upload STL template.',true);$('uploadTemplateBtn').focus();return false}setActiveTemplateBase(customTemplate.display||customTemplate.base);ensureCustomPrint();setTimeout(()=>templateView('front'));return true}
-  if(value==='etsyfolger-v1'){if(!builtinTemplateBase){toast(builtinTemplateError?builtinTemplateError.message:'The ETSYFOLGER template is still loading.','error');return false}activateBuiltinTemplate();setTimeout(()=>templateView('front'));}
+  if(value==='etsyfolger-v1'){if(!builtinTemplateBase){toast(builtinTemplateError?builtinTemplateError.message:'The Foger Sleeve template is still loading.','error');return false}activateBuiltinTemplate();setTimeout(()=>templateView('front'));}
   return true;
 }
 templateJobData=function(worker,quality){
