@@ -41,7 +41,41 @@ function installNativeShell(capacitor) {
   patchIpadMemoryGuard();
   bindPickersAndHaptics({ camera, haptics });
   listenForMemoryWarnings(native);
+  listenForOpenedFiles(native, capacitor);
   void beginSmokeIfRequested(native);
+
+  // "Open in Caviot" from Files or the share sheet: the native side copies the file into tmp and
+  // signals; the page then loads it as the sleeve template (STL, OBJ or 3MF; anything else is refused there).
+  function listenForOpenedFiles(plugin, capacitorRef) {
+    if (!plugin || typeof plugin.takePendingFiles !== 'function') return;
+    let busy = false;
+    const drain = async () => {
+      if (busy) return;
+      busy = true;
+      try {
+        for (let i = 0; i < 600 && !(pageApi && pageApi.ready); i++) await new Promise((r) => setTimeout(r, 100));
+        const { files = [] } = await plugin.takePendingFiles();
+        for (const entry of files) {
+          try {
+            const url = capacitorRef.convertFileSrc('file://' + entry.path);
+            const response = await fetch(url);
+            if (!response.ok) throw new Error('could not read the file (' + response.status + ')');
+            const file = new File([await response.blob()], entry.name || 'template.stl');
+            say('Opening “' + file.name + '” as the sleeve template…', 'success');
+            await pageApi.openTemplateFile(file);
+          } catch (error) {
+            say('Could not open “' + (entry.name || 'file') + '”: ' + messageOf(error), 'error');
+          }
+        }
+      } catch (error) {
+        say('Could not open the shared file: ' + messageOf(error), 'error');
+      } finally {
+        busy = false;
+      }
+    };
+    plugin.addListener?.('templateFileReady', () => { void drain(); });
+    void drain();
+  }
 
   function configureChrome(all) {
     const status = all.StatusBar;

@@ -1,9 +1,10 @@
 // Phone redesign phase 1, end to end with device emulation and real touch input (Chromium + CDP touch events):
 // autosave/restore, the Add-logo start card, the reordered tools sheet, background picking, one Front/Back control,
-// proportional size with pinch/twist on the logo, custom STL memory guards, and Share-first export.
+// proportional size with pinch/twist on the logo, custom STL memory guards, the visible "Use my own sleeve" picker (STL/OBJ/3MF, unsupported files refused), and Share-first export.
 // usage: node mobile-phase1-e2e.mjs <baseURL> [deviceNames,comma,separated] [shotPrefix]
 // needs: npm i playwright-core; Chrome at $CHROME (default /usr/bin/google-chrome).
-import {chromium,devices} from 'playwright-core';import fs from 'node:fs';import os from 'node:os';import path from 'node:path';
+import {chromium,devices} from 'playwright-core';import fs from 'node:fs';import os from 'node:os';import path from 'node:path';import {createRequire} from 'node:module';
+const fflate=createRequire(import.meta.url)('../dist/vendor/fflate.min.js');
 const base=(process.argv[2]||'http://127.0.0.1:4173/').replace(/\/?$/,'/');
 const names=(process.argv[3]||'iPhone 14,iPhone SE,Pixel 7,iPad (gen 7)').split(',');
 const shots=process.argv[4]||'';const IMAGE=new URL('./fixtures/badge.png',import.meta.url).pathname;
@@ -50,6 +51,13 @@ function tubeStl(S,R){const f=path.join(os.tmpdir(),`caviot-p1-tube-${S}x${R}.st
     tri(P(13,i,0),P(11.6,i+1,0),P(13,i+1,0));tri(P(13,i,0),P(11.6,i,0),P(11.6,i+1,0));tri(P(13,i,R),P(13,i+1,R),P(11.6,i+1,R));tri(P(13,i,R),P(11.6,i+1,R),P(11.6,i,R))}
   fs.writeFileSync(f,b);return f}
 
+
+// The same small closed tube as OBJ (quads) and as 3MF (cm units), for the template-format picker tests.
+function tubeMesh(S,R){const v=[],f=[];const id=(w,i,j)=>w*(S*(R+1))+(i%S)*(R+1)+j;for(const r of [13,11.6])for(let i=0;i<S;i++)for(let j=0;j<=R;j++){const a=i/S*Math.PI*2;v.push([r*Math.cos(a),r*Math.sin(a),45*j/R])}
+  for(let i=0;i<S;i++){for(let j=0;j<R;j++){f.push([id(0,i,j),id(0,i+1,j),id(0,i+1,j+1),id(0,i,j+1)]);f.push([id(1,i,j),id(1,i,j+1),id(1,i+1,j+1),id(1,i+1,j)])}f.push([id(0,i,0),id(1,i,0),id(1,i+1,0),id(0,i+1,0)]);f.push([id(0,i,R),id(0,i+1,R),id(1,i+1,R),id(1,i,R)])}return{v,f}}
+function tubeObj(){const f=path.join(os.tmpdir(),'caviot-p1-sleeve.obj'),m=tubeMesh(64,6);fs.writeFileSync(f,'# tube\n'+m.v.map(p=>'v '+p.map(x=>x.toFixed(5)).join(' ')).join('\n')+'\n'+m.f.map(q=>'f '+q.map(i=>i+1).join(' ')).join('\n')+'\n');return f}
+function tube3mf(){const f=path.join(os.tmpdir(),'caviot-p1-sleeve.3mf'),m=tubeMesh(64,6);const xml='<?xml version="1.0"?><model unit="centimeter" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02"><resources><object id="1" type="model"><mesh><vertices>'+m.v.map(p=>'<vertex x="'+p[0]/10+'" y="'+p[1]/10+'" z="'+p[2]/10+'"/>').join('')+'</vertices><triangles>'+m.f.flatMap(([a,b,c,d])=>['<triangle v1="'+a+'" v2="'+b+'" v3="'+c+'"/>','<triangle v1="'+a+'" v2="'+c+'" v3="'+d+'"/>']).join('')+'</triangles></mesh></object></resources><build><item objectid="1"/></build></model>';
+  fs.writeFileSync(f,fflate.zipSync({'_rels/.rels':fflate.strToU8('<Relationships><Relationship Target="/3D/3dmodel.model" Id="r0" Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel"/></Relationships>'),'3D/3dmodel.model':fflate.strToU8(xml)}));return f}
 for(const name of names){
   const dev={...devices[name]},isIPad=/iPad/.test(name),shareStub=/iPhone 14|Pixel/.test(name);
   console.log('==',name,JSON.stringify(dev.viewport),shareStub?'(share available)':'');const shot=shots&&(shots+name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/-$/,'')+'-');
@@ -185,6 +193,40 @@ for(const name of names){
   ok(await p.evaluate(()=>[...$('mobileMenu').querySelectorAll('button')][0].textContent==='Start new design…'),'overflow menu starts with "Start new design…"');
   const nav=p.waitForNavigation({waitUntil:'load'});await tapEl(p,cdp,'#mobileMenu [data-target="startNewDesign"]');await nav;await boot(p);
   ok((await record(p))===null&&await p.evaluate(()=>!AppState.image&&!$('phoneStart').hidden&&AppState.templateId==='etsyfolger-v1'&&bottomBrand.enabled),'Start new design: clean ETSYFOLGER with the DM bottom logo, saved design deleted');
+  // ---------- 6b. Use my own sleeve: visible button, any-file picker, OBJ / 3MF / refused files ----------
+  {const own=await p.evaluate(()=>{const e=$('phoneStartOwnSleeve'),r=e.getBoundingClientRect();return{vis:!$('phoneStart').hidden&&r.width>0&&r.height>=36,text:e.textContent,accept:$('templateStlInput').getAttribute('accept')||''}});
+    ok(own.vis&&/Use my own sleeve \(STL\)/.test(own.text),'start card shows "Use my own sleeve (STL)…" '+JSON.stringify(own));
+    const iosUA=await p.evaluate(()=>/iPhone|iPad/.test(navigator.userAgent));ok(iosUA?own.accept==='':/\.obj/.test(own.accept)&&/\.3mf/.test(own.accept),'picker '+(iosUA?'allows any file on iOS (no greyed-out STL)':'accepts .stl/.obj/.3mf')+' accept="'+own.accept+'"');
+    if(shot)await p.screenshot({path:shot+'own-sleeve-start.png'});
+    let chooser=p.waitForEvent('filechooser',{timeout:10000}).catch(()=>null);await tapEl(p,cdp,'#phoneStartOwnSleeve');let fc=await chooser;
+    ok(!!fc&&await fc.element().evaluate(e=>e.id)==='templateStlInput','start card link opens the template picker');
+    if(fc){await fc.setFiles(tubeObj());await p.waitForFunction(()=>AppState.templateId==='custom-stl'&&!customLoading,null,{timeout:60000}).catch(()=>{});await settle(p)}
+    let ct=await p.evaluate(()=>({id:AppState.templateId,name:customTemplate?.name,tris:customTemplate?.report?.triangles,bad:CustomTemplate.describeProblems(customTemplate?.report||{}).length,h:+(customTemplate?.base?.height||0).toFixed(1)}));
+    ok(ct.id==='custom-stl'&&ct.name==='caviot-p1-sleeve'&&ct.tris===64*6*4+64*4&&ct.bad===0&&Math.abs(ct.h-45)<.2,'OBJ loads as a watertight template '+JSON.stringify(ct));
+    await openSheet(p,cdp);await railTo(p,cdp,'phoneSecSides');
+    const btn=await p.evaluate(()=>{const e=$('phoneOwnSleeve'),r=e.getBoundingClientRect();return{text:e.textContent,h:r.height,in:!!e.closest('#phoneSecSides')}});ok(btn.in&&btn.h>=44&&/Use my own sleeve \(STL\)/.test(btn.text),'Front/back section has a visible "Use my own sleeve (STL)…" button '+JSON.stringify(btn));
+    if(shot)await p.screenshot({path:shot+'own-sleeve-sheet.png'});
+    chooser=p.waitForEvent('filechooser',{timeout:10000}).catch(()=>null);await tapEl(p,cdp,'#phoneOwnSleeve');fc=await chooser;ok(!!fc,'sheet button opens the template picker');
+    if(fc){await fc.setFiles(tube3mf());await p.waitForFunction(()=>customTemplate?.name==='caviot-p1-sleeve'&&customTemplate.source&&!customLoading&&$('customTemplateInfo').textContent.includes('45.0'),null,{timeout:60000}).catch(()=>{});await settle(p)}
+    ct=await p.evaluate(()=>({id:AppState.templateId,tris:customTemplate?.report?.triangles,bad:CustomTemplate.describeProblems(customTemplate?.report||{}).length,info:$('customTemplateInfo').textContent}));
+    ok(ct.id==='custom-stl'&&ct.tris===64*6*4+64*4&&ct.bad===0&&/45\.0/.test(ct.info),'3MF (centimetres) loads as the same 45 mm watertight template '+JSON.stringify(ct));
+    await p.waitForFunction(()=>!!customTemplate?.print,null,{timeout:60000}).catch(()=>{});
+    const before=await p.evaluate(()=>customTemplate.key);
+    await p.setInputFiles('#templateStlInput',{name:'logo.png',mimeType:'image/png',buffer:fs.readFileSync(IMAGE)});await sleep(600);
+    let bad=await p.evaluate(()=>({status:$('customTemplateStatus').textContent,toast:els.toast.textContent,key:customTemplate?.key}));
+    ok(/picture/.test(bad.status)&&/picture/.test(bad.toast)&&bad.key===before,'a picture picked as a template is refused with a clear message, template unchanged '+JSON.stringify(bad.status));
+    await p.setInputFiles('#templateStlInput',{name:'Scan.usdz',mimeType:'model/vnd.usdz+zip',buffer:Buffer.from('PK\x03\x04usdz')});await sleep(400);
+    bad=await p.evaluate(()=>$('customTemplateStatus').textContent);ok(/USDZ/.test(bad)&&/STL or OBJ/.test(bad),'USDZ is refused with "export as STL or OBJ" '+JSON.stringify(bad));
+    await p.setInputFiles('#templateStlInput',{name:'notes.txt',mimeType:'text/plain',buffer:Buffer.from('just some text')});await sleep(400);
+    bad=await p.evaluate(()=>$('customTemplateStatus').textContent);ok(/not a supported 3D template/.test(bad),'unknown file refused '+JSON.stringify(bad));
+    if(shot)await p.screenshot({path:shot+'own-sleeve-refused.png'});
+    // Remove it again, then choosing "Custom STL · upload…" with nothing loaded opens the picker.
+    await p.evaluate(()=>$('removeTemplateBtn').click());await sleep(500);await settle(p);
+    ok(await p.evaluate(()=>AppState.templateId==='etsyfolger-v1'&&!customTemplate),'Remove template returns to ETSYFOLGER');
+    await railTo(p,cdp,'phoneAllSettings');await p.evaluate(()=>$('templateChoice').scrollIntoView({block:'center'}));await sleep(300);
+    chooser=p.waitForEvent('filechooser',{timeout:5000}).catch(()=>null);await p.selectOption('#templateChoice','custom-stl');fc=await chooser;
+    ok(!!fc&&await p.evaluate(()=>AppState.templateId==='etsyfolger-v1'&&$('templateChoice').value==='etsyfolger-v1'),'"Custom STL · upload…" with no template opens the picker and keeps ETSYFOLGER until a file is chosen');
+    await closeSheet(p,cdp);}
   // ---------- 7. Custom STL memory guards ----------
   await p.setInputFiles('#templateStlInput',fakeStl(1600000));await sleep(500);
   let dlg=await p.evaluate(()=>({open:$('phoneStlDialog').open,title:$('phoneStlTitle').textContent,go:!$('phoneStlDialog').querySelector('[data-choice="go"]').hidden,text:$('phoneStlText').textContent}));

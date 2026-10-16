@@ -31,6 +31,9 @@ const entries = [
   ['ITSAppUsesNonExemptEncryption', '<false/>'],
   ['LSApplicationCategoryType', '<string>public.app-category.graphics-design</string>']
 ];
+// STL/OBJ/3MF: pickable in Files and "Open in Caviot" in the share sheet.
+const docTypes = JSON.parse(fs.readFileSync(path.join(sourceDir, 'document-types.json'), 'utf8'));
+for (const [key, value] of Object.entries(docTypes)) entries.push([key, value]);
 plist = plist.replace('<string>armv7</string>', '<string>arm64</string>');
 for (const [key, value] of entries) {
   if (plist.includes('<key>' + key + '</key>')) continue;
