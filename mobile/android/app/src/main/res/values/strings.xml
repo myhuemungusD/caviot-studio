@@ -4,4 +4,8 @@
     <string name="title_activity_main">Caviot Studio</string>
     <string name="package_name">com.caviot.studio</string>
     <string name="custom_url_scheme">com.caviot.studio</string>
+    <string name="shortcut_template_short">Open STL template</string>
+    <string name="shortcut_template_long">Open my own sleeve (STL, OBJ, 3MF)</string>
+    <string name="shortcut_folder_short">Export folder</string>
+    <string name="shortcut_folder_long">Choose where exports are saved</string>
 </resources>

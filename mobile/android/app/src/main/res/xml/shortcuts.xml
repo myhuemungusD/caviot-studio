@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut android:shortcutId="open_template" android:enabled="true"
+        android:icon="@mipmap/ic_launcher" android:shortcutShortLabel="@string/shortcut_template_short"
+        android:shortcutLongLabel="@string/shortcut_template_long">
+        <intent android:action="com.caviot.studio.PICK_TEMPLATE"
+            android:targetPackage="com.caviot.studio" android:targetClass="com.caviot.studio.MainActivity" />
+    </shortcut>
+    <shortcut android:shortcutId="export_folder" android:enabled="true"
+        android:icon="@mipmap/ic_launcher" android:shortcutShortLabel="@string/shortcut_folder_short"
+        android:shortcutLongLabel="@string/shortcut_folder_long">
+        <intent android:action="com.caviot.studio.EXPORT_FOLDER"
+            android:targetPackage="com.caviot.studio" android:targetClass="com.caviot.studio.MainActivity" />
+    </shortcut>
+</shortcuts>
