@@ -7,3 +7,4 @@ node_modules/
 .openai/
 bottom-logo-mask.f32
 .launcher/
+node_modules

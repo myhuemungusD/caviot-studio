@@ -25,6 +25,18 @@
       "overlaysWebView": true,
       "style": "DARK",
       "backgroundColor": "#101114"
+    },
+    "SystemBars": {
+      "insetsHandling": "css",
+      "style": "DARK",
+      "initialViewportFitValueHint": "cover"
     }
+  },
+  "android": {
+    "backgroundColor": "#101114",
+    "allowMixedContent": false,
+    "captureInput": false,
+    "webContentsDebuggingEnabled": false,
+    "adjustMarginsForEdgeToEdge": "disable"
   }
 }
