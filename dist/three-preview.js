@@ -122,10 +122,51 @@ function onResize() {
   renderer.setSize(w, h);
 }
 
+// Render on demand. The loop still ticks every frame, but only draws when something could have
+// changed: the camera moved (orbit/damping), the canvas resized, any object, geometry, material or
+// transform in the scene changed, the user is interacting, or a slow heartbeat (catches uniform or
+// colour edits). Idle frames cost a cheap signature walk instead of a full WebGL draw, which keeps
+// phones cool and leaves the GPU free for slider rebuilds. Exports never touch this path.
+let previewFrameSig = '';
+let previewActiveUntil = 0;
+let previewLastDraw = 0;
+const PREVIEW_HEARTBEAT_MS = 500;
+function requestPreviewRender(ms = 0) {
+  previewFrameSig = '';
+  if (ms) previewActiveUntil = Math.max(previewActiveUntil, performance.now() + ms);
+}
+if (typeof window !== 'undefined') {
+  window.requestPreviewRender = requestPreviewRender;
+  const wake = () => requestPreviewRender(1200);
+  for (const type of ['pointerdown', 'pointermove', 'wheel', 'keydown', 'input', 'change', 'touchmove']) {
+    window.addEventListener(type, wake, { capture: true, passive: true });
+  }
+}
+function previewSignature() {
+  const parts = [renderer.getSize(new THREE.Vector2()).toArray().join('x'), camera.matrixWorld.elements.join(','), camera.projectionMatrix.elements[0]];
+  scene.traverse((o) => {
+    parts.push(o.id, o.visible ? 1 : 0, o.matrixWorld.elements[12], o.matrixWorld.elements[13], o.matrixWorld.elements[14],
+      o.matrixWorld.elements[0], o.matrixWorld.elements[5], o.matrixWorld.elements[10], o.matrixWorld.elements[1]);
+    if (o.geometry) {
+      const pos = o.geometry.attributes && o.geometry.attributes.position;
+      parts.push(o.geometry.id, pos ? pos.version + ':' + pos.count : '', o.geometry.drawRange ? o.geometry.drawRange.count : '');
+    }
+    if (o.material) eachMaterial(o.material, (m) => parts.push(m.id, m.version, m.opacity, m.visible ? 1 : 0));
+  });
+  return parts.join('|');
+}
 function animate() {
   requestAnimationFrame(animate);
+  if (!renderer || !scene || !camera) return;
   if (controls) controls.update();
-  if (renderer && scene && camera) renderer.render(scene, camera);
+  scene.updateMatrixWorld();
+  camera.updateMatrixWorld();
+  const now = performance.now();
+  const sig = previewSignature();
+  if (sig === previewFrameSig && now > previewActiveUntil && now - previewLastDraw < PREVIEW_HEARTBEAT_MS) return;
+  previewFrameSig = sig;
+  previewLastDraw = now;
+  renderer.render(scene, camera);
 }
 
 function resetView() {
