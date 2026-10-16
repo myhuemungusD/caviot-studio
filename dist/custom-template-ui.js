@@ -36,7 +36,7 @@ async function importTemplateFile(file){
   if(!file)return;
   if(typeof exportBusy!=='undefined'&&exportBusy){toast('Wait for the export to finish.','error');return}
   const name=file.name||'template';
-  const refuse=message=>{const text='Could not use '+name+': '+message;toast(text,'error');$('customTemplatePanel').hidden=!customTemplate;customStatus(text,'bad');return null};
+  const refuse=message=>{const text='Could not use '+name+': '+message;toast(text,'error');$('customTemplatePanel').hidden=!customTemplate;customRefusedAt=Date.now();customStatus(text,'bad');return null};
   if(file.size>TemplateFormats.MAX_BYTES)return refuse('the file is larger than 100 MB. Simplify it in your mesh tool first.');
   let converted;
   try{const head=new Uint8Array(await file.slice(0,Math.min(file.size,4096)).arrayBuffer());const kind=TemplateFormats.detect(head,name,file.size);
@@ -50,6 +50,10 @@ $('flattenStlBtn').onclick=()=>els.stlInput&&els.stlInput.click();
 // Errors are already shown in the panel and a toast by useCustomTemplateBuffer.
 customInput.onchange=()=>{const file=customInput.files?.[0];if(file)importTemplateFile(file).catch(()=>{})};
 const isCancelled=error=>error?.code==='CANCELLED';
+// A refused file's message stays visible: background print-surface updates for the current template
+// do not overwrite it for a few seconds.
+let customRefusedAt=0;
+function customSummaryStatus(t){if(Date.now()-customRefusedAt<10000)return;const s=customSummary(t);customStatus(s.text,s.level)}
 function customStatus(message,level=''){const el=$('customTemplateStatus');el.textContent=message;el.classList.toggle('error',level==='warn');el.classList.toggle('bad',level==='bad')}
 function customOrientationFromUI(){return CustomTemplate.normalizeOrientation({up:$('customUp').value,turn:Number($('customTurn').value),units:$('customUnits').value,autoAlign:$('customAutoAlign').checked,raiseOnTexture:$('customRaise').checked})}
 function customOrientationToUI(o){$('customUp').value=o.up;$('customTurn').value=String(o.turn);$('customUnits').value=o.units;$('customAutoAlign').checked=o.autoAlign;$('customRaise').checked=o.raiseOnTexture}
@@ -91,10 +95,10 @@ function prepareCustomTemplate(job){
 function ensureCustomPrint(t=customTemplate){
   if(!t||t.print||t.printWorker)return;const worker=new Worker('template-worker.js');t.printWorker=worker;
   const done=()=>{worker.terminate();t.printWorker=null};
-  worker.onmessage=({data})=>{if(data.progress)return;done();if(data.error){if(customTemplate===t)customStatus('Print surface could not be prepared in advance: '+data.error+' Export will try again.','warn');return}t.print=data.print;if(customTemplate===t){const s=customSummary(t);customStatus(s.text,s.level)}};
+  worker.onmessage=({data})=>{if(data.progress)return;done();if(data.error){if(customTemplate===t)customStatus('Print surface could not be prepared in advance: '+data.error+' Export will try again.','warn');return}t.print=data.print;if(customTemplate===t)customSummaryStatus(t)};
   worker.onerror=e=>{e.preventDefault?.();done();if(customTemplate===t)customStatus('Print surface could not be prepared in advance; export will prepare it.','warn')};
   worker.postMessage({type:'custom-print',id:1,base:t.base});
-  if(customTemplate===t){const s=customSummary(t);customStatus(s.text,s.level)}
+  if(customTemplate===t)customSummaryStatus(t);
 }
 function dropCustomPrint(t){if(t?.printWorker){t.printWorker.terminate();t.printWorker=null}}
 function customSummary(t){
@@ -122,7 +126,7 @@ async function loadCustomTemplateFile(file){
   const buffer=await file.arrayBuffer();return useCustomTemplateBuffer(buffer,file.name.replace(/\.stl$/i,'').slice(0,120)||'Custom STL',customDefaults,{activate:true});
 }
 async function useCustomTemplateBuffer(buffer,name,orientation,{activate=true,repaired=false,quiet=false}={}){
-  $('customTemplatePanel').hidden=false;$('customTemplateInfo').textContent=name;customStatus('Reading '+name+'…');templateStatus('Loading template '+name+'…');
+  $('customTemplatePanel').hidden=false;$('customTemplateInfo').textContent=name;customRefusedAt=0;customStatus('Reading '+name+'…');templateStatus('Loading template '+name+'…');
   try{
     if(activate)customActivatePending=true;
     const t=await prepareCustomTemplate({buffer,name,orientation,repaired});
@@ -141,7 +145,7 @@ function installCustomTemplate(t,activate){
 }
 function activateCustomTemplate(){
   if(!customTemplate)return;AppState.templateId='custom-stl';AppState.mode='sleeve';
-  const base=customTemplate.display||customTemplate.base;setActiveTemplateBase(base);ensureCustomPrint();{const s=customSummary(customTemplate);customStatus(s.text,s.level)}
+  const base=customTemplate.display||customTemplate.base;setActiveTemplateBase(base);ensureCustomPrint();customSummaryStatus(customTemplate);
   const h=base.height;const fit=s=>{if(s&&(s.designY>h||s.designY<0))s.designY=Math.round(h/2*10)/10};fit(AppState);if(typeof designLayers!=='undefined')designLayers.flat().forEach(fit);
   projectStateToUI();if(AppState.image)scheduleRebuild(true);else renderTemplateBlank();templateView('front');syncTemplateUI();saveSettings();
 }
