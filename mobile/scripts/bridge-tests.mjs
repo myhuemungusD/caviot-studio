@@ -19,6 +19,17 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 const tests = [];
 const test = (name, fn) => tests.push([name, fn]);
 
+test('Android manifest opens STL, OBJ and 3MF and keeps the app id', () => {
+  const manifest = fs.readFileSync(path.join(root, 'mobile/android/app/src/main/AndroidManifest.xml'), 'utf8');
+  for (const mime of ['model/stl', 'model/obj', 'model/3mf', 'application/sla']) assert.ok(manifest.includes('"' + mime + '"'), mime);
+  for (const action of ['android.intent.action.VIEW', 'android.intent.action.SEND']) assert.ok(manifest.includes(action), action);
+  assert.ok(manifest.includes('.*\\\\.stl'), 'extension match for octet-stream STL');
+  const gradle = fs.readFileSync(path.join(root, 'mobile/android/app/build.gradle'), 'utf8');
+  assert.ok(gradle.includes('applicationId "com.caviot.studio"'));
+  const config = JSON.parse(fs.readFileSync(path.join(root, 'mobile/capacitor.config.json'), 'utf8'));
+  assert.equal(config.appId, 'com.caviot.studio');
+});
+
 test('the bridge does nothing unless Capacitor says this is the native app', () => {
   assert.equal(nativeActive(undefined), false);
   assert.equal(nativeActive({}), false);
