@@ -27,7 +27,9 @@ function installNativeShell(capacitor) {
     ? capacitor.registerPlugin('CaviotNative')
     : plugins.CaviotNative;
   pageApi = globalThis.__caviotPage || null;
+  const android = typeof capacitor.getPlatform === 'function' && capacitor.getPlatform() === 'android';
   document.documentElement.classList.add('capacitor-native');
+  if (android) document.documentElement.classList.add('android-native');
 
   const haptics = plugins.Haptics;
   const filesystem = plugins.Filesystem;
@@ -42,6 +44,10 @@ function installNativeShell(capacitor) {
   bindPickersAndHaptics({ camera, haptics });
   listenForMemoryWarnings(native);
   listenForOpenedFiles(native, capacitor);
+  if (android) {
+    bindAndroidBackButton(plugins.App);
+    bindAdaptiveRefresh(native);
+  }
   void beginSmokeIfRequested(native);
 
   // "Open in Caviot" from Files or the share sheet: the native side copies the file into tmp and
@@ -54,15 +60,19 @@ function installNativeShell(capacitor) {
       busy = true;
       try {
         for (let i = 0; i < 600 && !(pageApi && pageApi.ready); i++) await new Promise((r) => setTimeout(r, 100));
-        const { files = [] } = await plugin.takePendingFiles();
+        const { files = [], shortcuts = [] } = await plugin.takePendingFiles();
+        for (const action of shortcuts) void runShortcut(plugin, action);
         for (const entry of files) {
+          if (entry.error) { say(entry.error, 'error'); continue; }
           try {
             const url = capacitorRef.convertFileSrc('file://' + entry.path);
             const response = await fetch(url);
             if (!response.ok) throw new Error('could not read the file (' + response.status + ')');
             const file = new File([await response.blob()], entry.name || 'template.stl');
             say('Opening “' + file.name + '” as the sleeve template…', 'success');
+            const opened = performance.now();
             await pageApi.openTemplateFile(file);
+            if (smokeMode) await report(plugin, { stage: 'template-opened', name: file.name, bytes: file.size, ms: Math.round(performance.now() - opened), template: pageApi.state?.templateId });
           } catch (error) {
             say('Could not open “' + (entry.name || 'file') + '”: ' + messageOf(error), 'error');
           }
@@ -74,13 +84,73 @@ function installNativeShell(capacitor) {
       }
     };
     plugin.addListener?.('templateFileReady', () => { void drain(); });
+    plugin.addListener?.('shortcut', () => { void drain(); });
     void drain();
+  }
+
+  // Android launcher shortcuts (long-press the icon): open a template, or pick the export folder.
+  async function runShortcut(plugin, action) {
+    try {
+      if (/PICK_TEMPLATE$/.test(action)) await plugin.pickTemplate();
+      else if (/EXPORT_FOLDER$/.test(action)) {
+        const result = await plugin.chooseExportFolder();
+        if (result?.folder) say('Exports will be saved to “' + result.folder + '”.', 'success');
+      }
+    } catch (error) {
+      say('That shortcut did not work: ' + messageOf(error), 'error');
+    }
+  }
+
+  // Android back: close the top dialog, then the tools sheet, then send the app to the background
+  // (like Chrome) instead of killing it, so an unsaved design survives.
+  function bindAndroidBackButton(app) {
+    if (!app || typeof app.addListener !== 'function') return;
+    app.addListener('backButton', () => {
+      const dialogs = [...document.querySelectorAll('dialog[open]')];
+      const top = dialogs[dialogs.length - 1];
+      if (top) {
+        const cancel = new Event('cancel', { cancelable: true });
+        if (top.dispatchEvent(cancel)) top.close('cancel');
+        return;
+      }
+      if (document.body.classList.contains('mobile-settings-open') && typeof globalThis.setSettingsOpen === 'function') {
+        globalThis.setSettingsOpen(false);
+        return;
+      }
+      if (document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)) {
+        document.activeElement.blur();
+        return;
+      }
+      app.minimizeApp?.().catch?.(() => {});
+    })?.catch?.(() => {});
+  }
+
+  // 90/120 Hz only while a finger is on the model; the system picks a lower rate when idle (battery).
+  function bindAdaptiveRefresh(plugin) {
+    if (!plugin || typeof plugin.setHighRefresh !== 'function') return;
+    let high = false;
+    let dropTimer = 0;
+    const set = (value) => {
+      if (value === high) return;
+      high = value;
+      plugin.setHighRefresh({ high: value }).catch(() => {});
+    };
+    const onCanvas = (event) => event.target && event.target.tagName === 'CANVAS';
+    document.addEventListener('pointerdown', (event) => {
+      if (!onCanvas(event) && !event.target?.closest?.('input[type="range"]')) return;
+      clearTimeout(dropTimer);
+      set(true);
+    }, { capture: true, passive: true });
+    const release = () => { clearTimeout(dropTimer); dropTimer = setTimeout(() => set(false), 1500); };
+    document.addEventListener('pointerup', release, { capture: true, passive: true });
+    document.addEventListener('pointercancel', release, { capture: true, passive: true });
+    document.addEventListener('visibilitychange', () => { if (document.hidden) set(false); });
   }
 
   function configureChrome(all) {
     const status = all.StatusBar;
     if (status) {
-      status.setOverlaysWebView({ overlay: true }).catch(() => {});
+      if (!android) status.setOverlaysWebView({ overlay: true }).catch(() => {});
       status.setStyle({ style: 'DARK' }).catch(() => {});
       status.setBackgroundColor({ color: '#101114' }).catch(() => {});
     }
@@ -104,7 +174,7 @@ function installNativeShell(capacitor) {
           pulse(tools.haptics, 'notification', { type: 'ERROR' });
           return;
         }
-        say('Could not use the iOS share sheet (' + messageOf(error) + '). Trying the browser download instead.', 'error');
+        say('Could not save through ' + (android ? 'Android' : 'the iOS share sheet') + ' (' + messageOf(error) + '). Trying the browser download instead.', 'error');
         try { webDownload(blob, filename); }
         catch (fallbackError) { say('Export could not be saved: ' + messageOf(fallbackError), 'error'); }
       });
@@ -122,6 +192,7 @@ function installNativeShell(capacitor) {
       throw error;
     }
     const path = safeExportName(filename);
+    if (android) return deliverAndroidExport(blob, path, tools);
     try {
       await writeBlobInChunks(tools.filesystem, path, blob);
       const stat = await tools.filesystem.stat({ path, directory: 'DOCUMENTS' });
@@ -147,6 +218,36 @@ function installNativeShell(capacitor) {
       say('Saved to Files. The share sheet could not open: ' + messageOf(error), 'error');
       pulse(tools.haptics, 'notification', { type: 'ERROR' });
     }
+  }
+
+  // Android: write the export to app cache, then the native side saves it to the remembered folder
+  // (Storage Access Framework), asks with Save as…, or hands back "share".
+  async function deliverAndroidExport(blob, path, tools) {
+    await writeBlobInChunks(tools.filesystem, path, blob, 'CACHE');
+    const stat = await tools.filesystem.stat({ path, directory: 'CACHE' });
+    if (Number(stat.size) !== blob.size) {
+      await tools.filesystem.deleteFile({ path, directory: 'CACHE' }).catch(() => {});
+      throw new Error('The saved file is ' + stat.size + ' bytes; the export is ' + blob.size + ' bytes.');
+    }
+    if (smokeMode) {
+      globalThis.__caviotSmokeExport = { filename: path, bytes: blob.size };
+      return;
+    }
+    const located = await tools.filesystem.getUri({ path, directory: 'CACHE' });
+    const filePath = String(located.uri).replace(/^file:\/\//, '');
+    const mime = /\.obj$/i.test(path) ? 'model/obj' : /\.icaviot$/i.test(path) ? 'application/json' : 'model/stl';
+    const result = await native.saveExport({ path: decodeURIComponent(filePath), name: path, mime });
+    if (result?.cancelled) {
+      await tools.filesystem.deleteFile({ path, directory: 'CACHE' }).catch(() => {});
+      return;
+    }
+    if (result?.action === 'share') {
+      try { await tools.share.share({ title: path, files: [located.uri] }); }
+      catch (error) { if (!shareWasCancelled(error)) say('The share sheet could not open: ' + messageOf(error), 'error'); }
+      return;
+    }
+    pulse(tools.haptics, 'notification', { type: 'SUCCESS' });
+    say(result?.where === 'folder' ? 'Saved “' + path + '” to “' + (result.folder || 'your folder') + '”.' : 'Saved “' + path + '”.', 'success');
   }
 
   function patchIpadMemoryGuard() {
@@ -231,7 +332,7 @@ function installNativeShell(capacitor) {
         const now = Date.now();
         if (now - memoryWarnedAt < 60000) return;
         memoryWarnedAt = now;
-        say('This device is low on memory. Save your project. A very large export can be closed by iOS.', 'error');
+        say('This device is low on memory. Save your project. A very large export can be closed by ' + (android ? 'Android' : 'iOS') + '.', 'error');
         pulse(haptics, 'notification', { type: 'WARNING' });
       });
       if (added && typeof added.catch === 'function') added.catch(() => {});
@@ -307,14 +408,14 @@ function installNativeShell(capacitor) {
   }
 }
 
-async function writeBlobInChunks(filesystem, path, blob) {
+async function writeBlobInChunks(filesystem, path, blob, directory = 'DOCUMENTS') {
   const chunkSize = 512 * 1024;
   let offset = 0;
   let index = 0;
   while (offset < blob.size) {
     const slice = blob.slice(offset, Math.min(blob.size, offset + chunkSize));
     const data = await blobToBase64(slice);
-    const options = { path, data, directory: 'DOCUMENTS' };
+    const options = { path, data, directory };
     if (index === 0) await filesystem.writeFile(options);
     else await filesystem.appendFile(options);
     offset += slice.size;
