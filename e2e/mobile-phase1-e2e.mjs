@@ -211,8 +211,8 @@ for(const name of names){
     ct=await p.evaluate(()=>({id:AppState.templateId,tris:customTemplate?.report?.triangles,bad:CustomTemplate.describeProblems(customTemplate?.report||{}).length,info:$('customTemplateInfo').textContent}));
     ok(ct.id==='custom-stl'&&ct.tris===64*6*4+64*4&&ct.bad===0&&/45\.0/.test(ct.info),'3MF (centimetres) loads as the same 45 mm watertight template '+JSON.stringify(ct));
     await p.waitForFunction(()=>!!customTemplate?.print,null,{timeout:60000}).catch(()=>{});
-    const before=await p.evaluate(()=>customTemplate.key);
-    await p.setInputFiles('#templateStlInput',{name:'logo.png',mimeType:'image/png',buffer:fs.readFileSync(IMAGE)});await sleep(600);
+    await settle(p);const before=await p.evaluate(()=>customTemplate.key);
+    await p.setInputFiles('#templateStlInput',{name:'logo.png',mimeType:'image/png',buffer:fs.readFileSync(IMAGE)});await p.waitForFunction(()=>/picture/.test($('customTemplateStatus').textContent),null,{timeout:8000}).catch(()=>{});
     let bad=await p.evaluate(()=>({status:$('customTemplateStatus').textContent,toast:els.toast.textContent,key:customTemplate?.key}));
     ok(/picture/.test(bad.status)&&/picture/.test(bad.toast)&&bad.key===before,'a picture picked as a template is refused with a clear message, template unchanged '+JSON.stringify(bad.status));
     await p.setInputFiles('#templateStlInput',{name:'Scan.usdz',mimeType:'model/vnd.usdz+zip',buffer:Buffer.from('PK\x03\x04usdz')});await sleep(400);
