@@ -9,8 +9,8 @@ const customDefaults={up:'auto',turn:0,units:'mm',autoAlign:true};
 
 // ---------- Panel ----------
 const customPanel=document.createElement('div');customPanel.id='customTemplateTools';customPanel.className='custom-template-tools';
-customPanel.innerHTML=`<div class="custom-template-actions custom-template-uploads"><div class="custom-template-choice"><button class="btn btn-ghost btn-sm" id="uploadTemplateBtn" type="button">Upload STL template…</button><p class="muted-tip">Keeps the STL shape.</p></div><div class="custom-template-choice"><button class="btn btn-ghost btn-sm" id="flattenStlBtn" type="button" title="Old behaviour: turn an STL's top view into a height-map image">Flatten STL into artwork</button><p class="muted-tip">Turns the STL into a picture.</p></div></div>
-<input type="file" id="templateStlInput" accept=".stl,model/stl,application/sla,application/vnd.ms-pki.stl" hidden>
+customPanel.innerHTML=`<div class="custom-template-actions custom-template-uploads"><div class="custom-template-choice"><button class="btn btn-ghost btn-sm" id="uploadTemplateBtn" type="button">Upload STL template…</button><p class="muted-tip">STL, OBJ or 3MF. Keeps the shape.</p></div><div class="custom-template-choice"><button class="btn btn-ghost btn-sm" id="flattenStlBtn" type="button" title="Old behaviour: turn an STL's top view into a height-map image">Flatten STL into artwork</button><p class="muted-tip">Turns the STL into a picture.</p></div></div>
+<input type="file" id="templateStlInput" hidden>
 <div id="customTemplatePanel" hidden>
  <p class="custom-template-name" id="customTemplateInfo"></p>
  <p class="muted-tip" id="customTemplateStatus" role="status"></p>
@@ -26,11 +26,29 @@ customPanel.innerHTML=`<div class="custom-template-actions custom-template-uploa
 $('templateDescription').after(customPanel);
 const customStyle=document.createElement('style');customStyle.textContent=`.custom-template-tools{margin-top:8px}.custom-template-actions{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}.custom-template-uploads{align-items:flex-start}.custom-template-choice{display:flex;flex-direction:column;align-items:flex-start;max-width:100%}.custom-template-choice .muted-tip{margin:2px 0 8px}.custom-orient-grid{display:grid;grid-template-columns:auto 1fr;gap:6px 8px;align-items:center;margin:8px 0}.custom-orient-grid label{font-size:12px}.custom-template-name{font-weight:600;margin:8px 0 2px;overflow-wrap:anywhere}#customTemplateStatus.error{color:var(--warning,#f5a524)}#customTemplateStatus.bad{color:var(--danger,#ff5d5d)}`;document.head.appendChild(customStyle);
 const customInput=$('templateStlInput');
+// iPhone/iPad (Safari and the app) grey out files whose type iOS does not know, and STL/OBJ/3MF often
+// have no system type, so there the picker allows any file and importTemplateFile checks it instead.
+const customNav=typeof navigator!=='undefined'?navigator:{},customPickAnyFile=!!(globalThis.Capacitor?.isNativePlatform?.()||/iPad|iPhone|iPod/.test(customNav.userAgent||'')||(customNav.platform==='MacIntel'&&customNav.maxTouchPoints>1));
+if(!customPickAnyFile)customInput.accept=typeof TemplateFormats!=='undefined'?TemplateFormats.ACCEPT:'.stl,.obj,.3mf';
 function openTemplateUpload(){customInput.value='';customInput.click()}
+// Any picked or shared file: check the extension and content, convert OBJ/3MF to STL, then the normal STL path.
+async function importTemplateFile(file){
+  if(!file)return;
+  if(typeof exportBusy!=='undefined'&&exportBusy){toast('Wait for the export to finish.','error');return}
+  const name=file.name||'template';
+  const refuse=message=>{const text='Could not use '+name+': '+message;toast(text,'error');$('customTemplatePanel').hidden=!customTemplate;customStatus(text,'bad');return null};
+  if(file.size>TemplateFormats.MAX_BYTES)return refuse('the file is larger than 100 MB. Simplify it in your mesh tool first.');
+  let converted;
+  try{const head=new Uint8Array(await file.slice(0,Math.min(file.size,4096)).arrayBuffer());const kind=TemplateFormats.detect(head,name,file.size);
+    if(kind==='stl')return loadCustomTemplateFile(file);
+    converted=TemplateFormats.toSTL(await file.arrayBuffer(),name)}
+  catch(error){return refuse(error.message)}
+  return loadCustomTemplateFile(new File([converted.buffer],converted.name+'.stl',{type:'model/stl'}));
+}
 $('uploadTemplateBtn').onclick=openTemplateUpload;
 $('flattenStlBtn').onclick=()=>els.stlInput&&els.stlInput.click();
 // Errors are already shown in the panel and a toast by useCustomTemplateBuffer.
-customInput.onchange=()=>{const file=customInput.files?.[0];if(file)loadCustomTemplateFile(file).catch(()=>{})};
+customInput.onchange=()=>{const file=customInput.files?.[0];if(file)importTemplateFile(file).catch(()=>{})};
 const isCancelled=error=>error?.code==='CANCELLED';
 function customStatus(message,level=''){const el=$('customTemplateStatus');el.textContent=message;el.classList.toggle('error',level==='warn');el.classList.toggle('bad',level==='bad')}
 function customOrientationFromUI(){return CustomTemplate.normalizeOrientation({up:$('customUp').value,turn:Number($('customTurn').value),units:$('customUnits').value,autoAlign:$('customAutoAlign').checked,raiseOnTexture:$('customRaise').checked})}
@@ -132,8 +150,9 @@ function activateBuiltinTemplate(){if(builtinTemplateBase&&templateBase!==builti
 function beforeTemplateChoice(value){
   if(value!=='custom-stl')customActivatePending=false; // a template still loading must not take over
   if(value==='custom-stl'){
-    // Keyboard users change selects with arrow keys, so never pop a file dialog from here.
-    if(!customTemplate){$('customTemplatePanel').hidden=true;templateStatus('Upload an STL first with Upload STL template.',true);$('uploadTemplateBtn').focus();return false}setActiveTemplateBase(customTemplate.display||customTemplate.base);ensureCustomPrint();setTimeout(()=>templateView('front'));return true}
+    // Nothing loaded yet: choosing "Custom STL · upload…" opens the file picker (browsers that refuse a
+    // picker without a tap still show the hint and focus the upload button).
+    if(!customTemplate){$('customTemplatePanel').hidden=true;templateStatus('Choose an STL, OBJ or 3MF file for your sleeve.',true);try{if(!customLoading)openTemplateUpload()}catch{}$('uploadTemplateBtn').focus();return false}setActiveTemplateBase(customTemplate.display||customTemplate.base);ensureCustomPrint();setTimeout(()=>templateView('front'));return true}
   if(value==='etsyfolger-v1'){if(!builtinTemplateBase){toast(builtinTemplateError?builtinTemplateError.message:'The Foger Sleeve template is still loading.','error');return false}activateBuiltinTemplate();setTimeout(()=>templateView('front'));}
   return true;
 }
@@ -194,7 +213,7 @@ async function restoreProjectTemplate(p){
   const t=p.version===4?p.template:null;
   if(t&&t.mesh){
     try{const bytes=new Uint8Array(await (await fetch(t.mesh)).arrayBuffer()),buffer=await gunzipBytes(bytes);await useCustomTemplateBuffer(buffer,t.name,t.orientation,{activate:false,repaired:t.repaired,quiet:true});p.settings.templateId='custom-stl';AppState.templateId='custom-stl';setActiveTemplateBase(customTemplate.display||customTemplate.base);ensureCustomPrint();setTimeout(()=>templateView('front'),50);return}
-    catch(error){if(isCancelled(error))throw Error('Another template was loaded while opening the project. Open it again.');p.settings.templateId='etsyfolger-v1';activateBuiltinTemplate();return 'The embedded template could not be loaded: '+error.message+' Using ETSYFOLGER instead.'}
+    catch(error){if(isCancelled(error))throw Error('Another template was loaded while opening the project. Open it again.');p.settings.templateId='etsyfolger-v1';activateBuiltinTemplate();return 'The embedded template could not be loaded: '+error.message+' Using the Foger Sleeve instead.'}
   }
   if(t&&!t.mesh){if(customTemplate&&customTemplate.name===t.name){p.settings.templateId='custom-stl';AppState.templateId='custom-stl';setActiveTemplateBase(customTemplate.display||customTemplate.base);ensureCustomPrint();return 'Using the loaded template '+t.name+'; check that it is the same STL.'}p.settings.templateId='etsyfolger-v1';activateBuiltinTemplate();return 'This project used the custom template "'+t.name+'", which was too large to embed. Upload that STL with Upload STL template.'}
   if(p.settings.templateId==='custom-stl'&&!t)p.settings.templateId='etsyfolger-v1';

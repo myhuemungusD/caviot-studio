@@ -75,7 +75,7 @@ const checkExport=(e,label,logo=true)=>{if(!e){ok(false,label+': export');return
 {
   console.log('Custom templates');const {ctx,p,errors}=await open({viewport:{width:1400,height:900}});await ready(p,base);
   const stl=Buffer.from(await (await fetch(base+'templates/ETSYFOLGER.stl')).arrayBuffer());fs.writeFileSync('/tmp/custom-etsy.stl',stl);
-  await p.setInputFiles('#templateStlInput','/tmp/custom-etsy.stl');await p.waitForFunction(()=>AppState.templateId==='custom-stl'&&templateBase&&templateBase!==builtinTemplateBase&&!customActivatePending,null,{timeout:180000});await sleep(500);ok(await settle(p),'Foger Sleeve STL uploaded as a custom template');
+  await p.evaluate(()=>{window.__prevTemplateBase=templateBase});await p.setInputFiles('#templateStlInput','/tmp/custom-etsy.stl');await p.waitForFunction(()=>AppState.templateId==='custom-stl'&&templateBase&&templateBase!==builtinTemplateBase&&templateBase!==window.__prevTemplateBase&&!customActivatePending,null,{timeout:180000});await sleep(500);ok(await settle(p),'Foger Sleeve STL uploaded as a custom template');
   ok(await p.evaluate(()=>!bottomBrand.enabled),'custom template: no built-in logo');
   await p.setInputFiles('#fileInput',IMAGE);await p.waitForFunction(()=>!!AppState.image,null,{timeout:30000});await settle(p);
   const e=await exportSTL(p);if(e){const s=inspectSTL(e.buf);ok(s.badEdges===0&&s.minZ>-1e-4,'custom template export closed ('+s.triangles.toLocaleString('en-US')+' triangles)');ok(!footprintOK(s).ok,'custom template export has no DM carve')}else ok(false,'custom template export');

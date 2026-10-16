@@ -47,6 +47,10 @@ for(const [id,s]of Object.entries(sections)){
   const sec=el('section',{id,className:'panel phone-section'});sec.setAttribute('aria-labelledby',id+'Title');sec.innerHTML='<h3 class="phone-section-title" id="'+id+'Title">'+s.title+'</h3>';secEls[id]=sec;
 }
 secEls.phoneSecAdd.insertAdjacentHTML('beforeend','<div class="phone-add-grid">'+addButtonsHTML+'</div>');wireAddButtons(secEls.phoneSecAdd);
+// Own sleeve shape: a visible way to the custom template picker (STL, OBJ or 3MF), instead of only inside All settings.
+secEls.phoneSecSides.insertAdjacentHTML('beforeend','<div class="phone-own-sleeve"><button type="button" class="btn btn-ghost phone-own-sleeve-btn" id="phoneOwnSleeve">Use my own sleeve (STL)\u2026</button><p class="phone-hint">STL, OBJ or 3MF from Files, a scan app or your computer.</p></div>');
+function openOwnSleeve(){if(typeof openTemplateUpload==='function')openTemplateUpload();else toast('Custom templates are not available.','error')}
+secEls.phoneSecSides.querySelector('#phoneOwnSleeve').onclick=openOwnSleeve;
 secEls.phoneSecClean.insertAdjacentHTML('beforeend','<p class="phone-hint" id="phonePickHint">Preview of what gets printed. To pick the background colour, tap Pick, then tap the background in this picture.</p>');
 const lockBtn=el('button',{type:'button',id:'lockAspect',className:'btn btn-ghost btn-sm phone-only lock-aspect'});
 let aspectLocked=true;try{aspectLocked=localStorage.getItem('caviot.lockAspect')!=='off'}catch{}
@@ -74,6 +78,7 @@ function mountPhone(){
   move(els.modeRaised.closest('.pill-toggle'),finish);move(els.depthIn.closest('.big-field'),finish);
   const layerList=$('designLayerList'),layerActs=layerList?.nextElementSibling?.classList.contains('layer-actions')?layerList.nextElementSibling:null;
   move(document.querySelector('.design-side-buttons'),sides);move(layerList,sides);move(layerActs,sides);move($('copyDesignSide'),sides);
+  sides.appendChild(sides.querySelector('.phone-own-sleeve')); // own sleeve shape goes below the side controls
   // Everything else, in a useful order, inside All settings.
   const order=[document.querySelector('.template-select-panel'),$('designSidesPanel')?.closest('section'),$('imageScale')?.closest('section'),$('templatePlacement'),$('crisp')?.closest('section'),document.querySelector('.export-quality-panel'),document.querySelector('.output-mode-panel'),$('sleevePanel'),$('flatPanel'),$('bendSection')];
   for(const node of order)if(node&&node.parentNode===sidebar)move(node,all);
@@ -95,9 +100,9 @@ function syncIrrelevant(){$('silhouette')?.closest('label')?.classList.toggle('p
 
 // ======================= Empty sleeve: "Add the customer's logo" =======================
 const start=el('div',{className:'phone-start',id:'phoneStart'});start.setAttribute('role','region');start.setAttribute('aria-labelledby','phoneStartTitle');
-start.innerHTML='<h2 id="phoneStartTitle">Add the customer\u2019s logo</h2><p>A photo, a screenshot or an image file. Or type text.</p><div class="phone-add-grid">'+addButtonsHTML+'</div><div class="phone-start-extra" id="phoneStartExtra" hidden></div>';
+start.innerHTML='<h2 id="phoneStartTitle">Add the customer\u2019s logo</h2><p>A photo, a screenshot or an image file. Or type text.</p><div class="phone-add-grid">'+addButtonsHTML+'</div><div class="phone-start-extra" id="phoneStartExtra" hidden></div><button type="button" class="phone-start-link" id="phoneStartOwnSleeve">Use my own sleeve (STL)\u2026</button>';
 wireAddButtons(start);canvasArea.appendChild(start);
-const startExtra=start.querySelector('#phoneStartExtra');
+const startExtra=start.querySelector('#phoneStartExtra');start.querySelector('#phoneStartOwnSleeve').onclick=openOwnSleeve;
 function syncStart(){
   const show=isPhone()&&templateActive()&&!artwork()&&!sheetOpen()&&!(typeof exportBusy!=='undefined'&&exportBusy)&&!!templateBase&&(!store?.enabled||store.ready);
   start.hidden=!show;

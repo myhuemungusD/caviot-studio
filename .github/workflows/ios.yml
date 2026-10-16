@@ -90,7 +90,8 @@ jobs:
   testflight:
     name: Sign and upload to TestFlight
     needs: [simulator, signing-gate]
-    if: needs.signing-gate.outputs.enabled == 'true'
+    # Upload only from main pushes or a manual run, so branches and PRs don't fill TestFlight.
+    if: needs.signing-gate.outputs.enabled == 'true' && (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main'))
     runs-on: macos-latest
     timeout-minutes: 60
     steps:

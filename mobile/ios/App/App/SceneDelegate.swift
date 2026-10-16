@@ -11,10 +11,12 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         window?.rootViewController = CaviotBridgeViewController()
         window?.makeKeyAndVisible()
 
+        CaviotNativePlugin.receive(connectionOptions.urlContexts.map { $0.url })
         SceneDelegateProxy.shared.scene(scene, willConnectTo: session, options: connectionOptions)
     }
 
     func scene(_ scene: UIScene, openURLContexts URLContexts: Set<UIOpenURLContext>) {
+        CaviotNativePlugin.receive(URLContexts.map { $0.url })
         SceneDelegateProxy.shared.scene(scene, openURLContexts: URLContexts)
     }
 

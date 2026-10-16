@@ -61,16 +61,28 @@ cat > build/ExportOptions.plist <<EOF
 </plist>
 EOF
 
+# Manual signing goes on the App target only. Passing CODE_SIGN_STYLE or
+# PROVISIONING_PROFILE_SPECIFIER on the command line applies them to every
+# target, and Swift package targets (IONCameraLib) reject a provisioning profile.
+# This edits the CI checkout only; the committed project keeps Automatic signing.
+PBXPROJ=ios/App/App.xcodeproj/project.pbxproj
+APP_RELEASE_ID=504EC3181FED79650016851F
+PROFILE_NAME="$PROFILE_NAME" TEAM_ID="$IOS_TEAM_ID" APP_RELEASE_ID="$APP_RELEASE_ID" perl -0pi -e '
+  my $id = $ENV{APP_RELEASE_ID};
+  my $settings = "CODE_SIGN_STYLE = Manual;\n\t\t\t\tCODE_SIGN_IDENTITY = \"Apple Distribution\";\n\t\t\t\tDEVELOPMENT_TEAM = $ENV{TEAM_ID};\n\t\t\t\tPROVISIONING_PROFILE_SPECIFIER = \"$ENV{PROFILE_NAME}\";";
+  s/(\Q$id\E \/\* Release \*\/ = \{.*?buildSettings = \{.*?)CODE_SIGN_STYLE = Automatic;/$1$settings/s or die "App Release config not found\n";
+' "$PBXPROJ"
+
+# Every upload needs a unique, increasing build number.
+BUILD_NUMBER="${GITHUB_RUN_NUMBER:-$(date +%Y%m%d%H%M)}"
+
 xcodebuild \
   -project ios/App/App.xcodeproj \
   -scheme App \
   -configuration Release \
   -destination 'generic/platform=iOS' \
   -archivePath build/CaviotStudio.xcarchive \
-  DEVELOPMENT_TEAM="$IOS_TEAM_ID" \
-  CODE_SIGN_STYLE=Manual \
-  CODE_SIGN_IDENTITY="Apple Distribution" \
-  PROVISIONING_PROFILE_SPECIFIER="$PROFILE_NAME" \
+  CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
   archive
 
 xcodebuild -exportArchive \
