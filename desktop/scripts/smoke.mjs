@@ -102,13 +102,11 @@ async function settle(page, ms = 180000) {
 async function waitReady(page) {
   await page.waitForFunction(() => {
     const button = document.getElementById('generateBtn');
-    const logo = document.getElementById('bottomBrandEnabled');
     const status = document.getElementById('templateStatus')?.textContent || '';
     return typeof templateBase !== 'undefined' && !!templateBase
       && AppState.templateId === 'etsyfolger-v1'
       && document.getElementById('templateChoice')?.value === 'etsyfolger-v1'
       && button && !button.disabled
-      && logo && !logo.disabled
       && !exportBusy
       && !/Loading your sleeve/i.test(status);
   }, null, { timeout: 180000 });
