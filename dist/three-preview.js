@@ -14,6 +14,44 @@ function styleGridMaterial(grid) {
   });
 }
 
+// Filament grey with a soft highlight, shared by the sleeve and the flat plate.
+function previewMaterial() {
+  return new THREE.MeshStandardMaterial({
+    color: 0xd8d4cc,
+    metalness: 0.04,
+    roughness: 0.36,
+    side: THREE.DoubleSide,
+  });
+}
+
+// Preview-only. Raised tops are warm, the base stays grey, side walls are darker so the rim reads.
+function tintFlatRelief(geo, mat) {
+  const pos = geo.getAttribute('position');
+  const nrm = geo.getAttribute('normal');
+  if (!pos || !nrm || pos.count < 3) return;
+  let minY = Infinity;
+  let maxY = -Infinity;
+  for (let i = 0; i < pos.count; i++) {
+    const y = pos.getY(i);
+    if (y < minY) minY = y;
+    if (y > maxY) maxY = y;
+  }
+  const span = maxY - minY;
+  if (!(span > 0.15)) return;
+  const colors = new Float32Array(pos.count * 3);
+  for (let i = 0; i < pos.count; i++) {
+    const raised = (pos.getY(i) - minY) / span > 0.62;
+    const wall = Math.abs(nrm.getY(i)) < 0.62;
+    const color = wall ? [0.46, 0.32, 0.20] : raised ? [1, 0.56, 0.24] : [0.80, 0.78, 0.74];
+    colors[i * 3] = color[0];
+    colors[i * 3 + 1] = color[1];
+    colors[i * 3 + 2] = color[2];
+  }
+  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  mat.vertexColors = true;
+  mat.color.setHex(0xffffff);
+}
+
 function disposeMaterial(material) {
   eachMaterial(material, (item) => item.dispose());
 }
@@ -43,15 +81,19 @@ function initThree() {
   scene = new THREE.Scene();
   camera = new THREE.PerspectiveCamera(40, w / h, 0.1, 2000);
   camera.position.set(60, 50, 90);
-
-  const amb = new THREE.AmbientLight(0xffffff, 0.55);
-  scene.add(amb);
-  const dir = new THREE.DirectionalLight(0xffe0c0, 0.85);
-  dir.position.set(40, 80, 50);
-  scene.add(dir);
-  const fill = new THREE.DirectionalLight(0x88aaff, 0.25);
-  fill.position.set(-50, 20, -40);
-  scene.add(fill);
+  // The camera has to be in the scene so the view-relative lights below are rendered.
+  scene.add(camera);
+  // Slicer-style preview: a soft sky/ground fill, plus a key that sits up and to the side of the
+  // camera so a raised wall catches light and the top face does not. No shadow maps (phones).
+  const sky = new THREE.HemisphereLight(0xf4f7fb, 0x8a93a0, 0.42);
+  scene.add(sky);
+  const key = new THREE.DirectionalLight(0xfff6ee, 1.35);
+  // A large camera-space offset, so the key stays a rake when the camera pulls back.
+  key.position.set(240, 110, 30);
+  camera.add(key);
+  const fill = new THREE.DirectionalLight(0xd7e3f4, 0.28);
+  fill.position.set(-180, 40, 70);
+  camera.add(fill);
 
   gridHelper = new THREE.GridHelper(200, 40, 0x55545c, 0x292930);
   gridHelper.position.y = 0;
@@ -253,12 +295,10 @@ function buildThreePreview() {
   AppState.lastTextReliefError = mesh.textReliefError || null;
   AppState.lastTextRelief = mesh.textRelief ? (mesh.info || {}) : null;
   const geo = mesh.textRelief ? textReliefGeometry(mesh) : MC.toThreeGeometry(mesh, THREE);
-  const mat = new THREE.MeshStandardMaterial({
-    color: 0xc8c4bc,
-    metalness: 0.12,
-    roughness: 0.55,
-    side: THREE.DoubleSide,
-  });
+  const mat = previewMaterial();
+  // Flat plates displace along Y. A shallow step is invisible under even light, so the raised top,
+  // the base, and the side wall get three preview colours. Export does not read these.
+  if (AppState.mode === 'flat') tintFlatRelief(geo, mat);
   if (meshObj) {
     scene.remove(meshObj);
     meshObj.geometry.dispose();

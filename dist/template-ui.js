@@ -56,7 +56,7 @@ const originalStats=updateStats;updateStats=function(){originalStats();if(templa
 const originalTemplateImage=setDesignImage;setDesignImage=function(img,label){if(templateActive()){AppState.designHeight=Math.min(75,AppState.designWidth*img.height/img.width);AppState.logoSizePct=100}originalTemplateImage(img,label);syncTemplateUI()};
 function replaceTemplateMesh(positions,indices,amplitude,walls){
   if(!scene)return;hidePlacementPreview();let geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.BufferAttribute(positions,3));geometry.setIndex(new THREE.BufferAttribute(indices instanceof Uint32Array?indices:new Uint32Array(indices),1));if(!walls?.length)geometry.computeVertexNormals();if(walls?.length){geometry.dispose();geometry=createSharpGeometry(positions,indices,walls,amplitude)}
-  const material=new THREE.MeshStandardMaterial({color:0xd2cec5,metalness:.08,roughness:.48,side:THREE.DoubleSide});
+  const material=previewMaterial();
   if(walls?.length){material.color.setHex(0xffffff);material.vertexColors=true}
   if(amplitude&&!walls?.length){const colors=new Float32Array(positions.length);for(let i=0;i<amplitude.length;i++){const t=Math.min(1,amplitude[i]*1.2);colors[i*3]=.72+.28*t;colors[i*3+1]=.70*(1-t)+.29*t;colors[i*3+2]=.66*(1-t)+.035*t}geometry.setAttribute('color',new THREE.BufferAttribute(colors,3));material.color.setHex(0xffffff);material.vertexColors=true}
   if(meshObj){scene.remove(meshObj);meshObj.geometry.dispose();disposeMaterial(meshObj.material)}meshObj=new THREE.Mesh(geometry,material);meshObj.userData.templateBase=templateBase;scene.add(meshObj);previewMesh={positions,indices};

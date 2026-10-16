@@ -1,0 +1,45 @@
+labrador.jpg
+
+A real photograph used as the Photo-to-Sleeve end-to-end fixture.
+
+Title: Labrador Retriever portrait
+Author: Herwig Kavallar
+Source: https://commons.wikimedia.org/wiki/File:Labrador_Retriever_portrait.jpg
+Direct file: https://upload.wikimedia.org/wikipedia/commons/9/90/Labrador_Retriever_portrait.jpg
+Licence: Public domain
+
+The file in this folder is a 960×638 JPEG scaled down from that photograph so the test fixture stays small. The pixels are still the original photograph, not a drawing.
+
+portrait.jpg
+
+A second photograph, a person's face, used for the same end-to-end check.
+
+Title: Migrant Mother
+Author: Dorothea Lange
+Source: https://commons.wikimedia.org/wiki/File:Lange-MigrantMother02.jpg
+Direct file: https://upload.wikimedia.org/wikipedia/commons/5/54/Lange-MigrantMother02.jpg
+Licence: Public domain (U.S. Farm Security Administration)
+
+The file in this folder is a 960×1248 JPEG scaled down from that photograph.
+
+person.jpg
+
+A full-length photograph of a standing person, used to judge a shadow silhouette.
+
+Title: Annie Oakley by Baker's Art Gallery, cabinet card
+Author: Baker's Art Gallery, Columbus, Ohio
+Source: https://commons.wikimedia.org/wiki/File:Annie_Oakley_by_Baker%27s_Art_Gallery_c1880s-crop.jpg
+Licence: Public domain (published in the 1880s)
+
+The file in this folder is a JPEG scaled so the long side is about 960 pixels, and cropped above the printed signature so the picture is the standing figure.
+
+object.jpg
+
+A photograph of a single object on a plain ground, used for the same check.
+
+Title: Honeycrisp apple
+Author: Evan Amos
+Source: https://commons.wikimedia.org/wiki/File:Honeycrisp-Apple.jpg
+Licence: CC0
+
+The file in this folder is a JPEG scaled so the long side is about 960 pixels.

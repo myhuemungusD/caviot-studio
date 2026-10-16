@@ -9,7 +9,7 @@ const PRECACHE=__PRECACHE__;
 const CACHE='caviot-files-v1';
 const scope=new URL(self.registration.scope);
 const keyFor=path=>new URL(path+'?__v='+FILES[path],scope).href;
-const TYPES={html:'text/html; charset=utf-8',js:'text/javascript; charset=utf-8',css:'text/css; charset=utf-8',json:'application/json',webmanifest:'application/manifest+json',png:'image/png',svg:'image/svg+xml',ttf:'font/ttf',otf:'font/otf',woff:'font/woff',woff2:'font/woff2',stl:'model/stl',mesh:'application/octet-stream'};
+const TYPES={html:'text/html; charset=utf-8',js:'text/javascript; charset=utf-8',css:'text/css; charset=utf-8',json:'application/json',webmanifest:'application/manifest+json',png:'image/png',jpg:'image/jpeg',jpeg:'image/jpeg',svg:'image/svg+xml',ttf:'font/ttf',otf:'font/otf',woff:'font/woff',woff2:'font/woff2',stl:'model/stl',mesh:'application/octet-stream',wasm:'application/wasm'};
 const typeFor=path=>TYPES[path.split('.').pop().toLowerCase()]||'application/octet-stream';
 const hex=buf=>Array.from(new Uint8Array(buf),b=>b.toString(16).padStart(2,'0')).join('');
 async function fetchVerified(path){

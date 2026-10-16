@@ -127,5 +127,16 @@ else{const ctx={window:{}};vm.createContext(ctx);vm.runInContext(reference,ctx);
  ok(position.length===m.indices.length*3&&normal.every(Number.isFinite),'creased normals cover every corner');let up=0,side=0;for(let i=0;i<normal.length;i+=3){if(Math.abs(normal[i+1])>.999)up++;else if(Math.abs(normal[i+1])<.001)side++}
  ok(up+side===normal.length/3,'flat lettering renders with exactly vertical walls and flat tops');}
 
+// ---- 6. Poster photo: two relief steps, closed, and not used unless photoTiers is set ----
+{const W=80,H=60,mid=new Float32Array(W*H),high=new Float32Array(W*H);
+ for(let y=12;y<48;y++)for(let x=16;x<64;x++)mid[y*W+x]=1;
+ for(let y=24;y<40;y++)for(let x=30;x<50;x++)high[y*W+x]=1;
+ const nrm=l=>Float32Array.from(l,(v,i)=>i%2?v/H:v/W);
+ const midL=TR.prepare(TR.trace(mid,W,H,.5),.4,4).map(nrm),highL=TR.prepare(TR.trace(high,W,H,.5),.4,4).map(nrm);
+ const m=MC.buildMesh({...grid,mode:'flat',maxHeight:1.2,textRelief:{photoTiers:true,loops:highL,midLoops:midL,backing:'plate',inkHigh:true,depth:plateD}});
+ ok(m.textRelief&&!m.textReliefError,'poster tiers mesh from outlines');closed(m,'poster tiers');
+ const ys=new Set();for(let i=1;i<m.positions.length;i+=3)ys.add(+m.positions[i].toFixed(2));
+ ok(ys.has(0)&&ys.has(1)&&ys.has(1.6)&&ys.has(2.2),'poster steps are the plate, +0.6 mm and +1.2 mm ('+[...ys].join(',')+')');}
+
 console.log(JSON.stringify(results));
 console.log(checks+' sharp lettering checks passed');

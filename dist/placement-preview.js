@@ -10,7 +10,7 @@ function ensurePlacementMesh(){
  const arc=new THREE.DataTexture(pixels,chart.arc.length,1,THREE.RGBAFormat);arc.minFilter=arc.magFilter=THREE.LinearFilter;arc.generateMipmaps=false;arc.needsUpdate=true;placementUniforms.arc.value=arc;placementUniforms.perimeter.value=chart.perimeter;
  placementTexture=new THREE.CanvasTexture(els.heightmapCanvas);placementTexture.minFilter=placementTexture.magFilter=THREE.LinearFilter;placementTexture.generateMipmaps=false;placementUniforms.logo.value=placementTexture;
  placementOtherTexture=new THREE.CanvasTexture(document.createElement('canvas'));placementOtherTexture.minFilter=placementOtherTexture.magFilter=THREE.LinearFilter;placementOtherTexture.generateMipmaps=false;placementUniforms.otherLogo.value=placementOtherTexture;
- const material=new THREE.MeshStandardMaterial({color:0xd2cec5,roughness:.48,metalness:.08,side:THREE.DoubleSide});
+ const material=previewMaterial();
  material.onBeforeCompile=shader=>{
   for(const [name,value]of Object.entries(placementUniforms))shader.uniforms['place_'+name]=value;
   shader.vertexShader='varying vec3 placePosition; varying vec3 placeNormal;\n'+shader.vertexShader;

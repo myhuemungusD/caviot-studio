@@ -8,7 +8,7 @@ globalThis.ProjectFormat={
     if(typeof p.name!=='string'||p.name.length>80||typeof p.source!=='string'||p.source.length>300)throw Error('Project name or source is invalid.');
     if(p.version===3||p.version===4){
       if(!Array.isArray(p.layers)||p.layers.length!==2||!p.layers.every(Array.isArray)||p.layers.flat().length>12||![0,1].includes(p.activeSide)||typeof p.linkSides!=='boolean')throw Error('Invalid design layers.');
-      const ids=new Set();p.layers=p.layers.map(list=>list.map(layer=>{if(!layer||typeof layer.id!=='string'||!/^layer-[0-9]+$/.test(layer.id)||ids.has(layer.id)||!['image','text'].includes(layer.kind))throw Error('Invalid design layer.');ids.add(layer.id);const original=layer.settings;const legacy=ProjectFormat.decode(JSON.stringify({format:p.format,name:p.name,source:p.source,settings:p.settings,image:null,version:2,wideRanges:p.version>=4,activeSide:0,linkSides:p.linkSides,sides:[layer,layer]})).sides[0];if(!original||typeof original.depthMm!=='number'||!Number.isFinite(original.depthMm)||original.depthMm<.01||original.depthMm>3||!['raised','carved'].includes(original.relief)||typeof original.uniformDepth!=='boolean'||typeof original.crisp!=='boolean'||typeof original.text!=='string'||original.text.length>60||typeof layer.fontChoice!=='string'||layer.fontChoice.length>300)throw Error('Invalid layer finish or text.');return {...legacy,id:layer.id,kind:layer.kind,fontChoice:layer.fontChoice,settings:{...legacy.settings,depthMm:original.depthMm,relief:original.relief,uniformDepth:original.uniformDepth,crisp:original.crisp,text:original.text}};}));
+      const ids=new Set();p.layers=p.layers.map(list=>list.map(layer=>{if(!layer||typeof layer.id!=='string'||!/^layer-[0-9]+$/.test(layer.id)||ids.has(layer.id)||!['image','text'].includes(layer.kind))throw Error('Invalid design layer.');ids.add(layer.id);const original=layer.settings;const legacy=ProjectFormat.decode(JSON.stringify({format:p.format,name:p.name,source:p.source,settings:p.settings,image:null,version:2,wideRanges:p.version>=4,activeSide:0,linkSides:p.linkSides,sides:[layer,layer]})).sides[0];if(!original||typeof original.depthMm!=='number'||!Number.isFinite(original.depthMm)||original.depthMm<.01||original.depthMm>3||!['raised','carved'].includes(original.relief)||typeof original.uniformDepth!=='boolean'||typeof original.crisp!=='boolean'||typeof original.text!=='string'||original.text.length>60||typeof layer.fontChoice!=='string'||layer.fontChoice.length>300)throw Error('Invalid layer finish or text.');const base={...legacy,id:layer.id,kind:layer.kind,fontChoice:layer.fontChoice,settings:{...legacy.settings,depthMm:original.depthMm,relief:original.relief,uniformDepth:original.uniformDepth,crisp:original.crisp,text:original.text}};const extra=ProjectFormat.photoFields(layer);return extra?{...base,...extra}:base;}));
       if(!Array.isArray(p.selectedIds)||p.selectedIds.length!==2||!p.selectedIds.every(id=>id===null||typeof id==='string'))throw Error('Invalid layer selection.');
     }
     if(p.version===2){
@@ -32,5 +32,54 @@ globalThis.ProjectFormat={
       if(t.mesh!==null&&(typeof t.mesh!=='string'||t.mesh.length>30*1024*1024||!/^data:application\/gzip;base64,[A-Za-z0-9+/]+=*$/.test(t.mesh)))throw Error('Custom template mesh must be an embedded gzip STL.');
       p.template={kind:t.kind,name:t.name,triangles:t.triangles,repaired:t.repaired,orientation:{up:o.up,turn:o.turn,units:o.units,autoAlign:o.autoAlign,...(o.raiseOnTexture===false?{raiseOnTexture:false}:{})},mesh:t.mesh};}
     return p;
+  },
+  // Photo-to-sleeve is optional. Projects saved before it existed have no photo fields, and a logo
+  // design omits them, so those files stay the same. A line thinner than two nozzle widths is clamped.
+  sanitizePhoto(photo){
+    if(photo==null)return null;
+    if(typeof photo!=='object'||Array.isArray(photo))throw Error('Invalid photo settings.');
+    const styles=['off','shadow','silhouette','line','poster','smooth','lithophane'];
+    const aspects=['free','square','sleeve','portrait','landscape'];
+    if(photo.style!==undefined&&!styles.includes(photo.style))throw Error('Invalid photo style.');
+    const num=(v,lo,hi,fallback)=>{if(v===undefined)return fallback;if(typeof v!=='number'||!Number.isFinite(v))throw Error('Invalid photo setting.');return Math.min(hi,Math.max(lo,v));};
+    const focus=photo.focus===undefined?false:photo.focus;
+    if(typeof focus!=='boolean')throw Error('Invalid photo setting.');
+    const swap=photo.swap===undefined?false:photo.swap;
+    if(typeof swap!=='boolean')throw Error('Invalid photo setting.');
+    const inverse=photo.inverse===undefined?false:photo.inverse;
+    if(typeof inverse!=='boolean')throw Error('Invalid photo setting.');
+    const aspect=photo.aspect===undefined?'free':photo.aspect;
+    if(!aspects.includes(aspect))throw Error('Invalid photo crop.');
+    const out={style:photo.style||'off',detail:num(photo.detail,0,100,40),lineMm:num(photo.lineMm,0.8,3,1.2),brightness:num(photo.brightness,-100,100,0),contrast:num(photo.contrast,-100,100,0),gamma:num(photo.gamma,0.3,3,1),focus,aspect};
+    if(swap)out.swap=true;
+    if(inverse)out.inverse=true;
+    if(photo.seed!=null){
+      const s=photo.seed;
+      if(!s||typeof s!=='object'||Array.isArray(s)||typeof s.x!=='number'||typeof s.y!=='number'||!Number.isFinite(s.x)||!Number.isFinite(s.y)||s.x<0||s.y<0||s.x>1||s.y>1)throw Error('Invalid photo subject.');
+      out.seed={x:s.x,y:s.y};
+    }
+    if(photo.subjectBits!=null||photo.subjectW!=null||photo.subjectH!=null){
+      const w=photo.subjectW,h=photo.subjectH,bits=photo.subjectBits;
+      if(!Number.isInteger(w)||!Number.isInteger(h)||w<8||h<8||w>1024||h>1024||typeof bits!=='string'||bits.length<4||bits.length>200000||!/^[A-Za-z0-9+/]+=*$/.test(bits))throw Error('Invalid photo subject.');
+      out.subjectBits=bits;out.subjectW=w;out.subjectH=h;
+    }
+    if(photo.crop!=null){
+      const c=photo.crop;
+      if(!c||typeof c!=='object'||Array.isArray(c))throw Error('Invalid photo crop.');
+      for(const k of ['x','y','w','h'])if(typeof c[k]!=='number'||!Number.isFinite(c[k]))throw Error('Invalid photo crop.');
+      if(c.w<=0||c.h<=0||c.x<-0.001||c.y<-0.001||c.x+c.w>1.001||c.y+c.h>1.001)throw Error('Invalid photo crop.');
+      out.crop={x:c.x,y:c.y,w:c.w,h:c.h};
+    }else out.crop=null;
+    return out;
+  },
+  photoFields(layer){
+    if(!layer||(layer.photo==null&&layer.photoSource==null))return null;
+    const out={};
+    if(layer.photo!=null)out.photo=ProjectFormat.sanitizePhoto(layer.photo);
+    if(layer.photoSource!=null){
+      if(typeof layer.photoSource!=='string'||!/^data:image\/png;base64,[A-Za-z0-9+/]+=*$/.test(layer.photoSource))throw Error('Photo original must be an embedded PNG.');
+      out.photoSource=layer.photoSource;
+    }
+    return out;
   }
 };

@@ -59,7 +59,7 @@ When text lands on a flat plate, the letters start 2 mm tall (with the default 1
 
 Known, not changed: on main, a closed bottom with a push-out hole builds the hole wall with reversed winding (80 duplicate directed edges in the test). Fixing it would change image exports, so it is left as is and noted here.
 
-Tests: `node text-relief-tests.mjs` (131 checks: trace accuracy, closed meshes in every shape, exact volumes, deviation against the grid, fallback, byte-identical image meshes, a tight face budget coarsens bent lettering, and an outline backing over the pixel budget is refused). `node e2e/text-relief-e2e.mjs http://127.0.0.1:4190/` (83 checks in Chrome: five fonts within 0.05 mm with no stair steps; every flat backing, logo only and sleeve exported through Export STL closed and wound; spacing/thickness; templates and images untouched; text defaults; Uniform scale with undo).
+Tests: `node text-relief-tests.mjs` (135 checks: trace accuracy, closed meshes in every shape, exact volumes, deviation against the grid, fallback, byte-identical image meshes, a tight face budget coarsens bent lettering, and an outline backing over the pixel budget is refused). `node e2e/text-relief-e2e.mjs http://127.0.0.1:4190/` (83 checks in Chrome: five fonts within 0.05 mm with no stair steps; every flat backing, logo only and sleeve exported through Export STL closed and wound; spacing/thickness; templates and images untouched; text defaults; Uniform scale with undo).
 
 ## Validation boundaries
 
@@ -250,6 +250,21 @@ sticks out below the bottom and the sleeve sits flat on the print bed without a 
   that there is no bottom branding control, the template name, closed exports (plain, image emboss, image deboss)
   with the carved floor where expected and nothing below the bed, old projects, custom templates without the logo,
   and phones. It prints the export hashes.
+
+## Photo to sleeve
+
+A regular photo (a person, a pet, a beach) is too detailed for a 0.4 mm nozzle on a small sleeve. **Image processing → Photo to sleeve** converts it before the existing heightmap and sleeve mapping run. The sleeve's fit and wall thickness are unchanged. The choice is off by default, so a logo, lettering, or a plain sleeve still exports the same file as before.
+
+Why these styles, and not a raw heightmap or a neural cutout, is written up in `PHOTO-RESEARCH.md`.
+
+- **Styles.** Shadow is the usual one: a solid silhouette at one height, with the subject found automatically and nothing thinner than 0.8 mm. It stays off until you choose it, so a logo is unchanged. Bold silhouette, thickened line art, a 3-level relief, smooth gray (faces and pets), and a lithophane are still there. Each one shows a 2D preview of the pixels that will print. Cut out, on Shadow, makes a hole of that shape.
+- **Sliders.** Detail / Simplify, line thickness in millimetres (never under 0.8 mm, two nozzle widths, at the real print size), brightness, contrast, and gamma. Changing the design size or switching to the flat plate runs the conversion again so the line width still matches that size. A note appears when the chosen size cannot hold the detail.
+- **Crop.** A crop box with free, square, sleeve-face, portrait, and landscape shapes. Arrow keys move it; Shift+arrow keys resize it.
+- **Subject.** Shadow runs Find subject on its own (U2-Netp in `dist/vendor/u2net/`, ONNX Runtime in `dist/vendor/onnx/`). The model is not precached and it does not run on a light-tier phone; tap the subject instead. The background is not raised. The other styles still start from the tone covering the middle of the crop. Tap the subject to flood from that point, or swap subject and background.
+- **Depth.** Shadow defaults to 1.6 mm, one height, with a clean edge. Silhouette and line art default to 0.8 mm, 3-level relief to 1.2 mm (steps of 0.6 mm and 1.2 mm), smooth relief to 2 mm, and a lithophane to 2.2 mm on a 0.8 mm plate so the thickness runs from 0.8 mm to 3 mm. A depth you already set is left alone.
+- **Non-destructive.** The original photo and the settings are stored on the design. Turning the style off, or opening the project again, restores them. Undo covers the conversion.
+- **HEIC.** iPhone photos decode with the browser when it can, otherwise with libheif-js 1.23.5 (LGPL-3.0) in `dist/vendor/libheif/`. That wasm is loaded only when needed and is not precached. See `dist/vendor/libheif/SOURCE.txt`.
+- **Tests.** `node photo-relief-tests.mjs` checks the pixel transforms, the solid shadow (holes filled, thin parts thickened, body left alone), center-weighted silhouette polarity, a subject tap, the line-art stroke budget, the 0.8 mm floor, the HEIC fixture, and project round-trip. `node e2e/photo-sleeve-e2e.mjs <url>` runs the styles on a public-domain labrador, a public-domain portrait, a full-body person, and an apple (`e2e/fixtures/`, see `PHOTO-LICENSE.txt`). Flat shadow, silhouette, line and poster plates are meshed from outlines. Smooth and lithophane grids follow the print size (about 0.15 mm per pixel, 0.2 mm on a phone).
 
 ## Mac desktop app
 

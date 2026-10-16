@@ -1,0 +1,13 @@
+U2-Netp salient-object model (u2netp.onnx, about 4.4 MB)
+https://github.com/xuebinqin/U-2-Net
+Weights file used here:
+https://github.com/danielgatis/rembg/releases/download/v0.0.0/u2netp.onnx
+
+What this is
+A small salient-object network. Find subject runs it in the browser through
+ONNX Runtime (vendor/onnx) and keeps the result on the device. It is not
+precached, and it is not loaded on a phone in the light memory tier.
+
+Licence
+Apache-2.0. Copyright (c) 2020 Xuebin Qin.
+The rembg project that published this ONNX file is MIT.

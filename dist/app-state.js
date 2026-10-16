@@ -73,6 +73,10 @@ const AppState = {
   // Runtime (not persisted)
   image: null,
   imageName: '',
+  // Photo-to-sleeve. Null means a logo or lettering, and the heightmap path is unchanged.
+  // photoSource is the original photo while a style is on, so the conversion can be undone.
+  photo: null,
+  photoSource: null,
   heightmap: null,
   hmRows: 0,
   hmCols: 0,
