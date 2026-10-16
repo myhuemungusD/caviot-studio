@@ -78,5 +78,97 @@
 	<false/>
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.graphics-design</string>
+	<key>UTImportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>public.standard-tesselated-geometry-format</string>
+			<key>UTTypeDescription</key>
+			<string>STL 3D model</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+				<string>public.3d-content</string>
+			</array>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>stl</string>
+				</array>
+				<key>public.mime-type</key>
+				<array>
+					<string>model/stl</string>
+					<string>application/sla</string>
+					<string>application/vnd.ms-pki.stl</string>
+					<string>model/x.stl-binary</string>
+					<string>model/x.stl-ascii</string>
+				</array>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>public.geometry-definition-format</string>
+			<key>UTTypeDescription</key>
+			<string>OBJ 3D model</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+				<string>public.3d-content</string>
+			</array>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>obj</string>
+				</array>
+				<key>public.mime-type</key>
+				<array>
+					<string>model/obj</string>
+					<string>text/prs.wavefront-obj</string>
+				</array>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>com.microsoft.3mf</string>
+			<key>UTTypeDescription</key>
+			<string>3MF 3D model</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+				<string>public.3d-content</string>
+			</array>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>3mf</string>
+				</array>
+				<key>public.mime-type</key>
+				<array>
+					<string>model/3mf</string>
+					<string>application/vnd.ms-package.3dmanufacturing-3dmodel+xml</string>
+				</array>
+			</dict>
+		</dict>
+	</array>
+	<key>CFBundleDocumentTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>3D sleeve template</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>public.standard-tesselated-geometry-format</string>
+				<string>public.geometry-definition-format</string>
+				<string>com.microsoft.3mf</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

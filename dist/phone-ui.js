@@ -47,6 +47,10 @@ for(const [id,s]of Object.entries(sections)){
   const sec=el('section',{id,className:'panel phone-section'});sec.setAttribute('aria-labelledby',id+'Title');sec.innerHTML='<h3 class="phone-section-title" id="'+id+'Title">'+s.title+'</h3>';secEls[id]=sec;
 }
 secEls.phoneSecAdd.insertAdjacentHTML('beforeend','<div class="phone-add-grid">'+addButtonsHTML+'</div>');wireAddButtons(secEls.phoneSecAdd);
+// Own sleeve shape: a visible way to the custom template picker (STL, OBJ or 3MF), instead of only inside All settings.
+secEls.phoneSecSides.insertAdjacentHTML('beforeend','<div class="phone-own-sleeve"><button type="button" class="btn btn-ghost phone-own-sleeve-btn" id="phoneOwnSleeve">Use my own sleeve (STL)\u2026</button><p class="phone-hint">STL, OBJ or 3MF from Files, a scan app or your computer.</p></div>');
+function openOwnSleeve(){if(typeof openTemplateUpload==='function')openTemplateUpload();else toast('Custom templates are not available.','error')}
+secEls.phoneSecSides.querySelector('#phoneOwnSleeve').onclick=openOwnSleeve;
 secEls.phoneSecClean.insertAdjacentHTML('beforeend','<p class="phone-hint" id="phonePickHint">Preview of what gets printed. To pick the background colour, tap Pick, then tap the background in this picture.</p>');
 const lockBtn=el('button',{type:'button',id:'lockAspect',className:'btn btn-ghost btn-sm phone-only lock-aspect'});
 let aspectLocked=true;try{aspectLocked=localStorage.getItem('caviot.lockAspect')!=='off'}catch{}
@@ -74,8 +78,9 @@ function mountPhone(){
   move(els.modeRaised.closest('.pill-toggle'),finish);move(els.depthIn.closest('.big-field'),finish);
   const layerList=$('designLayerList'),layerActs=layerList?.nextElementSibling?.classList.contains('layer-actions')?layerList.nextElementSibling:null;
   move(document.querySelector('.design-side-buttons'),sides);move(layerList,sides);move(layerActs,sides);move($('copyDesignSide'),sides);
+  sides.appendChild(sides.querySelector('.phone-own-sleeve')); // own sleeve shape goes below the side controls
   // Everything else, in a useful order, inside All settings.
-  const order=[document.querySelector('.template-select-panel'),$('designSidesPanel')?.closest('section'),$('imageScale')?.closest('section'),$('templatePlacement'),$('crisp')?.closest('section'),$('bottomBrandPanel'),document.querySelector('.export-quality-panel'),document.querySelector('.output-mode-panel'),$('sleevePanel'),$('flatPanel'),$('bendSection')];
+  const order=[document.querySelector('.template-select-panel'),$('designSidesPanel')?.closest('section'),$('imageScale')?.closest('section'),$('templatePlacement'),$('crisp')?.closest('section'),document.querySelector('.export-quality-panel'),document.querySelector('.output-mode-panel'),$('sleevePanel'),$('flatPanel'),$('bendSection')];
   for(const node of order)if(node&&node.parentNode===sidebar)move(node,all);
   const repair=document.querySelector('.mesh-repair-panel');if(repair)all.appendChild(repair);// mobile.js moves it back on desktop
   // Drop a leftover "01 /" style prefix if a panel label still has one. The desktop labels no longer use section numbers.
@@ -95,9 +100,9 @@ function syncIrrelevant(){$('silhouette')?.closest('label')?.classList.toggle('p
 
 // ======================= Empty sleeve: "Add the customer's logo" =======================
 const start=el('div',{className:'phone-start',id:'phoneStart'});start.setAttribute('role','region');start.setAttribute('aria-labelledby','phoneStartTitle');
-start.innerHTML='<h2 id="phoneStartTitle">Add the customer\u2019s logo</h2><p>A photo, a screenshot or an image file. Or type text.</p><div class="phone-add-grid">'+addButtonsHTML+'</div><div class="phone-start-extra" id="phoneStartExtra" hidden></div>';
+start.innerHTML='<h2 id="phoneStartTitle">Add the customer\u2019s logo</h2><p>A photo, a screenshot or an image file. Or type text.</p><div class="phone-add-grid">'+addButtonsHTML+'</div><div class="phone-start-extra" id="phoneStartExtra" hidden></div><button type="button" class="phone-start-link" id="phoneStartOwnSleeve">Use my own sleeve (STL)\u2026</button>';
 wireAddButtons(start);canvasArea.appendChild(start);
-const startExtra=start.querySelector('#phoneStartExtra');
+const startExtra=start.querySelector('#phoneStartExtra');start.querySelector('#phoneStartOwnSleeve').onclick=openOwnSleeve;
 function syncStart(){
   const show=isPhone()&&templateActive()&&!artwork()&&!sheetOpen()&&!(typeof exportBusy!=='undefined'&&exportBusy)&&!!templateBase&&(!store?.enabled||store.ready);
   start.hidden=!show;
@@ -127,7 +132,7 @@ window.addEventListener('caviot:autosave',({detail})=>{
   const t=detail.type;
   if(t==='restored'||t==='resumed'){
     const custom=detail.custom;
-    if(custom)showBanner('Restored your last design. It was on the custom template \u201c'+custom.name+'\u201d, which is not kept on the phone; it is shown on ETSYFOLGER until you import that STL again.',[reimportAction(custom),['Start new',confirmStartNew]],true);
+    if(custom)showBanner('Restored your last design. It was on the custom template \u201c'+custom.name+'\u201d, which is not kept on the phone; it is shown on the Foger Sleeve until you import that STL again.',[reimportAction(custom),['Start new',confirmStartNew]],true);
     else showBanner(t==='restored'?'Restored your last design.':'Your last design is back.',[['Start new',confirmStartNew]]);
   }
   if(t==='too-large')toast('This design is too large to keep on the phone automatically. Use Save project to keep it.','error');
@@ -290,7 +295,7 @@ if(typeof useCustomTemplateBuffer==='function'){const prior=useCustomTemplateBuf
 
 // ======================= Export: guided when empty, autosave first, correct name =======================
 const emptyDialog=el('dialog',{className:'product-dialog mobile-dialog',id:'phoneEmptyExport'});emptyDialog.setAttribute('aria-labelledby','phoneEmptyTitle');
-emptyDialog.innerHTML='<h2 id="phoneEmptyTitle">No logo on the sleeve yet</h2><p>Add the customer\u2019s logo first, or export the plain ETSYFOLGER sleeve (with the bottom logo, if it is on).</p><div class="layer-actions"><button class="btn btn-primary" data-choice="add">Add logo</button><button class="btn btn-ghost" data-choice="blank">Export plain sleeve</button><button class="btn btn-ghost" data-choice="cancel">Cancel</button></div>';document.body.appendChild(emptyDialog);
+emptyDialog.innerHTML='<h2 id="phoneEmptyTitle">No logo on the sleeve yet</h2><p>Add the customer\u2019s logo first, or export the plain Foger Sleeve (it always has the DM logo on the bottom).</p><div class="layer-actions"><button class="btn btn-primary" data-choice="add">Add logo</button><button class="btn btn-ghost" data-choice="blank">Export plain sleeve</button><button class="btn btn-ghost" data-choice="cancel">Cancel</button></div>';document.body.appendChild(emptyDialog);
 function askEmpty(){return new Promise(resolve=>{const done=v=>{emptyDialog.close();resolve(v)};emptyDialog.querySelectorAll('[data-choice]').forEach(b=>b.onclick=()=>done(b.dataset.choice));emptyDialog.oncancel=e=>{e.preventDefault();done('cancel')};emptyDialog.showModal();emptyDialog.querySelector('[data-choice="add"]').focus()})}
 const priorExport=exportCurrent;
 exportCurrent=async function(format,...rest){

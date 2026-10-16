@@ -50,7 +50,7 @@
       <input type="file" id="fontInput" accept=".ttf,.otf,.woff,.woff2,font/ttf,font/otf,font/woff,font/woff2" multiple hidden />
       <input type="file" id="fontFolderInput" accept=".ttf,.otf,.woff,.woff2,font/ttf,font/otf,font/woff,font/woff2" webkitdirectory directory multiple hidden />
 
-      <section class="panel template-select-panel"><div class="panel-label">Sleeve template</div><label class="sr-only" for="templateChoice">Sleeve template</label><select id="templateChoice"><option value="etsyfolger-v1">ETSYFOLGER · your STL</option><option value="custom-stl">Custom STL · upload…</option><option value="parametric">Parametric sleeve presets</option></select><p class="muted-tip" id="templateDescription">Original cavity, openings and dimensions preserved.</p></section>
+      <section class="panel template-select-panel"><div class="panel-label">Sleeve template</div><label class="sr-only" for="templateChoice">Sleeve template</label><select id="templateChoice"><option value="etsyfolger-v1">Foger Sleeve · DM logo on the bottom</option><option value="custom-stl">Custom STL · upload…</option><option value="parametric">Parametric sleeve presets</option></select><p class="muted-tip" id="templateDescription">Original cavity, openings and dimensions preserved.</p></section>
       <!-- SOURCE -->
       <section class="panel" aria-label="Your design">
         <div id="designSidesPanel"><div class="panel-label">Artwork on each side</div><div class="design-side-buttons" role="group" aria-label="Side to edit"><button class="btn btn-ghost" id="editSide0" type="button" aria-pressed="true">Front · empty</button><button class="btn btn-ghost" id="editSide1" type="button" aria-pressed="false">Back · empty</button></div><button class="btn btn-ghost btn-sm" id="copyDesignSide" type="button">Copy front to back</button><label class="check"><input type="checkbox" id="linkDesignSettings"><span>Link settings between sides</span></label><p class="muted-tip" id="sideLinkHelp">Click a logo to edit it. Each side has its own size, position and image settings.</p><p id="editingSideLabel">Editing front artwork</p></div>
@@ -421,7 +421,7 @@
       </div>
       <div class="canvas-hint" id="threeInfo">Drag to orbit · Right-drag to pan · Scroll to zoom</div>
       <button id="resetViewBtn" class="btn btn-ghost btn-sm" type="button" title="Frame the model (R)">Reset view</button>
-      <div id="threeContainer"></div><div class="template-toolbar" id="templateToolbar"><span>ETSYFOLGER</span><button class="btn btn-ghost btn-sm" data-template-view="front">Front</button><button class="btn btn-ghost btn-sm" data-template-view="back">Back</button><button class="btn btn-ghost btn-sm" data-template-view="left">Left</button><button class="btn btn-ghost btn-sm" data-template-view="right">Right</button></div>
+      <div id="threeContainer"></div><div class="template-toolbar" id="templateToolbar"><span>Foger Sleeve</span><button class="btn btn-ghost btn-sm" data-template-view="front">Front</button><button class="btn btn-ghost btn-sm" data-template-view="back">Back</button><button class="btn btn-ghost btn-sm" data-template-view="left">Left</button><button class="btn btn-ghost btn-sm" data-template-view="right">Right</button></div>
       <div class="axis-legend" aria-label="Axis colors"><span class="axis-x">X</span><span class="axis-y">Y</span><span class="axis-z">Z</span></div>
 
       <div class="hm-mini" aria-label="Flat image preview">
@@ -472,7 +472,7 @@
 <script src="mesh-actions.js"></script>
 <script src="design-input.js"></script>
 <script src="app.js"></script>
-<script src="product.js"></script><script src="template-core.js"></script><script src="fonts/catalog.js"></script><script src="builtin-fonts.js"></script><script src="template-render.js"></script><script src="placement-preview.js"></script><script src="template-ui.js"></script><script src="design-sides.js"></script><script src="text-plate-ui.js"></script><script src="header-context.js"></script><script src="uniform-scale.js"></script><script src="bottom-fit.js"></script><script src="bottom-brand.js"></script><script src="repair-ui.js"></script><script src="editor-tools.js"></script><script src="custom-template.js"></script><script src="custom-template-ui.js"></script>
+<script src="product.js"></script><script src="template-core.js"></script><script src="fonts/catalog.js"></script><script src="builtin-fonts.js"></script><script src="template-render.js"></script><script src="placement-preview.js"></script><script src="template-ui.js"></script><script src="design-sides.js"></script><script src="text-plate-ui.js"></script><script src="header-context.js"></script><script src="uniform-scale.js"></script><script src="bottom-fit.js"></script><script src="bottom-brand.js"></script><script src="repair-ui.js"></script><script src="editor-tools.js"></script><script src="custom-template.js"></script><script src="vendor/fflate.min.js"></script><script src="template-formats.js"></script><script src="custom-template-ui.js"></script>
 <script src="tool-layout.js"></script>
 <script src="mobile.js"></script>
 <script src="project-store.js"></script>

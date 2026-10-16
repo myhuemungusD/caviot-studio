@@ -8,14 +8,63 @@ public class CaviotNativePlugin: CAPPlugin, CAPBridgedPlugin {
     public let jsName = "CaviotNative"
     public let pluginMethods: [CAPPluginMethod] = [
         CAPPluginMethod(name: "getLaunchFlags", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "report", returnType: CAPPluginReturnPromise)
+        CAPPluginMethod(name: "report", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "takePendingFiles", returnType: CAPPluginReturnPromise)
     ]
+
+    // Files opened in Caviot from Files or the share sheet ("Open in Caviot"). SceneDelegate hands the
+    // URLs over; they are copied into tmp so the web view can read them after the security scope ends.
+    static let templateFileNotification = Notification.Name("CaviotTemplateFileReady")
+    private static var pendingFiles: [[String: String]] = []
+    private static let pendingLock = NSLock()
+    private static let maxTemplateBytes: Int64 = 100 * 1024 * 1024
+
+    public static func receive(_ urls: [URL]) {
+        var added = false
+        for url in urls where url.isFileURL {
+            let scoped = url.startAccessingSecurityScopedResource()
+            defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+            do {
+                let size = (try url.resourceValues(forKeys: [.fileSizeKey]).fileSize).map { Int64($0) } ?? 0
+                if size > maxTemplateBytes { NSLog("CAVIOT open: %@ is larger than 100 MB", url.lastPathComponent); continue }
+                let directory = FileManager.default.temporaryDirectory.appendingPathComponent("caviot-open", isDirectory: true)
+                try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+                let target = directory.appendingPathComponent(UUID().uuidString + "-" + url.lastPathComponent)
+                try FileManager.default.copyItem(at: url, to: target)
+                pendingLock.lock()
+                pendingFiles.append(["path": target.path, "name": url.lastPathComponent])
+                pendingLock.unlock()
+                added = true
+            } catch {
+                NSLog("CAVIOT open: could not read %@: %@", url.lastPathComponent, error.localizedDescription)
+            }
+        }
+        if added { NotificationCenter.default.post(name: templateFileNotification, object: nil) }
+    }
+
+    @objc func takePendingFiles(_ call: CAPPluginCall) {
+        CaviotNativePlugin.pendingLock.lock()
+        let files = CaviotNativePlugin.pendingFiles
+        CaviotNativePlugin.pendingFiles.removeAll()
+        CaviotNativePlugin.pendingLock.unlock()
+        call.resolve(["files": files])
+    }
+
+    @objc func onTemplateFileReady() {
+        notifyListeners("templateFileReady", data: [:])
+    }
 
     override public func load() {
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(onMemoryWarning),
             name: UIApplication.didReceiveMemoryWarningNotification,
+            object: nil
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(onTemplateFileReady),
+            name: CaviotNativePlugin.templateFileNotification,
             object: nil
         )
         // Written before the web view runs, so a failed page still leaves a launch line for CI.

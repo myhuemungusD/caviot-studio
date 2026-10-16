@@ -55,6 +55,10 @@
   .phone-start p{margin:0 0 12px;font-size:13px;color:var(--t2);line-height:1.4}
   .phone-start-extra:not([hidden]){display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
   .phone-start-extra .btn{flex:1 1 auto;font-size:14px}
+  .phone-start-link{display:block;margin:12px auto 0;padding:6px 10px;min-height:36px;background:none;border:0;color:var(--accent,#7cc4ff);font:inherit;font-size:14px;text-decoration:underline;text-underline-offset:3px;cursor:pointer}
+  .phone-own-sleeve{margin-top:14px;padding-top:12px;border-top:1px solid var(--b2)}
+  .phone-own-sleeve-btn{width:100%;min-height:44px;font-size:15px}
+  .phone-own-sleeve .phone-hint{margin:6px 0 0}
   #generateBtn.phone-export-empty{background:transparent;color:var(--t2);border:1px solid var(--b2)}
 
   /* Banner: restored design, re-import custom template, large-operation notes */

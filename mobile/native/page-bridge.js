@@ -13,7 +13,10 @@ globalThis.__caviotPage = {
   set download(fn) { downloadBlob = fn; },
   get exportCurrent() { return typeof exportCurrent === 'function' ? exportCurrent : undefined; },
   set exportCurrent(fn) { exportCurrent = fn; },
+  openTemplateFile(file) { return typeof importTemplateFile === 'function' ? importTemplateFile(file) : Promise.reject(new Error('Custom templates are not available.')); },
+  get ready() { return typeof templateBase !== 'undefined' && !!templateBase; },
   loadImage(file) { if (typeof loadImageFile === 'function') loadImageFile(file); },
   toast(message, kind) { if (typeof toast === 'function') toast(message, kind); },
+  get three() { return { renderer: typeof renderer === 'undefined' ? null : renderer, camera: typeof camera === 'undefined' ? null : camera, controls: typeof controls === 'undefined' ? null : controls }; },
   estimate() { return typeof exportEstimate === 'function' ? exportEstimate() : null; }
 };
