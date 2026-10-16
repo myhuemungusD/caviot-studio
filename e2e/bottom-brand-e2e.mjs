@@ -108,7 +108,7 @@ function tubeSTL(ro=15,ri=13.5,h=40,n=96){ // closed tube: its only downward fac
 {
   console.log('Custom templates');const {ctx,p,errors}=await open({viewport:{width:1400,height:900}});await ready(p,base);
   const stl=Buffer.from(await (await fetch(base+'templates/ETSYFOLGER.stl')).arrayBuffer());fs.writeFileSync('/tmp/custom-etsy.stl',stl);fs.writeFileSync('/tmp/custom-tube.stl',tubeSTL());
-  const custom=async(file)=>{await p.setInputFiles('#templateStlInput',file);await p.waitForFunction(()=>AppState.templateId==='custom-stl'&&templateBase&&templateBase!==builtinTemplateBase&&!customActivatePending,null,{timeout:180000});await sleep(500);return settle(p)};
+  const custom=async(file)=>{await p.evaluate(()=>{window.__prevTemplateBase=templateBase});await p.setInputFiles('#templateStlInput',file);await p.waitForFunction(()=>AppState.templateId==='custom-stl'&&templateBase&&templateBase!==builtinTemplateBase&&templateBase!==window.__prevTemplateBase&&!customActivatePending,null,{timeout:180000});await sleep(500);return settle(p)};
   ok(await custom('/tmp/custom-etsy.stl'),'ETSYFOLGER uploaded as a custom template');
   let b=await p.evaluate(()=>({...bottomBrand,status:$('bottomBrandStatus').textContent,clear:BottomFit.logoClearance(bottomRegion('underside'),bottomMask,bottomBrand,1)}));
   ok(b.enabled&&b.width===16&&b.clear>=2,'logo fitted to the custom underside: 16 mm at ('+b.centerX+', '+b.centerZ+'), '+b.clear.toFixed(2)+' mm clear of its edges');
