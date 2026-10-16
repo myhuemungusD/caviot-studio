@@ -325,6 +325,75 @@ function installNativeShell(capacitor) {
     }
   }
 
+  // Frame timing while the camera orbits (what a finger drag does), measured with rAF deltas.
+  async function benchmarkPreview() {
+    const nav = performance.getEntriesByType('navigation')[0];
+    const out = { firstRenderMs: Math.round(performance.now()), domContentLoadedMs: nav ? Math.round(nav.domContentLoadedEventEnd) : null, dpr: devicePixelRatio };
+    const { camera, controls, renderer } = pageApi.three || {};
+    if (!camera || !controls || !renderer) return { ...out, orbit: 'unavailable' };
+    out.drawingBuffer = renderer.domElement.width + 'x' + renderer.domElement.height;
+    const target = controls.target.clone();
+    const offset = camera.position.clone().sub(target);
+    const axis = new camera.up.constructor(0, 1, 0);
+    const deltas = [];
+    let last = performance.now();
+    const t0 = last;
+    await new Promise((resolve) => {
+      const step = (now) => {
+        deltas.push(now - last);
+        last = now;
+        offset.applyAxisAngle(axis, 0.03);
+        camera.position.copy(target).add(offset);
+        camera.lookAt(target);
+        globalThis.requestPreviewRender?.(200);
+        if (now - t0 < 4000) requestAnimationFrame(step); else resolve();
+      };
+      requestAnimationFrame(step);
+    });
+    out.orbit = frameStats(deltas.slice(3));
+    const idleStart = renderer.info.render.frame;
+    await sleep(3000);
+    out.idleDrawsPerSecond = +((renderer.info.render.frame - idleStart) / 3).toFixed(1);
+    return out;
+  }
+
+  // Drag a real tools slider for 3 s and time each frame plus the input handler cost.
+  async function benchmarkSlider() {
+    const slider = [...document.querySelectorAll('input[type="range"]')].find((el) => !el.disabled && el.offsetParent !== null)
+      || document.querySelector('input[type="range"]:not([disabled])');
+    if (!slider) return { slider: 'none' };
+    const min = Number(slider.min || 0), max = Number(slider.max || 100), original = slider.value;
+    const deltas = [], handler = [];
+    let last = performance.now();
+    const t0 = last;
+    let i = 0;
+    await new Promise((resolve) => {
+      const step = (now) => {
+        deltas.push(now - last);
+        last = now;
+        slider.value = String(min + ((Math.sin(i++ / 10) + 1) / 2) * (max - min));
+        const h0 = performance.now();
+        slider.dispatchEvent(new Event('input', { bubbles: true }));
+        handler.push(performance.now() - h0);
+        if (now - t0 < 3000) requestAnimationFrame(step); else resolve();
+      };
+      requestAnimationFrame(step);
+    });
+    slider.value = original;
+    slider.dispatchEvent(new Event('input', { bubbles: true }));
+    slider.dispatchEvent(new Event('change', { bubbles: true }));
+    await waitFor(() => !pageApi.previewRunning && !pageApi.previewPending && !pageApi.state?.rebuildTimer, 120000, 'Preview did not settle after the slider test').catch(() => {});
+    handler.sort((x, y) => x - y);
+    return { slider: slider.id || slider.name || 'range', frames: frameStats(deltas.slice(3)), inputHandlerP95Ms: +(handler[Math.floor(handler.length * 0.95)] || 0).toFixed(2) };
+  }
+
+  function frameStats(deltas) {
+    const sorted = [...deltas].sort((x, y) => x - y);
+    const pick = (q) => +(sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * q))] || 0).toFixed(2);
+    const total = deltas.reduce((x, y) => x + y, 0);
+    return { frames: deltas.length, fps: +(deltas.length / (total / 1000)).toFixed(1), p50Ms: pick(0.5), p95Ms: pick(0.95), maxMs: pick(1), over33ms: deltas.filter((d) => d > 33.4).length };
+  }
+
   function listenForMemoryWarnings(plugin) {
     if (!plugin || typeof plugin.addListener !== 'function') return;
     try {
@@ -370,6 +439,7 @@ function installNativeShell(capacitor) {
         physicalMemory: flags.physicalMemory,
         shareReady: await shareAvailable(share)
       });
+      if (android) await report(plugin, { stage: 'perf', ...(await benchmarkPreview()) });
       const input = document.getElementById('textInput');
       if (!input) throw new Error('Text field is missing');
       input.focus();
@@ -383,6 +453,7 @@ function installNativeShell(capacitor) {
       await sleep(400);
       await waitFor(() => !pageApi.previewRunning && !pageApi.previewPending && !pageApi.state?.rebuildTimer, 120000, 'Preview did not settle');
       await report(plugin, { stage: 'text-added', label: pageApi.state.sourceLabel });
+      if (android) await report(plugin, { stage: 'perf-slider', ...(await benchmarkSlider()) });
       const started = Date.now();
       const pending = pageApi.exportCurrent('stl');
       if (pending && typeof pending.then === 'function') pending.catch(() => {});
@@ -400,7 +471,7 @@ function installNativeShell(capacitor) {
         await sleep(300);
       }
       const result = globalThis.__caviotSmokeExport;
-      await report(plugin, { stage: 'export-ok', filename: result.filename, bytes: result.bytes });
+      await report(plugin, { stage: 'export-ok', filename: result.filename, bytes: result.bytes, exportMs: Date.now() - started });
     } catch (error) {
       const status = document.getElementById('templateStatus')?.textContent || '';
       await report(plugin, { stage: 'failed', message: messageOf(error), status }).catch(() => {});

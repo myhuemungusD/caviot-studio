@@ -17,5 +17,6 @@ globalThis.__caviotPage = {
   get ready() { return typeof templateBase !== 'undefined' && !!templateBase; },
   loadImage(file) { if (typeof loadImageFile === 'function') loadImageFile(file); },
   toast(message, kind) { if (typeof toast === 'function') toast(message, kind); },
+  get three() { return { renderer: typeof renderer === 'undefined' ? null : renderer, camera: typeof camera === 'undefined' ? null : camera, controls: typeof controls === 'undefined' ? null : controls }; },
   estimate() { return typeof exportEstimate === 'function' ? exportEstimate() : null; }
 };
