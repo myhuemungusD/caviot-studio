@@ -12,6 +12,7 @@
     "smoke": "node scripts/ci-smoke.mjs"
   },
   "dependencies": {
+    "@capacitor/android": "^8.5.3",
     "@capacitor/camera": "^8.2.5",
     "@capacitor/core": "^8.5.3",
     "@capacitor/filesystem": "^8.1.4",
