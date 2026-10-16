@@ -53,7 +53,7 @@ young. Uploading an unsliced STL to OctoPrint does nothing useful. Worth revisit
 a printer that slices in the cloud, or wants a "send STL to my PC" button — the export folder already does that.
 
 **Scanning.** ARCore Raw Depth works on many non-LiDAR Android phones, but Google's docs say depth is most
-accurate at 0.5–5 m and on textured surfaces; a vape is small, glossy and close. A 2024 study measured
+accurate at 0.5–5 m and on textured surfaces; a vape is small, glossy and close. A published study (Orthodontics & Craniofacial Research) measured
 KIRI Engine photogrammetry at about 0.22 mm deviation on small models, close to a pro scanner — that is the
 accuracy class a sleeve needs. So the best Android path is: scan in KIRI Engine/Polycam → export STL/OBJ →
 "Open with Caviot" (built now). A native ARCore scanner is weeks of work for a worse result.

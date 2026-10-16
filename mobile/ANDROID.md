@@ -62,7 +62,8 @@ Keep a backup; with Play App Signing a lost upload key can be reset through Play
 3. Create the app "Caviot Studio", package `com.caviot.studio`, free, category Art & Design.
 4. Opt in to Play App Signing. Upload the first AAB by hand (Play requires the first one manually).
 5. Fill in: privacy policy URL (designmainline.com), Data safety (no data collected; files stay on device),
-   content rating questionnaire, target audience 18+ (vape accessories), ads: none.
+   content rating questionnaire, target audience 18+, ads: none. Describe it as a 3D sleeve/relief design
+   tool; Play restricts apps that facilitate tobacco/vape sales, so keep store text and screenshots off vaping.
 6. Internal testing track → add your Google account → install from the opt-in link.
 7. For CI uploads: Play Console → Users and permissions → invite the service account email as Release
    Manager for this app; put its JSON in `PLAY_SERVICE_ACCOUNT_JSON`.
