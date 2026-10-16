@@ -1,6 +1,6 @@
 // usage: node e2e/export-parity-e2e.mjs <baseURL> <branchURL>  (plain / image emboss / image deboss STL sha256 prefixes)
 import {chromium} from 'playwright-core';import fs from 'node:fs';import crypto from 'node:crypto';
-const urls=process.argv.slice(2);const IMAGE='new URL("./fixtures/badge.png", import.meta.url).pathname';
+const urls=process.argv.slice(2);const IMAGE=new URL('./fixtures/badge.png', import.meta.url).pathname;
 const browser=await chromium.launch({executablePath:'/usr/bin/google-chrome',args:['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader']});
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 async function settle(p,ms=180000){const t=Date.now();await sleep(300);while(Date.now()-t<ms){if(await p.evaluate(()=>typeof templatePreviewRunning!=='undefined'&&!!templateBase&&!templatePreviewRunning&&!templatePending&&!placementTimer&&!AppState.rebuildTimer&&!exportBusy))return true;await sleep(250)}return false}
