@@ -192,7 +192,7 @@ for(const name of names){
   await tapEl(p,cdp,'#mobileMoreBtn');await sleep(250);
   ok(await p.evaluate(()=>[...$('mobileMenu').querySelectorAll('button')][0].textContent==='Start new design…'),'overflow menu starts with "Start new design…"');
   const nav=p.waitForNavigation({waitUntil:'load'});await tapEl(p,cdp,'#mobileMenu [data-target="startNewDesign"]');await nav;await boot(p);
-  ok((await record(p))===null&&await p.evaluate(()=>!AppState.image&&!$('phoneStart').hidden&&AppState.templateId==='etsyfolger-v1'&&bottomBrand.enabled),'Start new design: clean ETSYFOLGER with the DM bottom logo, saved design deleted');
+  ok((await record(p))===null&&await p.evaluate(()=>!AppState.image&&!$('phoneStart').hidden&&AppState.templateId==='etsyfolger-v1'&&bottomBrand.enabled),'Start new design: clean Foger Sleeve with the DM bottom logo, saved design deleted');
   // ---------- 6b. Use my own sleeve: visible button, any-file picker, OBJ / 3MF / refused files ----------
   {const own=await p.evaluate(()=>{const e=$('phoneStartOwnSleeve'),r=e.getBoundingClientRect();return{vis:!$('phoneStart').hidden&&r.width>0&&r.height>=36,text:e.textContent,accept:$('templateStlInput').getAttribute('accept')||''}});
     ok(own.vis&&/Use my own sleeve \(STL\)/.test(own.text),'start card shows "Use my own sleeve (STL)…" '+JSON.stringify(own));
@@ -222,10 +222,10 @@ for(const name of names){
     if(shot)await p.screenshot({path:shot+'own-sleeve-refused.png'});
     // Remove it again, then choosing "Custom STL · upload…" with nothing loaded opens the picker.
     await p.evaluate(()=>$('removeTemplateBtn').click());await sleep(500);await settle(p);
-    ok(await p.evaluate(()=>AppState.templateId==='etsyfolger-v1'&&!customTemplate),'Remove template returns to ETSYFOLGER');
+    ok(await p.evaluate(()=>AppState.templateId==='etsyfolger-v1'&&!customTemplate),'Remove template returns to Foger Sleeve');
     await railTo(p,cdp,'phoneAllSettings');await p.evaluate(()=>$('templateChoice').scrollIntoView({block:'center'}));await sleep(300);
     chooser=p.waitForEvent('filechooser',{timeout:5000}).catch(()=>null);await p.selectOption('#templateChoice','custom-stl');fc=await chooser;
-    ok(!!fc&&await p.evaluate(()=>AppState.templateId==='etsyfolger-v1'&&$('templateChoice').value==='etsyfolger-v1'),'"Custom STL · upload…" with no template opens the picker and keeps ETSYFOLGER until a file is chosen');
+    ok(!!fc&&await p.evaluate(()=>AppState.templateId==='etsyfolger-v1'&&$('templateChoice').value==='etsyfolger-v1'),'"Custom STL · upload…" with no template opens the picker and keeps Foger Sleeve until a file is chosen');
     await closeSheet(p,cdp);}
   // ---------- 7. Custom STL memory guards ----------
   await p.setInputFiles('#templateStlInput',fakeStl(1600000));await sleep(500);

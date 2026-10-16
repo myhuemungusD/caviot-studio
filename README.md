@@ -117,7 +117,7 @@ Press and hold the middle mouse button (the scroll wheel) over either logo to se
 
 `node wheel-grab-tests.mjs` verifies grab offset, release/cancel/blur cleanup, selection misses, previous move-mode restoration, and an untouched wheel event path. The placement scheduling checks also pass.
 
-Bottom branding (now the DM logo by default; see *DM logo on the bottom* below): the supplied Design Mainline mark is included, with separate underside and inside-floor starting placements, middle-button dragging, and saved project settings. Both prepared template surfaces now include bottom normals, thickness checks, and opening margins.
+Bottom branding (now a fixed DM deboss built into the Foger Sleeve; see *DM logo on the bottom* below; the history below describes the old adjustable version): the supplied Design Mainline mark is included, with separate underside and inside-floor starting placements, middle-button dragging, and saved project settings. Both prepared template surfaces now include bottom normals, thickness checks, and opening margins.
 
 
 ## Design layers — September 19
@@ -134,7 +134,7 @@ Selected-design depth and finish sit directly below rotation. New designs and bo
 
 ## Start-up — September 30
 
-The studio opens straight on the ETSYFOLGER sleeve with no start card or onboarding overlay over the canvas (the "Your sleeve. Your design." card with Upload design / Try lettering, and the older "Make it yours" empty-state panel, are removed). Add artwork from the side panel as before: upload, drop or paste an image, or **Text**. Custom templates are not restored on start-up; see below.
+The studio opens straight on the Foger Sleeve (formerly ETSYFOLGER) with no start card or onboarding overlay over the canvas (the "Your sleeve. Your design." card with Upload design / Try lettering, and the older "Make it yours" empty-state panel, are removed). Add artwork from the side panel as before: upload, drop or paste an image, or **Text**. Custom templates are not restored on start-up; see below.
 
 ## Custom STL templates
 
@@ -176,7 +176,7 @@ Caviot Studio now works on phones (iOS Safari, Android Chrome) and installs as a
 - **Downloads**: desktop saves directly. On phones a "file ready" sheet puts **Share…** first (Files, AirDrop,
   slicer apps) with Download as the fallback (and Open in new tab on iOS); Android phones whose browser cannot share
   files download directly. On phones the file name names every side's relief, e.g.
-  `…_ETSYFOLGER_front-deboss_back-emboss.stl`.
+  `…_Foger-Sleeve_front-deboss_back-emboss.stl`.
 
 ### Phone layout (phase 1, `dist/phone-ui.js`, `dist/phone-ui.css`, `dist/project-store.js`)
 
@@ -188,7 +188,7 @@ byte-identical exports; checked against `main`).
 - **Tools sheet** opens at under half the screen and shifts the 3D view up (`camera.setViewOffset`) so the logo
   stays visible. Sections in working order with labelled shortcuts: Add, Background (with the flat preview),
   Size (🔒 proportions locked by default), Emboss/Deboss + depth, Front/back, and **All settings** (template, image
-  options, bottom logo, export quality, repair, …). Desktop section numbers are dropped on phones; Import font
+  options, export quality, repair, …). Desktop section numbers are dropped on phones; Import font
   folder (not supported on iOS), Trim flat plate (sleeves) and the canvas Left/Right buttons are hidden.
 - **Background colour**: tap Pick, then tap the background in the preview; Pick again, Done or Escape cancels.
 - **Front/Back** on the canvas and in the sheet are one control: both choose the side and turn the camera, and show
@@ -197,8 +197,8 @@ byte-identical exports; checked against `main`).
   the custom STL) is kept in IndexedDB (`caviot.autosave.v1`), at most 30 MB, saved 1.5 s after a change and when the
   page is hidden. Less than 12 hours old, it comes back by itself after a reload ("Restored · Start new"); up to 14
   days old it is offered on the start card (Resume / Discard); older copies are deleted. A custom STL template is
-  never restored: the design comes back on ETSYFOLGER with a button to import that STL again. **Start new design…**
-  in the ⋮ menu clears it. ETSYFOLGER with the DM bottom logo stays the clean default; desktop never uses autosave.
+  never restored: the design comes back on the Foger Sleeve with a button to import that STL again. **Start new design…**
+  in the ⋮ menu clears it. The Foger Sleeve with its built-in DM bottom logo stays the clean default; desktop never uses autosave.
 - **Memory guards** (`CaviotDevice.device`, from the Oct 7 mobile audit: loading ≈ 0.3 KB per source triangle,
   exporting ≈ 0.5 KB per output triangle): on phones and low-memory devices a custom STL above 600k triangles asks
   first (with memory estimates), above 1.2M it is refused before it is read (use a computer); the preview copy is
@@ -222,15 +222,16 @@ byte-identical exports; checked against `main`).
   checks in `e2e/` (`mobile-e2e.mjs` and `mobile-phase1-e2e.mjs` for iPhone 14 / SE, Pixel 7 and iPad with real
   touch input, `pwa-e2e.mjs` for offline and updates; all need `playwright-core` and Chrome).
 
-## DM logo on the bottom — standard branding
+## DM logo on the bottom — built into the Foger Sleeve
 
-Every new sleeve now carries the DM diamond (Design Mainline) on the **outside underside**, on by default:
-**16 × 15.67 mm, raised 0.4 mm**, centred at (15.5, 1) mm on the flat pad beside the bottom hole. That is the
-deepest flat part of the ETSYFOLGER underside (a 12.5 mm clear circle), so the logo stays **4.5 mm clear** of the
-rim fillet and the hole countersink, well outside the 1.2 mm relief keep-out. It is a separate placement from the
-sleeve designs: move it (middle-drag on desktop; on touch screens tap it, then drag it), type a position, resize
-it, change depth, Emboss/Deboss or the surface, pick the earlier Design Mainline triangle, or untick
-**Add bottom logo**. **Fit logo to this surface** returns it to the standard spot. Save project stores all of it.
+The default template is now called **Foger Sleeve** (it was ETSYFOLGER; the internal id `etsyfolger-v1` and the
+asset file names are unchanged so saved projects and settings keep working). The Foger Sleeve always carries the
+DM diamond (Design Mainline) **carved into the outside underside**: **16 × 15.67 mm, 0.4 mm deep**, centred at
+(15.5, 1) mm on the flat pad beside the bottom hole. That is the deepest flat part of the underside (a 12.5 mm
+clear circle), so the logo stays **4.5 mm clear** of the rim fillet and the hole countersink, well outside the
+1.2 mm relief keep-out. It is part of the template, not a setting: the old *Bottom branding* panel (logo choice,
+surface, size, position, depth, Emboss/Deboss, on/off, drag to move) is gone. Because it is carved in, nothing
+sticks out below the bottom and the sleeve sits flat on the print bed without a raft.
 
 - **Relief source**: `dist/branding/dm-diamond-relief.png` is a high-contrast black-on-white version made from the
   original gold artwork (`branding-src/dm-diamond-original.png`) by `branding-src/make-dm-relief.py`. Strokes are
@@ -239,20 +240,16 @@ it, change depth, Emboss/Deboss or the surface, pick the earlier Design Mainline
   back near a neighbour, and the D bowl is trimmed back where it meets the M diagonal); each of the five strokes
   stays one continuous piece. The page traces it with the smooth-contour (vector outline) path.
   `dist/branding/dm-diamond.png` is the gold panel thumbnail.
-- **Custom templates**: when a custom STL becomes the template, a logo that has not been placed by hand is
-  fitted to it: `dist/bottom-fit.js` rasterises the downward faces in the bottom 12 mm, finds the largest clear
-  circle, centres the logo there and shrinks it (never below 8 mm) to keep a 2 mm edge margin. If there is no room,
-  the default logo switches itself off for that template with a note (it never makes exports fail) and comes back
-  on the built-in template.
-- **Projects**: the logo choice is saved (`bottomBrand.logo`). Older projects with an enabled bottom logo keep the
-  triangle they were made with; projects saved before bottom branding existed open with it off.
-- **Printing note**: a raised underside logo is what touches the bed when the sleeve prints upright. Use a raft (or
-  print on supports), or choose **Deboss** to keep the bottom flat on the bed.
-- **Tests**: `node dm-bottom-tests.mjs` (defaults, asset continuity, stroke/gap sizes, placement clearance on both
-  surfaces, closed 0.4 mm exports at desktop and phone contour spacing with and without side designs, deboss and
-  inside floor, custom-template fit, project rules). `e2e/bottom-brand-e2e.mjs <url> [baselineURL]` checks the
-  default in the browser, a closed STL with the raised logo where expected, middle-drag and touch moving, logo
-  switching, older projects, and that with the logo off the STL is byte-identical to a baseline build.
+- **Custom templates** never get the logo; it belongs to the Foger Sleeve. (`dist/bottom-fit.js` is kept: the tests
+  use it to prove the logo's clearance on the Foger Sleeve underside.)
+- **Projects**: the logo is not saved. Older projects that stored bottom branding settings (any logo, surface or
+  size, on or off) open without error; those fields are ignored and the Foger Sleeve shows its built-in logo.
+- **Tests**: `node dm-bottom-tests.mjs` (fixed defaults, asset continuity, stroke/gap sizes, placement clearance,
+  closed 0.4 mm deboss exports at desktop and phone contour spacing with and without emboss/deboss side designs,
+  custom-template fit helper, old project fields dropped). `e2e/bottom-brand-e2e.mjs <url>` checks in the browser
+  that there is no bottom branding control, the template name, closed exports (plain, image emboss, image deboss)
+  with the carved floor where expected and nothing below the bed, old projects, custom templates without the logo,
+  and phones. It prints the export hashes.
 
 ## Mac desktop app
 

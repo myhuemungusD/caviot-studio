@@ -4,7 +4,7 @@ This folder is the App Store app. It bundles the same static site that lives in 
 
 The website in `dist/` is not modified. A separate Mac app may live in `desktop/` on another branch; this folder does not touch it.
 
-ETSYFOLGER is still the sleeve that opens on first launch. The native code never changes the template.
+The Foger Sleeve (formerly ETSYFOLGER) is still the template that opens on first launch. The native code never changes the template.
 
 ## Run it on a Mac
 
@@ -74,7 +74,7 @@ A reload during a large export still uses the website’s autosave on iPhone.
 2. `npm run sync`.
 3. An unsigned `xcodebuild` for the iOS Simulator (`CODE_SIGNING_ALLOWED=NO`), then an ad-hoc `codesign` so the simulator will install the bundle. No Apple certificate is used.
 4. Boot an available iPhone simulator, install the app, and launch it with `-CaviotSmoke`.
-5. The app waits for ETSYFOLGER, types a text design, exports an STL into Files, and writes `Documents/caviot-smoke.json`.
+5. The app waits for the Foger Sleeve, types a text design, exports an STL into Files, and writes `Documents/caviot-smoke.json`.
 6. The workflow checks the template, the 700,000-triangle budget, the share plugin, and that the file is a binary STL whose triangle count matches its size.
 7. The `.app`, screenshots, `result.json`, and a copy of the STL are uploaded as the `ios-simulator` artifact.
 
@@ -133,11 +133,11 @@ Fill these in App Store Connect. The text below is a draft you can edit. Do not 
 
 Caviot Studio turns a photo, a logo, or lettering into a 3D-printable sleeve or relief.
 
-Open the app and the ETSYFOLGER sleeve is already there, with the DM mark on the underside. Add a picture from Photos or the camera, pick a file, or type text. Move it, resize it, and choose emboss or deboss. Export an STL and send it to Files, AirDrop, or a slicer with the share sheet.
+Open the app and the Foger Sleeve is already there, with the DM mark carved into the underside. Add a picture from Photos or the camera, pick a file, or type text. Move it, resize it, and choose emboss or deboss. Export an STL and send it to Files, AirDrop, or a slicer with the share sheet.
 
 Designs stay on this iPhone or iPad. There is no account and no upload. Large models are safer on a computer; the app warns you before an export that may be too big for the device.
 
-**What’s New (1.0):** First iPhone and iPad release. Design on ETSYFOLGER, export STL, and share the file.
+**What’s New (1.0):** First iPhone and iPad release. Design on the Foger Sleeve, export STL, and share the file.
 
 **Support URL:** a page you control, with a contact address. App Store Connect rejects an empty support URL.
 

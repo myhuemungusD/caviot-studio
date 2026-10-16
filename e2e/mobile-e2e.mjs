@@ -119,6 +119,7 @@ for(const name of names){
   ok(await p.evaluate(()=>!document.body.classList.contains('webgl-lost')&&!renderer.getContext().isContextLost()),'context restored');
   // Rotate the phone.
   if(phone&&!landscape){await p.setViewportSize({width:dev.viewport.height,height:dev.viewport.width});await sleep(600);
+    await p.waitForFunction(()=>renderer.domElement.getBoundingClientRect().width>=innerWidth-2,null,{timeout:5000}).catch(()=>{});
     const l=await p.evaluate(()=>({sw:document.documentElement.scrollWidth,iw:innerWidth,canvas:renderer.domElement.getBoundingClientRect().width,phone:CaviotDevice.phoneLayout()}));
     ok(l.phone&&l.sw<=l.iw&&l.canvas>=l.iw-2,'landscape: phone layout, full-width canvas, no horizontal scroll '+JSON.stringify(l));
     await p.tap('#mobileSettingsBtn');await sleep(900);await p.waitForFunction(()=>getComputedStyle(document.querySelector('.sidebar')).transform==='none',null,{timeout:8000}).catch(()=>{});const side=await p.evaluate(()=>{const r=document.querySelector('.sidebar').getBoundingClientRect();return {left:r.left,right:r.right,w:r.width,iw:innerWidth}});

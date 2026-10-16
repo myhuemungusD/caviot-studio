@@ -1,8 +1,8 @@
 # Caviot Studio for Mac
 
-A macOS app that opens the Caviot Studio files in `dist/`. The studio itself is unchanged: the same HTML, scripts, workers, fonts, and ETSYFOLGER sleeve. This folder only adds the window, menus, and disk image.
+A macOS app that opens the Caviot Studio files in `dist/`. The studio itself is unchanged: the same HTML, scripts, workers, fonts, and Foger Sleeve template. This folder only adds the window, menus, and disk image.
 
-The app reads those files from disk, so it works offline. ETSYFOLGER stays the template you get on a new launch.
+The app reads those files from disk, so it works offline. The Foger Sleeve stays the template you get on a new launch.
 
 ## Run from a checkout
 
@@ -73,7 +73,7 @@ cd desktop
 npm test
 ```
 
-On Linux, run that under a display (`xvfb-run -a npm test`). The test launches the app and the local `node serve.mjs` server in the same Electron, checks that ETSYFOLGER is selected, writes an IndexedDB record, loads the sleeve file, runs a worker, checks the menu, exports the default sleeve, types CAVIOT, exports again, and requires those STL files to match the web build byte for byte. It also opens `e2e/fixtures/badge.png` through the desktop open path.
+On Linux, run that under a display (`xvfb-run -a npm test`). The test launches the app and the local `node serve.mjs` server in the same Electron, checks that the Foger Sleeve is selected, writes an IndexedDB record, loads the sleeve file, runs a worker, checks the menu, exports the default sleeve, types CAVIOT, exports again, and requires those STL files to match the web build byte for byte. It also opens `e2e/fixtures/badge.png` through the desktop open path.
 
 `npm run test:paths` checks the file-path guard without launching Electron.
 

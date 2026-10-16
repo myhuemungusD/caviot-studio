@@ -80,7 +80,7 @@ function mountPhone(){
   move(document.querySelector('.design-side-buttons'),sides);move(layerList,sides);move(layerActs,sides);move($('copyDesignSide'),sides);
   sides.appendChild(sides.querySelector('.phone-own-sleeve')); // own sleeve shape goes below the side controls
   // Everything else, in a useful order, inside All settings.
-  const order=[document.querySelector('.template-select-panel'),$('designSidesPanel')?.closest('section'),$('imageScale')?.closest('section'),$('templatePlacement'),$('crisp')?.closest('section'),$('bottomBrandPanel'),document.querySelector('.export-quality-panel'),document.querySelector('.output-mode-panel'),$('sleevePanel'),$('flatPanel'),$('bendSection')];
+  const order=[document.querySelector('.template-select-panel'),$('designSidesPanel')?.closest('section'),$('imageScale')?.closest('section'),$('templatePlacement'),$('crisp')?.closest('section'),document.querySelector('.export-quality-panel'),document.querySelector('.output-mode-panel'),$('sleevePanel'),$('flatPanel'),$('bendSection')];
   for(const node of order)if(node&&node.parentNode===sidebar)move(node,all);
   const repair=document.querySelector('.mesh-repair-panel');if(repair)all.appendChild(repair);// mobile.js moves it back on desktop
   // Drop a leftover "01 /" style prefix if a panel label still has one. The desktop labels no longer use section numbers.
@@ -132,7 +132,7 @@ window.addEventListener('caviot:autosave',({detail})=>{
   const t=detail.type;
   if(t==='restored'||t==='resumed'){
     const custom=detail.custom;
-    if(custom)showBanner('Restored your last design. It was on the custom template \u201c'+custom.name+'\u201d, which is not kept on the phone; it is shown on ETSYFOLGER until you import that STL again.',[reimportAction(custom),['Start new',confirmStartNew]],true);
+    if(custom)showBanner('Restored your last design. It was on the custom template \u201c'+custom.name+'\u201d, which is not kept on the phone; it is shown on the Foger Sleeve until you import that STL again.',[reimportAction(custom),['Start new',confirmStartNew]],true);
     else showBanner(t==='restored'?'Restored your last design.':'Your last design is back.',[['Start new',confirmStartNew]]);
   }
   if(t==='too-large')toast('This design is too large to keep on the phone automatically. Use Save project to keep it.','error');
@@ -295,7 +295,7 @@ if(typeof useCustomTemplateBuffer==='function'){const prior=useCustomTemplateBuf
 
 // ======================= Export: guided when empty, autosave first, correct name =======================
 const emptyDialog=el('dialog',{className:'product-dialog mobile-dialog',id:'phoneEmptyExport'});emptyDialog.setAttribute('aria-labelledby','phoneEmptyTitle');
-emptyDialog.innerHTML='<h2 id="phoneEmptyTitle">No logo on the sleeve yet</h2><p>Add the customer\u2019s logo first, or export the plain ETSYFOLGER sleeve (with the bottom logo, if it is on).</p><div class="layer-actions"><button class="btn btn-primary" data-choice="add">Add logo</button><button class="btn btn-ghost" data-choice="blank">Export plain sleeve</button><button class="btn btn-ghost" data-choice="cancel">Cancel</button></div>';document.body.appendChild(emptyDialog);
+emptyDialog.innerHTML='<h2 id="phoneEmptyTitle">No logo on the sleeve yet</h2><p>Add the customer\u2019s logo first, or export the plain Foger Sleeve (it always has the DM logo on the bottom).</p><div class="layer-actions"><button class="btn btn-primary" data-choice="add">Add logo</button><button class="btn btn-ghost" data-choice="blank">Export plain sleeve</button><button class="btn btn-ghost" data-choice="cancel">Cancel</button></div>';document.body.appendChild(emptyDialog);
 function askEmpty(){return new Promise(resolve=>{const done=v=>{emptyDialog.close();resolve(v)};emptyDialog.querySelectorAll('[data-choice]').forEach(b=>b.onclick=()=>done(b.dataset.choice));emptyDialog.oncancel=e=>{e.preventDefault();done('cancel')};emptyDialog.showModal();emptyDialog.querySelector('[data-choice="add"]').focus()})}
 const priorExport=exportCurrent;
 exportCurrent=async function(format,...rest){

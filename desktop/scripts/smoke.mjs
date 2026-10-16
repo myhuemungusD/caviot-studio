@@ -1,6 +1,6 @@
 // Headless smoke test for the desktop wrapper.
 // Launches the Electron app and the same dist/ over the local web server, adds
-// lettering on the default ETSYFOLGER sleeve, and compares the STL bytes.
+// lettering on the default Foger Sleeve, and compares the STL bytes.
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import net from 'node:net';
@@ -102,13 +102,11 @@ async function settle(page, ms = 180000) {
 async function waitReady(page) {
   await page.waitForFunction(() => {
     const button = document.getElementById('generateBtn');
-    const logo = document.getElementById('bottomBrandEnabled');
     const status = document.getElementById('templateStatus')?.textContent || '';
     return typeof templateBase !== 'undefined' && !!templateBase
       && AppState.templateId === 'etsyfolger-v1'
       && document.getElementById('templateChoice')?.value === 'etsyfolger-v1'
       && button && !button.disabled
-      && logo && !logo.disabled
       && !exportBusy
       && !/Loading your sleeve/i.test(status);
   }, null, { timeout: 180000 });
@@ -255,7 +253,7 @@ try {
     worker: typeof Worker,
   }));
   console.log('[smoke] studio', facts);
-  check(facts.template === 'etsyfolger-v1' && facts.choice === 'etsyfolger-v1', 'ETSYFOLGER is the selected template');
+  check(facts.template === 'etsyfolger-v1' && facts.choice === 'etsyfolger-v1', 'Foger Sleeve is the selected template');
   check(facts.tier === 'full', `desktop quality tier is full (${facts.tier})`);
   check(facts.width >= 960, `window is wide enough for the desktop layout (${facts.width}px)`);
   check(facts.require === 'undefined' && facts.process === 'undefined', 'the page has no Node.js');
