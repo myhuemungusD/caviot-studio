@@ -60,6 +60,8 @@ jobs:
           arch: x86_64
           profile: pixel_6
           ram-size: 4096M
+          # The hosted runner has 4 vCPUs; the export runs in web workers, so give the emulator all of them.
+          cores: 4
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot
           working-directory: mobile/android
