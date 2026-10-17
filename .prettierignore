@@ -1,0 +1,9 @@
+# Existing files use a compact hand-written style; Prettier is for new files only (npm run format:changed).
+dist/vendor/
+dist/sw.js
+dist/templates/
+dist/fonts/
+mobile/ios/
+mobile/android/
+node_modules/
+*.min.js
