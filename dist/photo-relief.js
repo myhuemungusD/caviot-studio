@@ -2,7 +2,7 @@
 // Photo-to-sleeve conversion. Pure pixel math: no DOM, no network.
 // A 0.4 mm FDM nozzle cannot print camera detail on a small sleeve, so each style
 // simplifies the photo and refuses features thinner than about 0.8 mm (two nozzle widths)
-// at the real print size. See PHOTO-RESEARCH.md.
+// at the real print size. See docs/PHOTO-RESEARCH.md.
 const PhotoRelief = (() => {
   const NOZZLE_MM = 0.4;
   const MIN_FEATURE_MM = 0.8;
