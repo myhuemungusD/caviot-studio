@@ -255,7 +255,7 @@ sticks out below the bottom and the sleeve sits flat on the print bed without a 
 
 A regular photo (a person, a pet, a beach) is too detailed for a 0.4 mm nozzle on a small sleeve. **Image processing → Photo to sleeve** converts it before the existing heightmap and sleeve mapping run. The sleeve's fit and wall thickness are unchanged. The choice is off by default, so a logo, lettering, or a plain sleeve still exports the same file as before.
 
-Why these styles, and not a raw heightmap or a neural cutout, is written up in `PHOTO-RESEARCH.md`.
+Why these styles, and not a raw heightmap or a neural cutout, is written up in [`docs/PHOTO-RESEARCH.md`](docs/PHOTO-RESEARCH.md).
 
 - **Styles.** Shadow is the usual one: a solid silhouette at one height, with the subject found automatically and nothing thinner than 0.8 mm. It stays off until you choose it, so a logo is unchanged. Bold silhouette, thickened line art, a 3-level relief, smooth gray (faces and pets), and a lithophane are still there. Each one shows a 2D preview of the pixels that will print. Cut out, on Shadow, makes a hole of that shape.
 - **Sliders.** Detail / Simplify, line thickness in millimetres (never under 0.8 mm, two nozzle widths, at the real print size), brightness, contrast, and gamma. Changing the design size or switching to the flat plate runs the conversion again so the line width still matches that size. A note appears when the chosen size cannot hold the detail.
