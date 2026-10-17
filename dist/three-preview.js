@@ -14,6 +14,44 @@ function styleGridMaterial(grid) {
   });
 }
 
+// Filament grey with a soft highlight, shared by the sleeve and the flat plate.
+function previewMaterial() {
+  return new THREE.MeshStandardMaterial({
+    color: 0xd8d4cc,
+    metalness: 0.04,
+    roughness: 0.36,
+    side: THREE.DoubleSide,
+  });
+}
+
+// Preview-only. Raised tops are warm, the base stays grey, side walls are darker so the rim reads.
+function tintFlatRelief(geo, mat) {
+  const pos = geo.getAttribute('position');
+  const nrm = geo.getAttribute('normal');
+  if (!pos || !nrm || pos.count < 3) return;
+  let minY = Infinity;
+  let maxY = -Infinity;
+  for (let i = 0; i < pos.count; i++) {
+    const y = pos.getY(i);
+    if (y < minY) minY = y;
+    if (y > maxY) maxY = y;
+  }
+  const span = maxY - minY;
+  if (!(span > 0.15)) return;
+  const colors = new Float32Array(pos.count * 3);
+  for (let i = 0; i < pos.count; i++) {
+    const raised = (pos.getY(i) - minY) / span > 0.62;
+    const wall = Math.abs(nrm.getY(i)) < 0.62;
+    const color = wall ? [0.46, 0.32, 0.20] : raised ? [1, 0.56, 0.24] : [0.80, 0.78, 0.74];
+    colors[i * 3] = color[0];
+    colors[i * 3 + 1] = color[1];
+    colors[i * 3 + 2] = color[2];
+  }
+  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  mat.vertexColors = true;
+  mat.color.setHex(0xffffff);
+}
+
 function disposeMaterial(material) {
   eachMaterial(material, (item) => item.dispose());
 }
@@ -43,15 +81,19 @@ function initThree() {
   scene = new THREE.Scene();
   camera = new THREE.PerspectiveCamera(40, w / h, 0.1, 2000);
   camera.position.set(60, 50, 90);
-
-  const amb = new THREE.AmbientLight(0xffffff, 0.55);
-  scene.add(amb);
-  const dir = new THREE.DirectionalLight(0xffe0c0, 0.85);
-  dir.position.set(40, 80, 50);
-  scene.add(dir);
-  const fill = new THREE.DirectionalLight(0x88aaff, 0.25);
-  fill.position.set(-50, 20, -40);
-  scene.add(fill);
+  // The camera has to be in the scene so the view-relative lights below are rendered.
+  scene.add(camera);
+  // Slicer-style preview: a soft sky/ground fill, plus a key that sits up and to the side of the
+  // camera so a raised wall catches light and the top face does not. No shadow maps (phones).
+  const sky = new THREE.HemisphereLight(0xf4f7fb, 0x8a93a0, 0.42);
+  scene.add(sky);
+  const key = new THREE.DirectionalLight(0xfff6ee, 1.35);
+  // A large camera-space offset, so the key stays a rake when the camera pulls back.
+  key.position.set(240, 110, 30);
+  camera.add(key);
+  const fill = new THREE.DirectionalLight(0xd7e3f4, 0.28);
+  fill.position.set(-180, 40, 70);
+  camera.add(fill);
 
   gridHelper = new THREE.GridHelper(200, 40, 0x55545c, 0x292930);
   gridHelper.position.y = 0;
@@ -122,10 +164,51 @@ function onResize() {
   renderer.setSize(w, h);
 }
 
+// Render on demand. The loop still ticks every frame, but only draws when something could have
+// changed: the camera moved (orbit/damping), the canvas resized, any object, geometry, material or
+// transform in the scene changed, the user is interacting, or a slow heartbeat (catches uniform or
+// colour edits). Idle frames cost a cheap signature walk instead of a full WebGL draw, which keeps
+// phones cool and leaves the GPU free for slider rebuilds. Exports never touch this path.
+let previewFrameSig = '';
+let previewActiveUntil = 0;
+let previewLastDraw = 0;
+const PREVIEW_HEARTBEAT_MS = 500;
+function requestPreviewRender(ms = 0) {
+  previewFrameSig = '';
+  if (ms) previewActiveUntil = Math.max(previewActiveUntil, performance.now() + ms);
+}
+if (typeof window !== 'undefined') {
+  window.requestPreviewRender = requestPreviewRender;
+  const wake = () => requestPreviewRender(1200);
+  for (const type of ['pointerdown', 'pointermove', 'wheel', 'keydown', 'input', 'change', 'touchmove']) {
+    window.addEventListener(type, wake, { capture: true, passive: true });
+  }
+}
+function previewSignature() {
+  const parts = [renderer.getSize(new THREE.Vector2()).toArray().join('x'), camera.matrixWorld.elements.join(','), camera.projectionMatrix.elements[0]];
+  scene.traverse((o) => {
+    parts.push(o.id, o.visible ? 1 : 0, o.matrixWorld.elements[12], o.matrixWorld.elements[13], o.matrixWorld.elements[14],
+      o.matrixWorld.elements[0], o.matrixWorld.elements[5], o.matrixWorld.elements[10], o.matrixWorld.elements[1]);
+    if (o.geometry) {
+      const pos = o.geometry.attributes && o.geometry.attributes.position;
+      parts.push(o.geometry.id, pos ? pos.version + ':' + pos.count : '', o.geometry.drawRange ? o.geometry.drawRange.count : '');
+    }
+    if (o.material) eachMaterial(o.material, (m) => parts.push(m.id, m.version, m.opacity, m.visible ? 1 : 0));
+  });
+  return parts.join('|');
+}
 function animate() {
   requestAnimationFrame(animate);
+  if (!renderer || !scene || !camera) return;
   if (controls) controls.update();
-  if (renderer && scene && camera) renderer.render(scene, camera);
+  scene.updateMatrixWorld();
+  camera.updateMatrixWorld();
+  const now = performance.now();
+  const sig = previewSignature();
+  if (sig === previewFrameSig && now > previewActiveUntil && now - previewLastDraw < PREVIEW_HEARTBEAT_MS) return;
+  previewFrameSig = sig;
+  previewLastDraw = now;
+  renderer.render(scene, camera);
 }
 
 function resetView() {
@@ -212,12 +295,10 @@ function buildThreePreview() {
   AppState.lastTextReliefError = mesh.textReliefError || null;
   AppState.lastTextRelief = mesh.textRelief ? (mesh.info || {}) : null;
   const geo = mesh.textRelief ? textReliefGeometry(mesh) : MC.toThreeGeometry(mesh, THREE);
-  const mat = new THREE.MeshStandardMaterial({
-    color: 0xc8c4bc,
-    metalness: 0.12,
-    roughness: 0.55,
-    side: THREE.DoubleSide,
-  });
+  const mat = previewMaterial();
+  // Flat plates displace along Y. A shallow step is invisible under even light, so the raised top,
+  // the base, and the side wall get three preview colours. Export does not read these.
+  if (AppState.mode === 'flat') tintFlatRelief(geo, mat);
   if (meshObj) {
     scene.remove(meshObj);
     meshObj.geometry.dispose();

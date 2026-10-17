@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Caviot Studio 2026.09.21 — Design it. Print it.</title>
-<meta name="description" content="Turn your images, patterns and lettering into custom 3D-printable sleeves and reliefs. Design locally, calibrate your fit, and export STL or OBJ." />
+<meta name="description" content="Turn your images and lettering into custom 3D-printable sleeves and reliefs. Design locally, calibrate your fit, and export STL or OBJ." />
 <meta name="theme-color" content="#101114" />
 <link rel="manifest" href="manifest.webmanifest" />
 <link rel="icon" type="image/png" sizes="32x32" href="branding/icons/favicon-32.png" />
@@ -45,12 +45,12 @@
 
   <div class="app">
     <aside class="sidebar" id="appSidebar">
-      <input type="file" id="fileInput" accept="image/*" hidden />
+      <input type="file" id="fileInput" accept="image/*,.heic,.heif,image/heic,image/heif" hidden />
       <input type="file" id="stlInput" accept=".stl,model/stl" hidden />
       <input type="file" id="fontInput" accept=".ttf,.otf,.woff,.woff2,font/ttf,font/otf,font/woff,font/woff2" multiple hidden />
       <input type="file" id="fontFolderInput" accept=".ttf,.otf,.woff,.woff2,font/ttf,font/otf,font/woff,font/woff2" webkitdirectory directory multiple hidden />
 
-      <section class="panel template-select-panel"><div class="panel-label">Sleeve template</div><label class="sr-only" for="templateChoice">Sleeve template</label><select id="templateChoice"><option value="etsyfolger-v1">ETSYFOLGER · your STL</option><option value="custom-stl">Custom STL · upload…</option><option value="parametric">Parametric sleeve presets</option></select><p class="muted-tip" id="templateDescription">Original cavity, openings and dimensions preserved.</p></section>
+      <section class="panel template-select-panel"><div class="panel-label">Sleeve template</div><label class="sr-only" for="templateChoice">Sleeve template</label><select id="templateChoice"><option value="etsyfolger-v1">Foger Sleeve · DM logo on the bottom</option><option value="custom-stl">Custom STL · upload…</option><option value="parametric">Parametric sleeve presets</option></select><p class="muted-tip" id="templateDescription">Original cavity, openings and dimensions preserved.</p></section>
       <!-- SOURCE -->
       <section class="panel" aria-label="Your design">
         <div id="designSidesPanel"><div class="panel-label">Artwork on each side</div><div class="design-side-buttons" role="group" aria-label="Side to edit"><button class="btn btn-ghost" id="editSide0" type="button" aria-pressed="true">Front · empty</button><button class="btn btn-ghost" id="editSide1" type="button" aria-pressed="false">Back · empty</button></div><button class="btn btn-ghost btn-sm" id="copyDesignSide" type="button">Copy front to back</button><label class="check"><input type="checkbox" id="linkDesignSettings"><span>Link settings between sides</span></label><p class="muted-tip" id="sideLinkHelp">Click a logo to edit it. Each side has its own size, position and image settings.</p><p id="editingSideLabel">Editing front artwork</p></div>
@@ -58,7 +58,7 @@
         <div id="uploadBtn" class="drop" role="button" tabindex="0">
           <span class="glyph">▣</span>
           <strong>Drop or click image</strong>
-          <small>PNG · JPG<span class="desktop-only"> · Ctrl+V paste</span><span class="touch-only"> · photos or camera</span></small>
+          <small>PNG · JPG · HEIC<span class="desktop-only"> · Ctrl+V paste</span><span class="touch-only"> · photos or camera</span></small>
         </div>
         <div id="fileName" class="filename" style="display:none"></div>
         <div class="img-tools" id="imgTools" hidden>
@@ -66,10 +66,6 @@
           <button class="icon-btn" id="rot180" type="button" title="Rotate 180°" disabled>↻↻</button>
           <button class="icon-btn" id="rotCw" type="button" title="Rotate 90° CW" disabled>↻</button>
           <button class="icon-btn" id="flipH" type="button" title="Mirror horizontally" disabled>⇄</button>
-        </div>
-        <div class="source-actions">
-          <button class="btn btn-ghost btn-sm" id="openPatterns" type="button">Pattern</button>
-          <button class="btn btn-ghost btn-sm" id="openSTL" type="button" title="Use any STL file as the template for your artwork">Import STL template</button>
         </div>
         <div class="divider"></div>
         <input type="text" id="textInput" placeholder="Or type text…" maxlength="60" />
@@ -129,10 +125,10 @@
         </div>
       </section>
 
-      <section class="panel" id="templatePlacement"><div class="panel-label">03 / Place on the sleeve</div><button class="btn btn-ghost" id="moveDesign" aria-pressed="false" type="button">Move design on sleeve</button><p class="muted-tip"><span class="desktop-only">Hold the scroll wheel on a logo and drag to move it. Or turn this button on for left-button dragging.</span><span class="touch-only">Tap a design to select it, then drag it with one finger. Drag anywhere else to orbit; pinch to zoom; two fingers to pan.</span></p><label class="check"><input id="uniformDepth" type="checkbox" checked><span>Even depth (logos)</span></label><p class="muted-tip">Uses the artwork silhouette. Remove the background to isolate your logo.</p><div class="source-actions" id="templateStatusHome"><button class="btn btn-ghost btn-sm" id="centerDesign" type="button">Center on front</button><button class="btn btn-ghost btn-sm" id="clearDesign" type="button">Clear design</button></div></section>
-      <!-- DEVICE (lighter / vape) -->
+      <section class="panel" id="templatePlacement"><div class="panel-label">Place on the sleeve</div><button class="btn btn-ghost" id="moveDesign" aria-pressed="false" type="button">Move design on sleeve</button><p class="muted-tip"><span class="desktop-only">Hold the scroll wheel on a logo and drag to move it. Or turn this button on for left-button dragging.</span><span class="touch-only">Tap a design to select it, then drag it with one finger. Drag anywhere else to orbit; pinch to zoom; two fingers to pan.</span></p><label class="check"><input id="uniformDepth" type="checkbox" checked><span>Even depth (logos)</span></label><p class="muted-tip">Uses the artwork silhouette. Remove the background to isolate your logo.</p><div class="source-actions" id="templateStatusHome"><button class="btn btn-ghost btn-sm" id="centerDesign" type="button">Center on front</button><button class="btn btn-ghost btn-sm" id="clearDesign" type="button">Clear design</button></div></section>
+      <!-- DEVICE PRESETS -->
       <section class="panel" id="sleevePanel">
-        <div class="panel-label">03 / Size &amp; fit</div>
+        <div class="panel-label">Size &amp; fit</div>
         <div class="field">
           <select id="lighterChoice" aria-label="Device template">
             <optgroup label="Lighters">
@@ -285,6 +281,87 @@
       <!-- IMAGE PROCESSING -->
       <section class="panel">
         <div class="panel-label">Image processing</div>
+        <div id="photoPanel">
+          <div class="panel-label">Photo to sleeve</div>
+          <p class="muted-tip">Shadow is the usual photo style: one solid shape of the subject. It stays off until you choose it, so a logo is unchanged. The original photo is kept.</p>
+          <div class="pill-toggle wrap" role="radiogroup" aria-label="Photo style">
+            <input type="radio" name="photoStyle" id="photoStyleShadow" value="shadow" />
+            <label for="photoStyleShadow" title="One solid shape of the subject. This is the usual photo style.">Shadow</label>
+            <input type="radio" name="photoStyle" id="photoStyleOff" value="off" checked />
+            <label for="photoStyleOff">Off</label>
+            <input type="radio" name="photoStyle" id="photoStyleSilhouette" value="silhouette" />
+            <label for="photoStyleSilhouette" title="One solid shape">Bold silhouette</label>
+            <input type="radio" name="photoStyle" id="photoStyleLine" value="line" />
+            <label for="photoStyleLine" title="Outlines thickened for the nozzle">Line art</label>
+            <input type="radio" name="photoStyle" id="photoStylePoster" value="poster" />
+            <label for="photoStylePoster" title="Three heights">3-level relief</label>
+            <input type="radio" name="photoStyle" id="photoStyleSmooth" value="smooth" />
+            <label for="photoStyleSmooth" title="Gray tones for a face or a pet">Smooth relief</label>
+            <input type="radio" name="photoStyle" id="photoStyleLithophane" value="lithophane" />
+            <label for="photoStyleLithophane" title="Thickness map for a back-lit plate">Lithophane</label>
+          </div>
+          <div id="photoTools" hidden>
+            <p class="muted-tip" id="photoTip"></p>
+            <p id="photoWarning" class="photo-warning" role="status" aria-live="polite"></p>
+            <select id="photoAspect" aria-label="Crop shape">
+              <option value="free">Crop · free</option>
+              <option value="square">Crop · square</option>
+              <option value="sleeve">Crop · sleeve face</option>
+              <option value="portrait">Crop · portrait 3:4</option>
+              <option value="landscape">Crop · landscape 4:3</option>
+            </select>
+            <canvas id="photoCrop" class="photo-crop" tabindex="0" role="application" aria-label="Crop the photo" aria-describedby="photoCropHelp"></canvas>
+            <p class="muted-tip" id="photoCropHelp">Arrow keys move the crop. Shift+arrow keys resize it.</p>
+            <div class="photo-subject">
+              <button class="btn btn-ghost btn-sm" id="photoFind" type="button">Find subject</button>
+              <button class="btn btn-ghost btn-sm" id="photoTap" type="button" aria-pressed="false">Tap the subject</button>
+              <label class="check"><input type="checkbox" id="photoSwap" /> <span>Swap subject / background</span></label>
+              <label class="check"><input type="checkbox" id="photoInverse" /> <span>Cut out</span></label>
+            </div>
+            <p class="muted-tip" id="photoSubjectHelp">The subject is whatever covers the middle. Tap the subject if that picked the background.</p>
+            <label class="check"><input type="checkbox" id="photoFocus" /> <span>Focus on subject</span></label>
+            <div class="big-field">
+              <div class="big-field-row">
+                <span class="big-field-label">Detail / Simplify</span>
+                <span class="big-field-value"><span id="photoDetailVal">40</span></span>
+              </div>
+              <input type="range" id="photoDetail" value="40" min="0" max="100" step="1" aria-label="Detail or simplify" />
+              <div class="big-field-context"><span>simple</span><span>detail</span></div>
+            </div>
+            <div class="big-field">
+              <div class="big-field-row">
+                <span class="big-field-label">Line thickness</span>
+                <span class="big-field-value"><span id="photoLineVal">1.2</span><span class="unit"> mm</span></span>
+              </div>
+              <input type="range" id="photoLine" value="1.2" min="0.8" max="3" step="0.1" aria-label="Line thickness" />
+              <div class="big-field-context"><span>0.8 mm</span><span>two nozzles</span><span>3 mm</span></div>
+            </div>
+            <div class="big-field">
+              <div class="big-field-row">
+                <span class="big-field-label">Brightness</span>
+                <span class="big-field-value"><span id="photoBrightnessVal">0</span></span>
+              </div>
+              <input type="range" id="photoBrightness" value="0" min="-100" max="100" step="1" aria-label="Brightness" />
+            </div>
+            <div class="big-field">
+              <div class="big-field-row">
+                <span class="big-field-label">Contrast</span>
+                <span class="big-field-value"><span id="photoContrastVal">0</span></span>
+              </div>
+              <input type="range" id="photoContrast" value="0" min="-100" max="100" step="1" aria-label="Contrast" />
+            </div>
+            <div class="big-field">
+              <div class="big-field-row">
+                <span class="big-field-label">Gamma</span>
+                <span class="big-field-value"><span id="photoGammaVal">1</span></span>
+              </div>
+              <input type="range" id="photoGamma" value="1" min="0.3" max="3" step="0.05" aria-label="Gamma" />
+            </div>
+            <div class="panel-label">What prints</div>
+            <canvas id="photoPreview" class="photo-preview" aria-label="Preview of the relief that will print"></canvas>
+          </div>
+        </div>
+        <div class="divider"></div>
         <label class="check">
           <input type="checkbox" id="bgEnable" checked />
           <span>Remove background</span>
@@ -344,7 +421,7 @@
       </div>
       <div class="canvas-hint" id="threeInfo">Drag to orbit · Right-drag to pan · Scroll to zoom</div>
       <button id="resetViewBtn" class="btn btn-ghost btn-sm" type="button" title="Frame the model (R)">Reset view</button>
-      <div id="threeContainer"></div><div class="template-toolbar" id="templateToolbar"><span>ETSYFOLGER</span><button class="btn btn-ghost btn-sm" data-template-view="front">Front</button><button class="btn btn-ghost btn-sm" data-template-view="back">Back</button><button class="btn btn-ghost btn-sm" data-template-view="left">Left</button><button class="btn btn-ghost btn-sm" data-template-view="right">Right</button></div>
+      <div id="threeContainer"></div><div class="template-toolbar" id="templateToolbar"><span>Foger Sleeve</span><button class="btn btn-ghost btn-sm" data-template-view="front">Front</button><button class="btn btn-ghost btn-sm" data-template-view="back">Back</button><button class="btn btn-ghost btn-sm" data-template-view="left">Left</button><button class="btn btn-ghost btn-sm" data-template-view="right">Right</button></div>
       <div class="axis-legend" aria-label="Axis colors"><span class="axis-x">X</span><span class="axis-y">Y</span><span class="axis-z">Z</span></div>
 
       <div class="hm-mini" aria-label="Flat image preview">
@@ -369,7 +446,7 @@
     <div class="stat-cell"><span class="k">MESH</span><span class="v" id="statQuality">—</span></div>
     <div class="stat-cell"><span class="k">QUAL</span><span class="v" id="statQualityMode">—</span></div>
     <div class="status-right">
-      <button id="runMeshTests" class="tips-link" type="button" title="Run watertight mesh self-tests">▶ Mesh tests</button>
+      <button id="runMeshTests" class="tips-link" type="button" hidden title="Run watertight mesh self-tests">▶ Mesh tests</button>
       <button id="tipsToggle" class="tips-link" type="button">▸ Print tips</button>
     </div>
   </footer>
@@ -379,19 +456,7 @@
 
 <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 
-<div class="modal-overlay hidden" id="patternModal" role="dialog" aria-modal="true" aria-labelledby="patternModalTitle">
-  <div class="modal-box" tabindex="-1">
-    <div class="modal-head">
-      <h3 id="patternModalTitle">Pick a pattern</h3>
-      <button class="modal-close" id="patternModalClose" type="button" aria-label="Close">×</button>
-    </div>
-    <div class="modal-body">
-      <p class="muted-tip" style="margin:0 0 12px">Knurl, hex, plain, lines, diamond — click to apply.</p>
-      <div class="pattern-grid" id="patternGrid"></div>
-    </div>
-  </div>
-</div>
-
+<script src="brand-labels.js"></script>
 <script src="device-tier.js"></script>
 <script src="vendor/three.min.js"></script>
 <script src="vendor/OrbitControls.js"></script>
@@ -408,11 +473,15 @@
 <script src="mesh-actions.js"></script>
 <script src="design-input.js"></script>
 <script src="app.js"></script>
-<script src="product.js"></script><script src="template-core.js"></script><script src="fonts/catalog.js"></script><script src="builtin-fonts.js"></script><script src="template-render.js"></script><script src="placement-preview.js"></script><script src="template-ui.js"></script><script src="design-sides.js"></script><script src="text-plate-ui.js"></script><script src="header-context.js"></script><script src="uniform-scale.js"></script><script src="bottom-fit.js"></script><script src="bottom-brand.js"></script><script src="repair-ui.js"></script><script src="editor-tools.js"></script><script src="custom-template.js"></script><script src="custom-template-ui.js"></script>
+<script src="product.js"></script><script src="template-core.js"></script><script src="fonts/catalog.js"></script><script src="builtin-fonts.js"></script><script src="template-render.js"></script><script src="placement-preview.js"></script><script src="template-ui.js"></script><script src="design-sides.js"></script><script src="text-plate-ui.js"></script><script src="header-context.js"></script><script src="uniform-scale.js"></script><script src="bottom-fit.js"></script><script src="bottom-brand.js"></script><script src="repair-ui.js"></script><script src="editor-tools.js"></script><script src="custom-template.js"></script><script src="vendor/fflate.min.js"></script><script src="template-formats.js"></script><script src="custom-template-ui.js"></script>
 <script src="tool-layout.js"></script>
 <script src="mobile.js"></script>
 <script src="project-store.js"></script>
 <script src="phone-ui.js"></script>
+<script src="photo-relief.js"></script>
+<script src="heic.js"></script>
+<script src="photo-ui.js"></script>
+<script src="slider-ui.js"></script>
 <script src="pwa.js"></script>
 </body>
 </html>

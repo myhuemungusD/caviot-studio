@@ -5,7 +5,7 @@ const TEMPLATE_IDS=['etsyfolger-v1','custom-stl'];
 function templateActive(){return TEMPLATE_IDS.includes(AppState.templateId)&&AppState.mode==='sleeve'}
 // Overridden by custom-template-ui.js; the built-in template needs no extra job data.
 function templateJobData(worker,quality){return undefined}
-function templateInfo(){return{label:'ETSYFOLGER',file:'ETSYFOLGER',description:'Original cavity, openings and dimensions preserved.',surface:'ETSYFOLGER · curved surface',stats:'Original STL · '+(templateBase?Math.round(templateBase.height):89)+' mm tall',ready:'Your original sleeve is ready. Add an image, pattern or text.'}}
+function templateInfo(){return{label:CaviotLabels.template,file:CaviotLabels.templateFile,description:'Original cavity, openings and dimensions preserved.',surface:CaviotLabels.template+' · curved surface',stats:'Original STL · '+(templateBase?Math.round(templateBase.height):89)+' mm tall',ready:'Your original sleeve is ready. Add an image or text.'}}
 // Custom templates can be larger than the built-in sleeve; the built-in keeps its original slider ranges.
 function placementLimit(id,min,max){if(!templateBase||AppState.templateId!=='custom-stl')return max;if(id==='designY')return Math.ceil(templateBase.height);if(id==='designHeight')return Math.max(min,Math.ceil(templateBase.height));if(id==='designWidth')return Math.max(160,Math.ceil(Math.min(3000,templateBase.chart?.perimeter||SleeveTemplate.profile(templateBase).perimeter)));return max}
 function syncPlacementLimits(){for(const[id,,min,max]of placementSpecs){const lim=placementLimit(id,min,max);for(const suffix of ['Range','Number']){const el=$(id+suffix);if(el&&!(suffix==='Number'&&PLACEMENT_ANGLES.has(id)))el.max=String(lim)}}}
@@ -37,7 +37,7 @@ function templatePreviewFailed(message){templatePreviewValid=false;templateStatu
 function templateStatus(message,error=false){const el=$('templateStatus');if(el){el.textContent=message;el.classList.toggle('error',error)}}
 function templateOptions(){return{sharp:AppState.uniformDepth&&AppState.crisp,templateId:AppState.templateId,designAngle:AppState.designAngle,designY:AppState.designY,designWidth:AppState.designWidth,designHeight:AppState.designHeight,designRotation:AppState.designRotation,maxHeight:AppState.depthMm,negative:AppState.relief==='carved',heightmap:AppState.heightmap,rows:AppState.hmRows,cols:AppState.hmCols}}
 const placementSpecs=[['designAngle','Around sleeve',-180,180,1,'°'],['designY','Height from bottom',0,89,.5,'mm'],['designWidth','Design width',2,160,.5,'mm'],['designHeight','Design height',2,89,.5,'mm'],['designRotation','Design rotation',-180,180,1,'°']];
-for(const[id,label,min,max,step,unit]of placementSpecs){const el=document.createElement('div');el.className='field placement-field';el.hidden=!['designWidth','designHeight','designRotation'].includes(id);el.innerHTML=`<div class="placement-label"><label for="${id}Range">${label}</label><div><input type="number" id="${id}Number" ${PLACEMENT_ANGLES.has(id)?'':`min="${min}" max="${max}" `}step="${step}" aria-label="${label} in ${unit}"><span>${unit}</span></div></div><input type="range" id="${id}Range" min="${min}" max="${max}" step="${step}">`;$('placementFields').appendChild(el);for(const suffix of ['Range','Number'])$(id+suffix).addEventListener('input',e=>{const n=Number(e.target.value);if(e.target.value===''||!Number.isFinite(n))return;const value=placementValue(id,n,min,max);if(value===AppState[id]&&suffix==='Number'){$(id+'Range').value=String(value);return}AppState[id]=value;$(id+(suffix==='Range'?'Number':'Range')).value=String(id==='designAngle'&&suffix==='Range'?Math.round(value*10)/10:value);updatePlacement()});
+for(const[id,label,min,max,step,unit]of placementSpecs){const el=document.createElement('div');el.className='field placement-field';el.hidden=!['designWidth','designHeight','designRotation'].includes(id);el.innerHTML=`<div class="placement-label"><label for="${id}Range">${label}</label><div><input type="number" id="${id}Number" ${PLACEMENT_ANGLES.has(id)?'':`min="${min}" max="${max}" `}step="${step}" aria-label="${label} in ${unit}"><span>${unit}</span></div></div><input type="range" id="${id}Range" min="${min}" max="${max}" step="${step}" value="${AppState[id]}">`;$('placementFields').appendChild(el);for(const suffix of ['Range','Number'])$(id+suffix).addEventListener('input',e=>{const n=Number(e.target.value);if(e.target.value===''||!Number.isFinite(n))return;const value=placementValue(id,n,min,max);if(value===AppState[id]&&suffix==='Number'){$(id+'Range').value=String(value);return}AppState[id]=value;$(id+(suffix==='Range'?'Number':'Range')).value=String(id==='designAngle'&&suffix==='Range'?Math.round(value*10)/10:value);updatePlacement()});
   // On commit (release, Enter, blur, spinner step) both controls show the stored value, e.g. 200 becomes -160.
   for(const suffix of ['Range','Number'])$(id+suffix).addEventListener('change',()=>{showPlacementValue(id);finishPlacement()});
   // Arrow keys continue past ±180 on angle sliders, as the angle itself does.
@@ -56,7 +56,7 @@ const originalStats=updateStats;updateStats=function(){originalStats();if(templa
 const originalTemplateImage=setDesignImage;setDesignImage=function(img,label){if(templateActive()){AppState.designHeight=Math.min(75,AppState.designWidth*img.height/img.width);AppState.logoSizePct=100}originalTemplateImage(img,label);syncTemplateUI()};
 function replaceTemplateMesh(positions,indices,amplitude,walls){
   if(!scene)return;hidePlacementPreview();let geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.BufferAttribute(positions,3));geometry.setIndex(new THREE.BufferAttribute(indices instanceof Uint32Array?indices:new Uint32Array(indices),1));if(!walls?.length)geometry.computeVertexNormals();if(walls?.length){geometry.dispose();geometry=createSharpGeometry(positions,indices,walls,amplitude)}
-  const material=new THREE.MeshStandardMaterial({color:0xd2cec5,metalness:.08,roughness:.48,side:THREE.DoubleSide});
+  const material=previewMaterial();
   if(walls?.length){material.color.setHex(0xffffff);material.vertexColors=true}
   if(amplitude&&!walls?.length){const colors=new Float32Array(positions.length);for(let i=0;i<amplitude.length;i++){const t=Math.min(1,amplitude[i]*1.2);colors[i*3]=.72+.28*t;colors[i*3+1]=.70*(1-t)+.29*t;colors[i*3+2]=.66*(1-t)+.035*t}geometry.setAttribute('color',new THREE.BufferAttribute(colors,3));material.color.setHex(0xffffff);material.vertexColors=true}
   if(meshObj){scene.remove(meshObj);meshObj.geometry.dispose();disposeMaterial(meshObj.material)}meshObj=new THREE.Mesh(geometry,material);meshObj.userData.templateBase=templateBase;scene.add(meshObj);previewMesh={positions,indices};
@@ -135,18 +135,38 @@ $('clearDesign').onclick=()=>{AppState.image=null;AppState.heightmap=null;AppSta
 document.querySelectorAll('[data-template-view]').forEach(button=>button.onclick=()=>templateView(button.dataset.templateView));
 // File name part for the relief. Desktop names it after the selected design; phone-ui.js names every side.
 function exportReliefTag(){return hasSleeveArtwork()?(AppState.relief==='carved'?'deboss':'emboss'):'plain'}
+const sleeveExportButtonLabel=els.generateBtn.innerHTML;
 async function exportTemplate(format){
-  if(exportBusy||!templateBase)return;exportBusy=true;syncTemplateUI();els.generateBtn.textContent='Forming export…';templateStatus('Preparing the full sleeve with your current design…');const worker=new Worker('template-worker.js');let timeout,ticker;
+  if(exportBusy||!templateBase)return;exportBusy=true;syncTemplateUI();els.generateBtn.textContent='Forming export…';templateStatus('Preparing the full sleeve with your current design…');const worker=new Worker('template-worker.js');let timeout,ticker,settled=false;
   // The worker reports each stage; show it with the elapsed time so a long export never looks frozen. The watchdog
   // only fires when the worker has gone quiet for five minutes, not after a fixed total.
   const started=performance.now(),elapsed=()=>Math.round((performance.now()-started)/1000)+' s';let stageText='Preparing the full sleeve with your current design';
   const showStage=()=>{if(!exportBusy)return;els.generateBtn.textContent='Forming export… '+elapsed();templateStatus(stageText+'… '+elapsed())};
-  const watchdog=()=>{clearTimeout(timeout);timeout=setTimeout(()=>{finish();templateStatus('Export stopped responding. Try a smaller design or close other busy tabs.',true)},300000)};
-  const finish=()=>{clearTimeout(timeout);clearInterval(ticker);worker.terminate();exportBusy=false;els.generateBtn.textContent='Export STL';syncTemplateUI()};
+  const finish=()=>{if(settled)return;settled=true;clearTimeout(timeout);clearInterval(ticker);worker.terminate();exportBusy=false;els.generateBtn.innerHTML=sleeveExportButtonLabel;syncTemplateUI()};
+  const fail=message=>{finish();templateStatus(message,true);toast(message,'error')};
+  const watchdog=()=>{clearTimeout(timeout);timeout=setTimeout(()=>fail('Export stopped responding. Try a smaller design or close other busy tabs.'),300000)};
   ticker=setInterval(showStage,1000);
-  try{const options=templateOptions(1024);
+  try{
+    // Paint "Forming export" before the height maps are built on this thread, or the button looks frozen.
+    await new Promise(r=>setTimeout(r,30));
+    const options=templateOptions(1024);
     const filename=safeFilename()+'_'+templateInfo().file+'_'+exportReliefTag()+'.'+format;
-    worker.onmessage=({data})=>{if(data.progress){watchdog();stageText=data.exportStage?'Export: '+data.progress:'Preparing the print surface for your template: '+data.progress;showStage();return}finish();if(data.error){const message=data.error+(/open edges|non-manifold|Repair could not/.test(data.error)&&templateInfo().exportHint?' '+templateInfo().exportHint:'');templateStatus(message,true);toast(data.error,'error');return}downloadBlob(new Blob([format==='obj'?data.text:data.buffer],{type:format==='obj'?'model/obj':'model/stl'}),filename);templateStatus('Exported '+data.validation.triCount.toLocaleString()+' triangles.'+(data.info.sharp?' Contour spacing: '+data.info.spacing.toFixed(2)+' mm'+(data.info.adapted?' (adjusted for this large design)':'')+'.':'')+' '+(AppState.templateId==='custom-stl'?'Template geometry preserved outside the artwork':'Original cavity preserved')+'; inspect in your slicer.');toast('Sleeve '+format.toUpperCase()+' exported','success')};worker.onerror=()=>{finish();templateStatus('Export failed. Reload and try again.',true)};watchdog();worker.postMessage({id:1,type:'export',format,options,repair:repairOnExport,template:templateJobData(worker,'print')});
-  }catch(error){finish();templateStatus(error.message,true)}
+    worker.onmessage=({data})=>{
+      if(settled)return;
+      if(data.progress){watchdog();stageText=data.exportStage?'Export: '+data.progress:'Preparing the print surface for your template: '+data.progress;showStage();return}
+      finish();
+      if(data.error){const message=data.error+(/open edges|non-manifold|Repair could not/.test(data.error)&&templateInfo().exportHint?' '+templateInfo().exportHint:'');templateStatus(message,true);toast(data.error,'error');return}
+      const payload=format==='obj'?data.text:data.buffer;
+      const empty=format==='obj'?!payload:!(payload instanceof ArrayBuffer)||payload.byteLength<84;
+      if(empty||!data.validation||typeof data.validation.triCount!=='number'){const message='Export produced an empty file. Nothing was saved.';templateStatus(message,true);toast(message,'error');return}
+      const saved=downloadBlob(new Blob([payload],{type:format==='obj'?'model/obj':'model/stl'}),filename);
+      if(saved===false){templateStatus('The file was built, but the browser did not save it.',true);return}
+      const info=data.info||{};
+      templateStatus('Exported '+data.validation.triCount.toLocaleString()+' triangles.'+(info.sharp?' Contour spacing: '+info.spacing.toFixed(2)+' mm'+(info.adapted?' (adjusted for this large design)':'')+'.':'')+' '+(AppState.templateId==='custom-stl'?'Template geometry preserved outside the artwork':'Original cavity preserved')+'; inspect in your slicer.');
+      toast('Sleeve '+format.toUpperCase()+' exported','success');
+    };
+    worker.onerror=event=>{event.preventDefault?.();fail('Export failed'+(event.message?': '+event.message:'')+'. Reload and try again.')};
+    watchdog();worker.postMessage({id:1,type:'export',format,options,repair:repairOnExport,template:templateJobData(worker,'print')});
+  }catch(error){fail(error.message||'Export failed.')}
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',showTemplate);else showTemplate();

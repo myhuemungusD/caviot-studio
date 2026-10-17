@@ -1,0 +1,145 @@
+name: Android app
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: android-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  debug:
+    name: Debug APK, unit tests, emulator smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+      - name: Install dependencies
+        working-directory: mobile
+        run: npm ci
+      - name: Check the native bridge
+        working-directory: mobile
+        run: npm test
+      - name: Sync Capacitor (Android)
+        working-directory: mobile
+        run: npm run sync:android
+      - name: Build debug APK and run JVM unit tests
+        working-directory: mobile/android
+        run: ./gradlew --no-daemon assembleDebug testDebugUnitTest -PcaviotVersionCode=${{ github.run_number }}
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: caviot-android-debug-apk
+          path: mobile/android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 30
+      - name: Enable KVM for the emulator
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Emulator smoke and performance test (Pixel 6, API 34)
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          # Plain AOSP image: no Google Play services. On google_apis, GMS restarts itself mid-run and Android kills
+          # every app holding its fonts provider (the WebView does), which ended the smoke on the home screen.
+          target: default
+          arch: x86_64
+          profile: pixel_6
+          ram-size: 4096M
+          # The hosted runner has 4 vCPUs; the export runs in web workers, so give the emulator all of them.
+          cores: 4
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot
+          working-directory: mobile/android
+          script: bash ../scripts/android-smoke.sh app/build/outputs/apk/debug/app-debug.apk build/smoke
+      - name: Upload smoke results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-smoke
+          if-no-files-found: warn
+          retention-days: 14
+          path: mobile/android/build/smoke/**
+
+  release:
+    name: Signed release AAB
+    needs: debug
+    if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      HAS_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+    steps:
+      - name: Stop when signing secrets are missing
+        if: env.HAS_KEYSTORE != 'true'
+        run: echo "ANDROID_KEYSTORE_BASE64 is not set; skipping the signed release build. See mobile/ANDROID.md."
+      - uses: actions/checkout@v4
+        if: env.HAS_KEYSTORE == 'true'
+      - uses: actions/setup-node@v4
+        if: env.HAS_KEYSTORE == 'true'
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - uses: actions/setup-java@v4
+        if: env.HAS_KEYSTORE == 'true'
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+      - name: Build signed AAB
+        if: env.HAS_KEYSTORE == 'true'
+        working-directory: mobile
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          npm ci
+          npm run sync:android
+          export ANDROID_KEYSTORE_PATH="$RUNNER_TEMP/upload.keystore"
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$ANDROID_KEYSTORE_PATH"
+          cd android
+          ./gradlew --no-daemon bundleRelease -PcaviotVersionCode=$((1000 + ${{ github.run_number }}))
+          rm -f "$ANDROID_KEYSTORE_PATH"
+      - name: Upload AAB
+        if: env.HAS_KEYSTORE == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: caviot-android-release-aab
+          path: mobile/android/app/build/outputs/bundle/release/app-release.aab
+          retention-days: 30
+      - name: Upload to Play internal testing
+        if: env.HAS_KEYSTORE == 'true' && github.event_name == 'workflow_dispatch'
+        env:
+          PLAY_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          if [ -z "$PLAY_JSON" ]; then echo "PLAY_SERVICE_ACCOUNT_JSON not set; AAB is attached as an artifact only."; exit 0; fi
+          echo "PLAY_UPLOAD=yes" >> "$GITHUB_ENV"
+      - name: Play upload (internal track, draft)
+        if: env.PLAY_UPLOAD == 'yes'
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: com.caviot.studio
+          releaseFiles: mobile/android/app/build/outputs/bundle/release/app-release.aab
+          track: internal
+          status: draft

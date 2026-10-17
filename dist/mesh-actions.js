@@ -23,8 +23,9 @@ function regenerate() {
   }
   document.body.classList.remove('is-rebuilding');
 
-  const exportRes = MC.getExportDetail(AppState.detail);
-  const previewRes = templateActive() ? 768 : MC.getPreviewDetail(AppState.detail, AppState.fullPreview);
+  const exportRes = photoWorkingDetail(MC.getExportDetail(AppState.detail));
+  const photoTone = AppState.photo && (AppState.photo.style === 'smooth' || AppState.photo.style === 'lithophane' || AppState.photo.style === 'poster');
+  const previewRes = templateActive() ? 768 : (photoTone ? exportRes : MC.getPreviewDetail(AppState.detail, AppState.fullPreview));
   const built = buildHeightmapAtDetail(previewRes);
   if (!built) return;
 
@@ -52,7 +53,7 @@ function regenerate() {
 
 function buildExportMesh() {
   if (!AppState.image) return null;
-  const detail = MC.getExportDetail(AppState.detail);
+  const detail = photoWorkingDetail(MC.getExportDetail(AppState.detail));
   const built = buildHeightmapAtDetail(detail);
   if (!built) return null;
   return MC.buildMesh(meshOptionsFromState(built.hm, built.rows, built.cols, built.mask));
@@ -145,12 +146,44 @@ function updateStats() {
 // Saves a generated file. Desktop and Android use a Blob URL + <a download>. iOS (Safari and home-screen apps)
 // gets a "file ready" sheet instead, because the export finishes long after the tap: iOS only allows the share
 // sheet or a new tab from a fresh tap, and <a download> inside a home-screen app has no way back.
+// The last line of defence for a download name. Callers already strip most
+// punctuation; this also drops trailing dots and Windows device names (CON.stl
+// is refused by the OS, so the save looks like it did nothing).
+function safeDownloadName(filename) {
+  const raw = String(filename || 'caviot-export');
+  const dot = raw.lastIndexOf('.');
+  const ext = dot > 0 ? raw.slice(dot).replace(/[^.a-z0-9]/gi, '').slice(0, 12) : '';
+  // "name." has no real extension. Keeping the dot makes Windows hide the file.
+  const keepExt = ext.length > 1;
+  let stem = (keepExt ? raw.slice(0, dot) : raw)
+    .replace(/[^\p{L}\p{N} _-]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/[. ]+$/g, '')
+    .slice(0, 120)
+    .trim();
+  if (!stem) stem = 'caviot-export';
+  if (/^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i.test(stem)) stem += '-file';
+  return stem + (keepExt ? ext : '');
+}
+
 function downloadBlob(blob, filename) {
-  if (typeof CaviotDevice !== 'undefined' && CaviotDevice.iOS && typeof showFileReady === 'function') {
+  filename = safeDownloadName(filename);
+  const stl = /\.stl$/i.test(filename);
+  if (!blob || blob.size < (stl ? 84 : 1)) {
+    toast('The export file was empty. Nothing was saved.', 'error');
+    return false;
+  }
+  // iOS, and desktop Safari, ignore an <a download> click that happens after a
+  // worker returns. A fresh tap on the file sheet is allowed to save.
+  const ua = navigator.userAgent || '';
+  const desktopSafari = /Safari\//.test(ua) && !/Chrome|Chromium|Edg\/|OPR\/|Android/.test(ua);
+  if (typeof showFileReady === 'function' && typeof CaviotDevice !== 'undefined' && (CaviotDevice.iOS || desktopSafari)) {
     showFileReady(blob, filename);
-    return;
+    return true;
   }
   saveBlobWithAnchor(blob, filename);
+  return true;
 }
 
 function saveBlobWithAnchor(blob, filename) {
@@ -165,58 +198,6 @@ function saveBlobWithAnchor(blob, filename) {
   document.body.removeChild(a);
   // Mobile browsers read the Blob URL asynchronously (and may show a prompt first); keep it alive for a minute.
   setTimeout(() => URL.revokeObjectURL(url), 60000);
-}
-
-function exportCurrentLegacy(format) {
-  if (!AppState.image) {
-    toast('Add a design first', 'error');
-    return;
-  }
-  if (AppState.rebuildTimer) {
-    clearTimeout(AppState.rebuildTimer);
-    AppState.rebuildTimer = null;
-    regenerate();
-  }
-  if (AppState.depthMm < 0.05) {
-    if (!confirm('Depth is ~0 mm — the design will be almost flat. Export anyway?')) return;
-  }
-  toast('Building full-quality mesh…');
-  let mesh;
-  try {
-    mesh = buildExportMesh();
-  } catch (err) {
-    console.error(err);
-    toast('Export failed: ' + (err.message || err), 'error');
-    return;
-  }
-  if (!mesh || !mesh.indices || mesh.indices.length === 0) {
-    toast('Empty mesh — check silhouette / background', 'error');
-    return;
-  }
-  const v = MC.validateMesh(mesh.positions, mesh.indices);
-  AppState.lastValidation = v;
-  updateStats();
-  if (v.boundary > 0 || v.nonManifold > 0) {
-    const ok = confirm(
-      'Mesh quality warning:\n' +
-      '  boundary edges: ' + v.boundary + '\n' +
-      '  non-manifold: ' + v.nonManifold + '\n' +
-      '  zero-area tris: ' + v.zeroArea + '\n\nExport anyway?'
-    );
-    if (!ok) return;
-  }
-  const stamp = new Date().toISOString().slice(0, 10);
-  const modeTag = AppState.mode;
-  const reliefTag = AppState.relief;
-  if (format === 'obj') {
-    const text = MC.exportOBJ(mesh.positions, mesh.indices);
-    downloadBlob(new Blob([text], { type: 'model/obj' }), 'icaviot_' + modeTag + '_' + reliefTag + '_' + stamp + '.obj');
-    toast('OBJ exported', 'success');
-  } else {
-    const buf = MC.exportSTL(mesh.positions, mesh.indices);
-    downloadBlob(new Blob([buf], { type: 'model/stl' }), 'icaviot_' + modeTag + '_' + reliefTag + '_' + stamp + '.stl');
-    toast('STL exported — ready to slice', 'success');
-  }
 }
 
 function exportFitRing() {
@@ -249,5 +230,3 @@ function exportFitRing() {
   downloadBlob(new Blob([buf], { type: 'model/stl' }), 'fitring_' + lighter + '_5mm.stl');
   toast('Fit ring exported — print to confirm fit', 'success');
 }
-
-// ---------- Patterns ----------

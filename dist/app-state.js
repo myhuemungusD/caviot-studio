@@ -73,6 +73,10 @@ const AppState = {
   // Runtime (not persisted)
   image: null,
   imageName: '',
+  // Photo-to-sleeve. Null means a logo or lettering, and the heightmap path is unchanged.
+  // photoSource is the original photo while a style is on, so the conversion can be undone.
+  photo: null,
+  photoSource: null,
   heightmap: null,
   hmRows: 0,
   hmCols: 0,
@@ -119,8 +123,6 @@ const els = {
   letterThicknessIn: $('letterThicknessIn'),
   letterThicknessVal: $('letterThicknessVal'),
   textStretchField: $('textStretchField'),
-  openPatterns: $('openPatterns'),
-  openSTL: $('openSTL'),
   openFont: $('openFont'),
   openFontFolder: $('openFontFolder'),
   clearFont: $('clearFont'),
@@ -209,9 +211,6 @@ const els = {
   statQuality: $('statQuality'),
   statQualityMode: $('statQualityMode'),
   toast: $('toast'),
-  patternModal: $('patternModal'),
-  patternModalClose: $('patternModalClose'),
-  patternGrid: $('patternGrid'),
 };
 
 // ---------- Toast ----------

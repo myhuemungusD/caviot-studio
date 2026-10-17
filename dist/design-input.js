@@ -1,109 +1,3 @@
-const PATTERNS = [
-  { id: 'plain', name: 'Plain', draw: (ctx, w, h) => { ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h); } },
-  { id: 'knurl', name: 'Knurl', draw: (ctx, w, h) => {
-    ctx.fillStyle = '#111'; ctx.fillRect(0, 0, w, h);
-    ctx.strokeStyle = '#eee'; ctx.lineWidth = 2;
-    for (let y = -h; y < h * 2; y += 10) {
-      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y + w * 0.6); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y - w * 0.6); ctx.stroke();
-    }
-  }},
-  { id: 'hex', name: 'Hex', draw: (ctx, w, h) => {
-    ctx.fillStyle = '#1a1a1a'; ctx.fillRect(0, 0, w, h);
-    const R = 14;
-    ctx.strokeStyle = '#ddd'; ctx.lineWidth = 2;
-    for (let row = 0; row < h / (R * 1.5) + 2; row++) {
-      for (let col = 0; col < w / (R * Math.sqrt(3)) + 2; col++) {
-        const cx = col * R * Math.sqrt(3) + (row % 2 ? R * Math.sqrt(3) / 2 : 0);
-        const cy = row * R * 1.5;
-        ctx.beginPath();
-        for (let k = 0; k < 6; k++) {
-          const a = Math.PI / 6 + k * Math.PI / 3;
-          const x = cx + R * Math.cos(a), y = cy + R * Math.sin(a);
-          if (k === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-        }
-        ctx.closePath(); ctx.stroke();
-      }
-    }
-  }},
-  { id: 'lines', name: 'Lines', draw: (ctx, w, h) => {
-    ctx.fillStyle = '#111'; ctx.fillRect(0, 0, w, h);
-    ctx.strokeStyle = '#eee'; ctx.lineWidth = 3;
-    for (let x = 0; x < w; x += 12) {
-      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
-    }
-  }},
-  { id: 'diamond', name: 'Diamond', draw: (ctx, w, h) => {
-    ctx.fillStyle = '#111'; ctx.fillRect(0, 0, w, h);
-    ctx.strokeStyle = '#eee'; ctx.lineWidth = 2;
-    ctx.save();
-    ctx.translate(w / 2, h / 2);
-    ctx.rotate(Math.PI / 4);
-    ctx.translate(-w / 2, -h / 2);
-    const s = 16;
-    for (let y = -h; y < h * 2; y += s) {
-      for (let x = -w; x < w * 2; x += s) {
-        ctx.strokeRect(x, y, s, s);
-      }
-    }
-    ctx.restore();
-  }},
-];
-
-let patternModalReturnFocus = null;
-
-function closePatternModal() {
-  if (!els.patternModal) return;
-  els.patternModal.classList.add('hidden');
-  if (patternModalReturnFocus && typeof patternModalReturnFocus.focus === 'function') {
-    patternModalReturnFocus.focus();
-  }
-  patternModalReturnFocus = null;
-}
-
-function openPatternModal() {
-  if (!els.patternModal || !els.patternGrid) return;
-  patternModalReturnFocus = document.activeElement;
-  els.patternGrid.innerHTML = '';
-  PATTERNS.forEach((p) => {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'pattern-card';
-    const c = document.createElement('canvas');
-    c.width = 120; c.height = 80;
-    const ctx = c.getContext('2d');
-    ctx.save();
-    p.draw(ctx, 120, 80);
-    ctx.restore();
-    btn.appendChild(c);
-    const lab = document.createElement('span');
-    lab.textContent = p.name;
-    btn.appendChild(lab);
-    btn.addEventListener('click', () => {
-      applyPattern(p);
-      closePatternModal();
-    });
-    els.patternGrid.appendChild(btn);
-  });
-  els.patternModal.classList.remove('hidden');
-  requestAnimationFrame(() => {
-    const first = els.patternGrid.querySelector('button');
-    if (first) first.focus();
-  });
-}
-
-function applyPattern(p) {
-  const c = document.createElement('canvas');
-  c.width = 512; c.height = 512;
-  const ctx = c.getContext('2d');
-  p.draw(ctx, 512, 512);
-  const img = new Image();
-  img.onload = () => {
-    setDesignImage(img, 'pattern:' + p.id);
-  };
-  img.src = c.toDataURL('image/png');
-}
-
 // ---------- Text design ----------
 function renderTextToImage(text) {
   const c = document.createElement('canvas');
@@ -192,9 +86,13 @@ function loadImageFile(file) {
   if (!file) return;
   const uploadSide=typeof activeDesignSide==='number'&&templateActive()?activeDesignSide:null;
   // Accept any image the browser can decode (PNG, JPG, WebP, GIF, HEIC on Safari); camera photos arrive as JPEG.
+  if (typeof Heic !== 'undefined' && Heic.looksLikeHeic(file)) {
+    loadHeicFile(file, uploadSide);
+    return;
+  }
   const looksLikeImage = /^image\//i.test(file.type || '') || (!file.type && /\.(png|jpe?g|webp|gif|heic|heif|avif|bmp)$/i.test(file.name || ''));
   if (!looksLikeImage) {
-    toast('Use a PNG or JPG image', 'error');
+    toast('Use a PNG, JPG or HEIC image', 'error');
     return;
   }
   if (file.size > MAX_IMAGE_BYTES) {
@@ -238,9 +136,70 @@ function loadImageFile(file) {
   };
   img.onerror = () => {
     URL.revokeObjectURL(url);
-    toast('Could not read this image — use a PNG or JPG', 'error');
+    const sniff = file.slice ? file.slice(0, 64).arrayBuffer() : Promise.reject();
+    sniff.then((buf) => {
+      if (typeof Heic !== 'undefined' && Heic.isHeicBytes(new Uint8Array(buf))) loadHeicFile(file, uploadSide);
+      else toast('Could not read this image — use a PNG, JPG or HEIC', 'error');
+    }).catch(() => toast('Could not read this image — use a PNG, JPG or HEIC', 'error'));
   };
   img.src = url;
+}
+
+function deliverLoadedImage(image, name, uploadSide) {
+  if (uploadSide !== null && typeof receiveSideUpload === 'function') receiveSideUpload(image, name, uploadSide);
+  else setDesignImage(image, name);
+}
+
+function downscalePhotoCanvas(canvas) {
+  const mobile = typeof CaviotDevice !== 'undefined' && (CaviotDevice.touch || CaviotDevice.tier === 'light') && (CaviotDevice.iOS || CaviotDevice.android || CaviotDevice.phone);
+  const limit = mobile ? Math.min(MAX_IMAGE_PIXELS, CaviotDevice.limits.maxImagePixels) : MAX_IMAGE_PIXELS;
+  const maxSide = mobile && CaviotDevice.device ? CaviotDevice.device.maxImageSide : Infinity;
+  const longSide = Math.max(canvas.width, canvas.height);
+  if (canvas.width * canvas.height <= limit && longSide <= maxSide) return canvas;
+  if (!mobile) {
+    toast('Image dimensions are too large — use 24 megapixels or less', 'error');
+    return null;
+  }
+  const scale = Math.min(Math.sqrt(limit / (canvas.width * canvas.height)) * 0.999, maxSide / longSide);
+  const c = document.createElement('canvas');
+  c.width = Math.max(1, Math.floor(canvas.width * scale));
+  c.height = Math.max(1, Math.floor(canvas.height * scale));
+  const ctx = c.getContext('2d');
+  if (!ctx) { toast('Not enough memory to read this photo — try a smaller image', 'error'); return null; }
+  ctx.drawImage(canvas, 0, 0, c.width, c.height);
+  canvas.width = canvas.height = 0;
+  toast('Large photo resized to ' + c.width + '×' + c.height + ' to save memory on this device', 'success');
+  return c;
+}
+
+async function loadHeicFile(file, uploadSide) {
+  if (file.size > MAX_IMAGE_BYTES) {
+    toast('Image is too large — maximum 20 MB', 'error');
+    return;
+  }
+  try {
+    toast('Reading HEIC photo…', 'success');
+    const decoded = await Heic.decodeFile(file);
+    const canvas = document.createElement('canvas');
+    if (decoded.bitmap) {
+      canvas.width = decoded.bitmap.width;
+      canvas.height = decoded.bitmap.height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) throw Error('Not enough memory to read this photo — try a smaller image');
+      ctx.drawImage(decoded.bitmap, 0, 0);
+      if (typeof decoded.bitmap.close === 'function') decoded.bitmap.close();
+    } else {
+      canvas.width = decoded.width;
+      canvas.height = decoded.height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) throw Error('Not enough memory to read this photo — try a smaller image');
+      ctx.putImageData(new ImageData(decoded.rgba, decoded.width, decoded.height), 0, 0);
+    }
+    const scaled = downscalePhotoCanvas(canvas);
+    if (scaled) deliverLoadedImage(scaled, file.name || 'photo.heic', uploadSide);
+  } catch (error) {
+    toast((error && error.message) || 'Could not read this HEIC photo. Export a JPEG from the Photos app and try that.', 'error');
+  }
 }
 
 function transformImage(fn) {

@@ -35,8 +35,8 @@ await test('removing during preparation clears the loading state',async()=>{
   const p=ui.useCustomTemplateBuffer(new ArrayBuffer(8),'gone',undefined,{quiet:true});ui.removeTemplate();await assert.rejects(p,e=>e.code==='CANCELLED');
   assert.equal(ui.customLoading,false);assert.equal(ui.customTemplate,null);assert.equal(el('uploadTemplateBtn').disabled,false);
 });
-await test('empty Custom STL entry: hint and focus, never a file dialog',()=>{
-  const clicks=el('templateStlInput').clicks;assert.equal(ui.beforeTemplateChoice('custom-stl'),false);assert.equal(el('templateStlInput').clicks,clicks);assert.equal(c.document.activeElement,el('uploadTemplateBtn'));assert.match(statuses.at(-1),/Upload an STL first/);
+await test('empty Custom STL entry: opens the template picker once, keeps the current template, shows a hint',()=>{
+  const clicks=el('templateStlInput').clicks;assert.equal(ui.beforeTemplateChoice('custom-stl'),false);assert.equal(el('templateStlInput').clicks,clicks+1);assert.equal(c.document.activeElement,el('uploadTemplateBtn'));assert.match(statuses.at(-1),/Choose an STL, OBJ or 3MF/);
 });
 await test('worker crash and worker errors reject with readable messages',async()=>{
   let p=ui.useCustomTemplateBuffer(new ArrayBuffer(8),'crash',undefined,{quiet:true});let w=workers.at(-1);let prevented=false;w.onerror({message:'out of memory',preventDefault(){prevented=true}});

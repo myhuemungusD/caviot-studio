@@ -33,13 +33,13 @@ for(const name of names){
   const info=await p.evaluate(()=>({sw:document.documentElement.scrollWidth,iw:innerWidth,sh:document.documentElement.scrollHeight,ih:innerHeight,vp:document.querySelector('meta[name=viewport]').content,manifest:!!document.querySelector('link[rel=manifest]'),accept:$('fileInput').accept,tier:CaviotDevice.tier}));
   ok(info.sw<=info.iw,'no horizontal scroll ('+info.sw+' <= '+info.iw+')');
   ok(/viewport-fit=cover/.test(info.vp)&&info.manifest,'viewport-fit=cover and manifest link');
-  ok(info.accept==='image/*','file picker accepts image/* (camera roll and camera)');
+  ok(/^image\/\*/.test(info.accept)&&/heic/i.test(info.accept),'file picker accepts images, including HEIC ('+info.accept+')');
   ok(info.tier===(isIPad?'full':'light'),'device tier '+info.tier);
   if(phone){
     const small=await p.evaluate(()=>[...document.querySelectorAll('.projectbar button,.topbar button,.template-toolbar button')].filter(b=>b.offsetParent&&getComputedStyle(b).visibility!=='hidden').map(b=>{const r=b.getBoundingClientRect();return {id:b.id||b.textContent.trim(),w:Math.round(r.width),h:Math.round(r.height)}}).filter(b=>b.h<44||b.w<44));
     ok(!small.length,'visible bar buttons are finger-sized '+JSON.stringify(small));
-    const hidden=await p.evaluate(()=>['saveProject','openProject','guideBtn','downloadObjBtn','openSTL'].every(id=>!$(id).offsetParent));
-    ok(hidden,'Save/Open/Guide/OBJ/STL moved to the overflow menu');
+    const hidden=await p.evaluate(()=>['saveProject','openProject','guideBtn','downloadObjBtn'].every(id=>!$(id).offsetParent));
+    ok(hidden,'Save/Open/Guide/OBJ moved to the overflow menu');
     await tap(cdp,await p.evaluate(()=>{const r=$('mobileMoreBtn').getBoundingClientRect();return [r.x+r.width/2,r.y+r.height/2]}));await sleep(200);
     const menu=await p.evaluate(()=>({open:!$('mobileMenu').hidden,items:[...$('mobileMenu').querySelectorAll('button')].map(b=>b.textContent)}));
     ok(menu.open&&menu.items.includes('Save project')&&menu.items.includes('Export OBJ')&&menu.items.includes('Guide'),'overflow menu: '+menu.items.join(' / '));
@@ -118,8 +118,10 @@ for(const name of names){
   await p.evaluate(()=>__lose.restoreContext());await sleep(800);
   ok(await p.evaluate(()=>!document.body.classList.contains('webgl-lost')&&!renderer.getContext().isContextLost()),'context restored');
   // Rotate the phone.
-  if(phone&&!landscape){await p.setViewportSize({width:dev.viewport.height,height:dev.viewport.width});await sleep(600);
-    const l=await p.evaluate(()=>({sw:document.documentElement.scrollWidth,iw:innerWidth,canvas:renderer.domElement.getBoundingClientRect().width,phone:CaviotDevice.phoneLayout()}));
+  if(phone&&!landscape){await p.setViewportSize({width:dev.viewport.height,height:dev.viewport.width});
+    let l=null;const until=Date.now()+4000;while(Date.now()<until){await sleep(200);
+      l=await p.evaluate(()=>({sw:document.documentElement.scrollWidth,iw:innerWidth,canvas:renderer.domElement.getBoundingClientRect().width,phone:CaviotDevice.phoneLayout()}));
+      if(l.phone&&l.sw<=l.iw&&l.canvas>=l.iw-2)break;}
     ok(l.phone&&l.sw<=l.iw&&l.canvas>=l.iw-2,'landscape: phone layout, full-width canvas, no horizontal scroll '+JSON.stringify(l));
     await p.tap('#mobileSettingsBtn');await sleep(900);await p.waitForFunction(()=>getComputedStyle(document.querySelector('.sidebar')).transform==='none',null,{timeout:8000}).catch(()=>{});const side=await p.evaluate(()=>{const r=document.querySelector('.sidebar').getBoundingClientRect();return {left:r.left,right:r.right,w:r.width,iw:innerWidth}});
     ok(side.right<=side.iw+1&&side.w<side.iw*.6,'landscape: tools open as a side sheet '+JSON.stringify(side));

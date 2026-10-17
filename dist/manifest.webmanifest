@@ -1,7 +1,7 @@
 {
   "name": "Caviot Studio",
   "short_name": "Caviot",
-  "description": "Turn images, patterns and lettering into 3D-printable sleeves and reliefs. Export STL or OBJ.",
+  "description": "Turn images and lettering into 3D-printable sleeves and reliefs. Export STL or OBJ.",
   "id": "./",
   "start_url": "./",
   "scope": "./",

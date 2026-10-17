@@ -260,14 +260,7 @@ function bindUI() {
   if (els.rot180) els.rot180.addEventListener('click', () => rotateImage(180));
   if (els.flipH) els.flipH.addEventListener('click', flipImageH);
 
-  // Patterns / STL
-  if (els.openPatterns) els.openPatterns.addEventListener('click', openPatternModal);
-  if (els.patternModalClose) els.patternModalClose.addEventListener('click', closePatternModal);
-  if (els.patternModal) els.patternModal.addEventListener('click', (e) => {
-    if (e.target === els.patternModal) closePatternModal();
-  });
-  // Import STL now loads the file as the sleeve template; flattening into artwork remains in the template panel.
-  if (els.openSTL) els.openSTL.addEventListener('click', () => typeof openTemplateUpload === 'function' ? openTemplateUpload() : els.stlInput && els.stlInput.click());
+  // Flatten STL into artwork uses this input. The sleeve-template upload is the button next to the template.
   if (els.stlInput) els.stlInput.addEventListener('change', () => {
     if (els.stlInput.files && els.stlInput.files[0]) importSTLFile(els.stlInput.files[0]);
   });
@@ -335,7 +328,12 @@ function bindUI() {
   if (els.downloadObjBtn) els.downloadObjBtn.addEventListener('click', () => exportCurrent('obj'));
   if (els.fitRingBtn) els.fitRingBtn.addEventListener('click', exportFitRing);
   if (els.resetViewBtn) els.resetViewBtn.addEventListener('click', resetView);
-  if (els.runMeshTests) els.runMeshTests.addEventListener('click', runBrowserMeshTests);
+  // Mesh self-check stays in the page for developers. Customers never see it unless the URL has ?debug.
+  if (els.runMeshTests) {
+    const showMeshTests = new URLSearchParams(location.search).has('debug');
+    els.runMeshTests.hidden = !showMeshTests;
+    if (showMeshTests) els.runMeshTests.addEventListener('click', runBrowserMeshTests);
+  }
 
   setSettingsOpen(window.innerWidth > 900);
   if (els.mobileSettingsBtn) {
@@ -361,10 +359,6 @@ function bindUI() {
     if (!isFormField && e.code === 'Numpad7') { e.preventDefault(); setBlenderView('top'); return; }
     if (!isFormField && e.code === 'Home') { e.preventDefault(); resetView(); return; }
     if (e.key === 'Escape') {
-      if (els.patternModal && !els.patternModal.classList.contains('hidden')) {
-        closePatternModal();
-        return;
-      }
       if (document.body.classList.contains('mobile-settings-open')) {
         setSettingsOpen(false);
         if (els.mobileSettingsBtn) {

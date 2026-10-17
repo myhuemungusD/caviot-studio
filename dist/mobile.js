@@ -5,10 +5,10 @@
 (()=>{
 const D=CaviotDevice,isPhone=()=>D.phoneLayout(),sidebar=document.querySelector('.sidebar');
 
-// ---------- Overflow menu (Save / Open / Guide / OBJ / STL template / Reset view) ----------
+// ---------- Overflow menu (Save / Open / Guide / OBJ / Reset view) ----------
 const more=document.createElement('button');more.type='button';more.id='mobileMoreBtn';more.className='btn btn-ghost mobile-only';more.setAttribute('aria-label','More actions');more.setAttribute('aria-haspopup','menu');more.setAttribute('aria-expanded','false');more.innerHTML='<span aria-hidden="true">⋮</span>';
 const menu=document.createElement('div');menu.id='mobileMenu';menu.className='mobile-menu';menu.setAttribute('role','menu');menu.hidden=true;
-const items=[['startNewDesign','Start new design…'],['saveProject','Save project'],['openProject','Open project…'],['downloadObjBtn','Export OBJ'],['openSTL','Import STL template…'],['resetViewBtn','Reset view'],['guideBtn','Guide']];
+const items=[['startNewDesign','Start new design…'],['saveProject','Save project'],['openProject','Open project…'],['downloadObjBtn','Export OBJ'],['resetViewBtn','Reset view'],['guideBtn','Guide']];
 for(const [id,label]of items){const b=document.createElement('button');b.type='button';b.setAttribute('role','menuitem');b.dataset.target=id;b.textContent=label;b.onclick=()=>{closeMenu();const t=$(id);if(t&&!t.disabled)t.click();};menu.appendChild(b);}
 document.querySelector('.project-actions').append(more);document.body.appendChild(menu);
 function openMenu(){for(const b of menu.querySelectorAll('button')){const t=$(b.dataset.target);b.disabled=!t||t.disabled;}menu.hidden=false;more.setAttribute('aria-expanded','true');menu.querySelector('button:not(:disabled)')?.focus({preventScroll:true});}
@@ -92,13 +92,16 @@ ready.innerHTML='<h2>Your file is ready</h2><p id="fileReadyName"></p><div class
 document.body.appendChild(ready);
 let readyFile=null,readyUrl=null;
 const mimeFor=name=>/\.stl$/i.test(name)?'model/stl':/\.obj$/i.test(name)?'model/obj':/\.icaviot$/i.test(name)?'application/json':'application/octet-stream';
-function canShareFile(file){try{return !!navigator.canShare&&(navigator.canShare({files:[file]})||navigator.canShare({files:[new File([file],file.name,{type:'application/octet-stream'})]}))}catch{return false}}
+// Ask the browser whether it can share a file without copying the STL. A full
+// File([blob]) here duplicates a large export in memory and can reload the tab.
+function canShareFile(file){try{if(typeof navigator.canShare!=='function'||!file)return false;const name=file.name||'caviot.stl',type=file.type||mimeFor(name);const probe=new File([new Uint8Array([0])],name,{type});return !!(navigator.canShare({files:[probe]})||navigator.canShare({files:[new File([new Uint8Array([0])],name,{type:'application/octet-stream'})]}))}catch{return false}}
+function canShareFiles(){return canShareFile({name:'caviot.stl',type:'model/stl'})}
 globalThis.canShareFile=canShareFile;
+globalThis.canShareFiles=canShareFiles;
 globalThis.showFileReady=function(blob,filename){
  if(readyUrl)URL.revokeObjectURL(readyUrl);readyUrl=null;
  readyFile={blob,filename};const mb=blob.size/1048576;ready.querySelector('#fileReadyName').textContent=filename+' · '+(mb>=1?mb.toFixed(1)+' MB':Math.max(1,Math.round(blob.size/1024))+' KB');
- const file=new File([blob],filename,{type:blob.type||mimeFor(filename)});
- const canShare=canShareFile(file),shareBtn=ready.querySelector('[data-act="share"]'),downloadBtn=ready.querySelector('[data-act="download"]');
+ const canShare=canShareFiles(),shareBtn=ready.querySelector('[data-act="share"]'),downloadBtn=ready.querySelector('[data-act="download"]');
  // Share comes first (AirDrop, Files, slicer apps); without it, Download is the main action.
  shareBtn.hidden=!canShare;downloadBtn.classList.toggle('btn-primary',!canShare);downloadBtn.classList.toggle('btn-ghost',canShare);
  ready.querySelector('[data-act="open"]').hidden=!D.iOS;

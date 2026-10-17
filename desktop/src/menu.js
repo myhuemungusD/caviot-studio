@@ -150,7 +150,7 @@ export function configureAbout(iconPath) {
     applicationVersion: '2026.09.21',
     version: app.getVersion(),
     copyright: 'Design locally. Export STL or OBJ.',
-    credits: 'ETSYFOLGER is the default sleeve. Files in this app are the same build served on the web.',
+    credits: 'The Foger Sleeve is the default template. Files in this app are the same build served on the web.',
     iconPath,
   });
 }

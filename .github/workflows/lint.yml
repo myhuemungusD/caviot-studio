@@ -1,0 +1,27 @@
+name: Lint changed files
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: ESLint + Prettier on changed files
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # Compare against the PR base so only files this PR touches are checked.
+      - name: ESLint (added/modified JS)
+        run: git diff --name-only --diff-filter=ACMR origin/${{ github.base_ref }}...HEAD -- '*.js' '*.mjs' | xargs -r npx eslint
+      - name: Prettier (newly added files)
+        run: git diff --name-only --diff-filter=A origin/${{ github.base_ref }}...HEAD -- '*.js' '*.mjs' '*.css' '*.json' | xargs -r npx prettier --check
