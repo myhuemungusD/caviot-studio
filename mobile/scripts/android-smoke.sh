@@ -20,7 +20,6 @@ wait_for() { # stage regex, timeout seconds
   while [ $SECONDS -lt $end ]; do
     if read_log | grep -Eq "\"stage\":\"($1)\""; then return 0; fi
     if read_log | grep -q '"stage":"failed"'; then return 1; fi
-    if [ -z "$(adb shell pidof $PKG | tr -d '\r')" ]; then echo "App process is gone while waiting for $1" | tee -a "$OUT/died.txt"; return 1; fi
     sleep 3
   done
   return 1
@@ -50,7 +49,6 @@ fi
 
 read_log > "$OUT/smoke.jsonl"
 adb logcat -d -s CAVIOT_SMOKE:I CaviotOpen:W chromium:I Capacitor:W > "$OUT/logcat.txt" || true
-adb logcat -d -b main,system,crash '*:W' ActivityManager:I lowmemorykiller:I > "$OUT/logcat-full.txt" || true
 node -e '
 const fs=require("fs");const lines=fs.readFileSync(process.argv[1],"utf8").trim().split("\n").filter(Boolean).map(l=>{try{return JSON.parse(l)}catch{return {raw:l}}});
 const pick=s=>lines.find(l=>l.stage===s)||null;

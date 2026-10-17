@@ -1,0 +1,85 @@
+'use strict';
+globalThis.ProjectFormat={
+  decode(text){
+    if(typeof text!=='string'||text.length>36*1024*1024)throw Error('Project is too large (36 MB maximum).');
+    const p=JSON.parse(text);
+    if(!p||p.format!=='icaviot-project'||![1,2,3,4].includes(p.version)||!p.settings||typeof p.settings!=='object'||Array.isArray(p.settings))throw Error('This is not a supported Caviot project.');
+    if(p.image!==null&&(typeof p.image!=='string'||!/^data:image\/png;base64,[A-Za-z0-9+/]+=*$/.test(p.image)))throw Error('Project artwork must be an embedded PNG.');
+    if(typeof p.name!=='string'||p.name.length>80||typeof p.source!=='string'||p.source.length>300)throw Error('Project name or source is invalid.');
+    if(p.version===3||p.version===4){
+      if(!Array.isArray(p.layers)||p.layers.length!==2||!p.layers.every(Array.isArray)||p.layers.flat().length>12||![0,1].includes(p.activeSide)||typeof p.linkSides!=='boolean')throw Error('Invalid design layers.');
+      const ids=new Set();p.layers=p.layers.map(list=>list.map(layer=>{if(!layer||typeof layer.id!=='string'||!/^layer-[0-9]+$/.test(layer.id)||ids.has(layer.id)||!['image','text'].includes(layer.kind))throw Error('Invalid design layer.');ids.add(layer.id);const original=layer.settings;const legacy=ProjectFormat.decode(JSON.stringify({format:p.format,name:p.name,source:p.source,settings:p.settings,image:null,version:2,wideRanges:p.version>=4,activeSide:0,linkSides:p.linkSides,sides:[layer,layer]})).sides[0];if(!original||typeof original.depthMm!=='number'||!Number.isFinite(original.depthMm)||original.depthMm<.01||original.depthMm>3||!['raised','carved'].includes(original.relief)||typeof original.uniformDepth!=='boolean'||typeof original.crisp!=='boolean'||typeof original.text!=='string'||original.text.length>60||typeof layer.fontChoice!=='string'||layer.fontChoice.length>300)throw Error('Invalid layer finish or text.');const base={...legacy,id:layer.id,kind:layer.kind,fontChoice:layer.fontChoice,settings:{...legacy.settings,depthMm:original.depthMm,relief:original.relief,uniformDepth:original.uniformDepth,crisp:original.crisp,text:original.text}};const extra=ProjectFormat.photoFields(layer);return extra?{...base,...extra}:base;}));
+      if(!Array.isArray(p.selectedIds)||p.selectedIds.length!==2||!p.selectedIds.every(id=>id===null||typeof id==='string'))throw Error('Invalid layer selection.');
+    }
+    if(p.version===2){
+      if(!Array.isArray(p.sides)||p.sides.length!==2||![0,1].includes(p.activeSide)||typeof p.linkSides!=='boolean')throw Error('Invalid front/back project.');
+      // Version 4 layers may sit on larger custom STL templates.
+      const wide=p.wideRanges===true,numbers={designAngle:[-180,180],designY:[0,wide?1000:89],designWidth:[2,wide?3000:160],designHeight:[2,wide?1000:89],designRotation:[-180,180],bgR:[0,255],bgG:[0,255],bgB:[0,255],bgTol:[0,180],smoothPasses:[0,3],letterSpacing:[-100,100],letterThickness:[-100,100]};
+      const booleans=['bgEnable','bgSoft','mirror','invert'];
+      for(const side of p.sides){
+        if(!side||typeof side.source!=='string'||side.source.length>300||!side.settings||typeof side.settings!=='object'||Array.isArray(side.settings))throw Error('Invalid side settings.');
+        if(side.image!==null&&(typeof side.image!=='string'||!/^data:image\/png;base64,[A-Za-z0-9+/]+=*$/.test(side.image)))throw Error('Side artwork must be an embedded PNG.');
+        const cleaned={};for(const [key,range]of Object.entries(numbers)){const v=side.settings[key];if(typeof v!=='number'||!Number.isFinite(v)||v<range[0]||v>range[1])throw Error('Invalid side setting: '+key);cleaned[key]=v;}
+        for(const key of booleans){if(typeof side.settings[key]!=='boolean')throw Error('Invalid side setting: '+key);cleaned[key]=side.settings[key];}side.settings=cleaned;
+      }
+    }
+    // Bottom branding used to be adjustable; the logo is now part of the Foger Sleeve template. Older files may
+    // still carry these settings (in any shape), so they are dropped instead of checked.
+    delete p.bottomBrand;
+    if(p.version===4&&p.template!==undefined&&p.template!==null){const t=p.template,o=t&&t.orientation;
+      if(!t||typeof t!=='object'||t.kind!=='custom-stl'||typeof t.name!=='string'||t.name.length>120||!Number.isInteger(t.triangles)||t.triangles<1||t.triangles>2000000||typeof t.repaired!=='boolean')throw Error('Invalid custom template.');
+      if(!o||!['auto','+z','-z','+y','-y','+x','-x'].includes(o.up)||![0,90,180,270].includes(o.turn)||!['mm','cm','in','m'].includes(o.units)||typeof o.autoAlign!=='boolean'||(o.raiseOnTexture!==undefined&&typeof o.raiseOnTexture!=='boolean'))throw Error('Invalid custom template orientation.');
+      if(t.mesh!==null&&(typeof t.mesh!=='string'||t.mesh.length>30*1024*1024||!/^data:application\/gzip;base64,[A-Za-z0-9+/]+=*$/.test(t.mesh)))throw Error('Custom template mesh must be an embedded gzip STL.');
+      p.template={kind:t.kind,name:t.name,triangles:t.triangles,repaired:t.repaired,orientation:{up:o.up,turn:o.turn,units:o.units,autoAlign:o.autoAlign,...(o.raiseOnTexture===false?{raiseOnTexture:false}:{})},mesh:t.mesh};}
+    return p;
+  },
+  // Photo-to-sleeve is optional. Projects saved before it existed have no photo fields, and a logo
+  // design omits them, so those files stay the same. A line thinner than two nozzle widths is clamped.
+  sanitizePhoto(photo){
+    if(photo==null)return null;
+    if(typeof photo!=='object'||Array.isArray(photo))throw Error('Invalid photo settings.');
+    const styles=['off','shadow','silhouette','line','poster','smooth','lithophane'];
+    const aspects=['free','square','sleeve','portrait','landscape'];
+    if(photo.style!==undefined&&!styles.includes(photo.style))throw Error('Invalid photo style.');
+    const num=(v,lo,hi,fallback)=>{if(v===undefined)return fallback;if(typeof v!=='number'||!Number.isFinite(v))throw Error('Invalid photo setting.');return Math.min(hi,Math.max(lo,v));};
+    const focus=photo.focus===undefined?false:photo.focus;
+    if(typeof focus!=='boolean')throw Error('Invalid photo setting.');
+    const swap=photo.swap===undefined?false:photo.swap;
+    if(typeof swap!=='boolean')throw Error('Invalid photo setting.');
+    const inverse=photo.inverse===undefined?false:photo.inverse;
+    if(typeof inverse!=='boolean')throw Error('Invalid photo setting.');
+    const aspect=photo.aspect===undefined?'free':photo.aspect;
+    if(!aspects.includes(aspect))throw Error('Invalid photo crop.');
+    const out={style:photo.style||'off',detail:num(photo.detail,0,100,40),lineMm:num(photo.lineMm,0.8,3,1.2),brightness:num(photo.brightness,-100,100,0),contrast:num(photo.contrast,-100,100,0),gamma:num(photo.gamma,0.3,3,1),focus,aspect};
+    if(swap)out.swap=true;
+    if(inverse)out.inverse=true;
+    if(photo.seed!=null){
+      const s=photo.seed;
+      if(!s||typeof s!=='object'||Array.isArray(s)||typeof s.x!=='number'||typeof s.y!=='number'||!Number.isFinite(s.x)||!Number.isFinite(s.y)||s.x<0||s.y<0||s.x>1||s.y>1)throw Error('Invalid photo subject.');
+      out.seed={x:s.x,y:s.y};
+    }
+    if(photo.subjectBits!=null||photo.subjectW!=null||photo.subjectH!=null){
+      const w=photo.subjectW,h=photo.subjectH,bits=photo.subjectBits;
+      if(!Number.isInteger(w)||!Number.isInteger(h)||w<8||h<8||w>1024||h>1024||typeof bits!=='string'||bits.length<4||bits.length>200000||!/^[A-Za-z0-9+/]+=*$/.test(bits))throw Error('Invalid photo subject.');
+      out.subjectBits=bits;out.subjectW=w;out.subjectH=h;
+    }
+    if(photo.crop!=null){
+      const c=photo.crop;
+      if(!c||typeof c!=='object'||Array.isArray(c))throw Error('Invalid photo crop.');
+      for(const k of ['x','y','w','h'])if(typeof c[k]!=='number'||!Number.isFinite(c[k]))throw Error('Invalid photo crop.');
+      if(c.w<=0||c.h<=0||c.x<-0.001||c.y<-0.001||c.x+c.w>1.001||c.y+c.h>1.001)throw Error('Invalid photo crop.');
+      out.crop={x:c.x,y:c.y,w:c.w,h:c.h};
+    }else out.crop=null;
+    return out;
+  },
+  photoFields(layer){
+    if(!layer||(layer.photo==null&&layer.photoSource==null))return null;
+    const out={};
+    if(layer.photo!=null)out.photo=ProjectFormat.sanitizePhoto(layer.photo);
+    if(layer.photoSource!=null){
+      if(typeof layer.photoSource!=='string'||!/^data:image\/png;base64,[A-Za-z0-9+/]+=*$/.test(layer.photoSource))throw Error('Photo original must be an embedded PNG.');
+      out.photoSource=layer.photoSource;
+    }
+    return out;
+  }
+};
