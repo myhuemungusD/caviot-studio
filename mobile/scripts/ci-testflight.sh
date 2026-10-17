@@ -73,6 +73,9 @@ PROFILE_NAME="$PROFILE_NAME" TEAM_ID="$IOS_TEAM_ID" APP_RELEASE_ID="$APP_RELEASE
   s/(\Q$id\E \/\* Release \*\/ = \{.*?buildSettings = \{.*?)CODE_SIGN_STYLE = Automatic;/$1$settings/s or die "App Release config not found\n";
 ' "$PBXPROJ"
 
+# App Store Connect only accepts iOS builds made with Xcode 26 or later (since April 28, 2026).
+XCODE_MAJOR="$(xcodebuild -version | awk 'NR==1{split($2,v,".");print v[1]}')"
+if [ "${XCODE_MAJOR:-0}" -lt 26 ]; then echo "Xcode $XCODE_MAJOR is too old for App Store uploads; need 26 or later." >&2; exit 1; fi
 # Every upload needs a unique, increasing build number.
 BUILD_NUMBER="${GITHUB_RUN_NUMBER:-$(date +%Y%m%d%H%M)}"
 

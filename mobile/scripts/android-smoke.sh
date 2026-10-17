@@ -30,7 +30,9 @@ echo "$START" | tee "$OUT/am-start.txt"
 TOTAL=$(echo "$START" | awk -F': ' '/TotalTime/{print $2}')
 
 ok=1
-wait_for 'export-ok' 900 || ok=0
+# Perf + slider benchmarks + export run back to back on a software-rendered emulator; the page's own
+# export limit is 600 s, so give the whole sequence 25 minutes before calling it hung.
+wait_for 'export-ok' 1500 || ok=0
 adb exec-out screencap -p > "$OUT/01-after-export.png" || true
 
 # Open with Caviot: copy a real STL into the app cache and send it through the FileProvider.
