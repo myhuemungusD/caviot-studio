@@ -1,0 +1,41 @@
+{
+  "runs": 5,
+  "median": {
+    "ttiMs": 3109,
+    "orbitP95Ms": 631.4,
+    "sliderMs": 3469,
+    "exportMs": 4780
+  },
+  "all": [
+    {
+      "ttiMs": 4179,
+      "orbitP95Ms": 832.4,
+      "sliderMs": 3478,
+      "exportMs": 4797
+    },
+    {
+      "ttiMs": 3178,
+      "orbitP95Ms": 631.4,
+      "sliderMs": 3389,
+      "exportMs": 4836
+    },
+    {
+      "ttiMs": 3036,
+      "orbitP95Ms": 636.8,
+      "sliderMs": 3469,
+      "exportMs": 4633
+    },
+    {
+      "ttiMs": 3109,
+      "orbitP95Ms": 630,
+      "sliderMs": 3473,
+      "exportMs": 4780
+    },
+    {
+      "ttiMs": 2954,
+      "orbitP95Ms": 631.4,
+      "sliderMs": 3447,
+      "exportMs": 4702
+    }
+  ]
+}
