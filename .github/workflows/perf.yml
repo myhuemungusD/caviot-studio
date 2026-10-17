@@ -1,0 +1,41 @@
+name: Performance budget
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: perf-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  budget:
+    name: Startup, orbit, slider and export budget
+    # Fixed runner image so numbers compare like for like with perf/baseline.json (recorded on ubuntu-24.04).
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install playwright-core (uses the runner's Google Chrome)
+        run: npm install --no-save --no-package-lock playwright-core@1.56.1
+      - name: Start the studio
+        run: |
+          node serve.mjs 4173 > /tmp/serve.log 2>&1 &
+          for i in $(seq 1 30); do curl -sf http://127.0.0.1:4173/ >/dev/null && break; sleep 1; done
+      - name: Measure (median of 5 runs) and compare with the baseline
+        run: node e2e/perf-budget.mjs http://127.0.0.1:4173/ --runs 5 --baseline perf/baseline.json --out perf-result.json
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-result
+          path: perf-result.json
+          retention-days: 30
