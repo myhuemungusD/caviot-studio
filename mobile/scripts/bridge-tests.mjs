@@ -93,6 +93,10 @@ test('the website index is not edited; the iOS copy gains the bridge once', () =
   assert.ok(once.includes('<script src="page-bridge.js"></script>'));
   assert.ok(once.includes('<script type="module" src="caviot-native.js"></script>'));
   assert.ok(once.includes('href="native.css"'));
+  assert.ok(once.indexOf('<script src="native-flags.js"></script>') >= 0 && once.indexOf('native-flags.js') < once.indexOf('brand-labels.js'), 'phone build sets the neutral-label flag before brand-labels.js');
+  assert.ok(fs.readFileSync(path.join(root, 'mobile', 'native', 'native-flags.js'), 'utf8').includes('CAVIOT_NEUTRAL_LABELS = true'));
+  assert.equal(/Vapes|Foger|Geek Bar/.test(once.match(/<select id="lighterChoice"[\s\S]*?<\/select>/)[0]), false, 'phone copy has no vape presets in its markup');
+  assert.ok(html.includes('Vapes — Geek Bar'), 'website markup keeps them');
   const bridge = fs.readFileSync(path.join(root, 'mobile', 'native', 'page-bridge.js'), 'utf8');
   assert.equal(bridge.includes('import '), false);
   assert.ok(bridge.includes('__caviotPage'));

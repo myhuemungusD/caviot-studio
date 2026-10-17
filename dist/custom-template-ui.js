@@ -157,7 +157,7 @@ function beforeTemplateChoice(value){
     // Nothing loaded yet: choosing "Custom STL · upload…" opens the file picker (browsers that refuse a
     // picker without a tap still show the hint and focus the upload button).
     if(!customTemplate){$('customTemplatePanel').hidden=true;templateStatus('Choose an STL, OBJ or 3MF file for your sleeve.',true);try{if(!customLoading)openTemplateUpload()}catch{}$('uploadTemplateBtn').focus();return false}setActiveTemplateBase(customTemplate.display||customTemplate.base);ensureCustomPrint();setTimeout(()=>templateView('front'));return true}
-  if(value==='etsyfolger-v1'){if(!builtinTemplateBase){toast(builtinTemplateError?builtinTemplateError.message:'The Foger Sleeve template is still loading.','error');return false}activateBuiltinTemplate();setTimeout(()=>templateView('front'));}
+  if(value==='etsyfolger-v1'){if(!builtinTemplateBase){toast(builtinTemplateError?builtinTemplateError.message:'The '+CaviotLabels.template+' template is still loading.','error');return false}activateBuiltinTemplate();setTimeout(()=>templateView('front'));}
   return true;
 }
 templateJobData=function(worker,quality){
@@ -217,7 +217,7 @@ async function restoreProjectTemplate(p){
   const t=p.version===4?p.template:null;
   if(t&&t.mesh){
     try{const bytes=new Uint8Array(await (await fetch(t.mesh)).arrayBuffer()),buffer=await gunzipBytes(bytes);await useCustomTemplateBuffer(buffer,t.name,t.orientation,{activate:false,repaired:t.repaired,quiet:true});p.settings.templateId='custom-stl';AppState.templateId='custom-stl';setActiveTemplateBase(customTemplate.display||customTemplate.base);ensureCustomPrint();setTimeout(()=>templateView('front'),50);return}
-    catch(error){if(isCancelled(error))throw Error('Another template was loaded while opening the project. Open it again.');p.settings.templateId='etsyfolger-v1';activateBuiltinTemplate();return 'The embedded template could not be loaded: '+error.message+' Using the Foger Sleeve instead.'}
+    catch(error){if(isCancelled(error))throw Error('Another template was loaded while opening the project. Open it again.');p.settings.templateId='etsyfolger-v1';activateBuiltinTemplate();return 'The embedded template could not be loaded: '+error.message+' Using the '+CaviotLabels.template+' instead.'}
   }
   if(t&&!t.mesh){if(customTemplate&&customTemplate.name===t.name){p.settings.templateId='custom-stl';AppState.templateId='custom-stl';setActiveTemplateBase(customTemplate.display||customTemplate.base);ensureCustomPrint();return 'Using the loaded template '+t.name+'; check that it is the same STL.'}p.settings.templateId='etsyfolger-v1';activateBuiltinTemplate();return 'This project used the custom template "'+t.name+'", which was too large to embed. Upload that STL with Upload STL template.'}
   if(p.settings.templateId==='custom-stl'&&!t)p.settings.templateId='etsyfolger-v1';
