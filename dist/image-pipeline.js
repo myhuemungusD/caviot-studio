@@ -409,6 +409,20 @@ function blockPixelSize(source) {
 
 // Two trimmed cells that touch only at a corner make a non-manifold vertex (the export reports open edges and
 // refuses the mesh). Join every such pair by filling one of the two empty cells beside it.
+const ownAlphaCache = new WeakMap();
+function hasOwnAlpha(img) {
+  if (ownAlphaCache.has(img)) return ownAlphaCache.get(img);
+  let found = false;
+  try {
+    const c = document.createElement('canvas'); c.width = 128; c.height = 128;
+    const ctx = c.getContext('2d'); ctx.drawImage(img, 0, 0, 128, 128);
+    const d = ctx.getImageData(0, 0, 128, 128).data;
+    for (let i = 3; i < d.length; i += 4) if (d[i] < 250) { found = true; break; }
+  } catch (_) { found = true; }
+  ownAlphaCache.set(img, found);
+  return found;
+}
+
 function closeDiagonalMask(m, rows, cols) {
   let added = 0, changed = true;
   while (changed) {
@@ -525,7 +539,9 @@ function buildHeightmapAtDetail(targetSize, image, state = AppState) {
   // Map pixels per source pixel: sharp outlines simplify away staircases of this size.
   const sharpTemplate = templateActive() && state.uniformDepth && crispMode;
   const sourceScale = Math.max(cols / Math.max(1, img.width), rows / Math.max(1, img.height)) * imgScalePct * (sharpTemplate ? blockPixelSize(sourceCanvas) : 1);
-  return { hm, rows, cols, alphaMap, mask, toastMsg, sourceScale };
+  // Keyed: the background was removed by color from a picture without its own transparency (JPEG, opaque PNG).
+  const keyed = sourceCanvas !== img && !hasOwnAlpha(img);
+  return { hm, rows, cols, alphaMap, mask, toastMsg, sourceScale, keyed };
 }
 
 // ---------- Three.js preview ----------
