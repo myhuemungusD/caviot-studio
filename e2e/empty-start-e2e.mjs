@@ -98,6 +98,10 @@ for (const [name, dev] of [
   ok(s.active && s.shown && s.top && s.title === 'Choose a template', 'start screen covers the app: ' + JSON.stringify(s));
   ok(/Classic Sleeve/.test(s.classic) && /^Import STL/.test(s.imp) && /OBJ or 3MF/.test(s.imp), 'offers Classic Sleeve and Import STL (STL, OBJ, 3MF)');
   ok(s.gen, 'Export button is disabled until a template is chosen');
+  await p.waitForFunction(settledFn, null, { timeout: 120000 });
+  await sleep(1500);
+  const still = await p.evaluate(() => [els.generateBtn.disabled, els.downloadObjBtn.disabled]);
+  ok(still.every(Boolean), 'export buttons stay disabled after the background preview settles ' + JSON.stringify(still));
   if (shots) await p.screenshot({ path: `${shots}/${name}-choose-template.png` });
   const dl = p.waitForEvent('download', { timeout: 4000 }).catch(() => null);
   const r = await p.evaluate(async () => {

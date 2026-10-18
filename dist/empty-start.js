@@ -35,6 +35,17 @@ const CaviotEmptyStart = (() => {
   let chosen = false,
     wantClassic = false,
     importing = false;
+  // Other modules re-enable the export buttons as the preview settles; keep them off until a template is chosen.
+  function exportButtons() {
+    return ['generateBtn', 'downloadObjBtn'].map((id) => document.getElementById(id)).filter(Boolean);
+  }
+  function lockButtons() {
+    for (const b of exportButtons()) if (!b.disabled) b.disabled = true;
+  }
+  const observer = new MutationObserver(() => {
+    if (!chosen) lockButtons();
+  });
+  for (const b of exportButtons()) observer.observe(b, { attributes: true, attributeFilter: ['disabled'] });
   function gateOn() {
     return !chosen;
   }
@@ -43,7 +54,8 @@ const CaviotEmptyStart = (() => {
     api.active = false;
     root.hidden = true;
     document.body.classList.remove('empty-start');
-    if (typeof els !== 'undefined' && els.generateBtn) els.generateBtn.disabled = false;
+    observer.disconnect();
+    for (const b of exportButtons()) b.disabled = false;
     window.dispatchEvent(new Event('resize'));
     if (typeof syncAll === 'function')
       try {
@@ -55,7 +67,7 @@ const CaviotEmptyStart = (() => {
   }
   function tick() {
     if (chosen) return;
-    if (typeof els !== 'undefined' && els.generateBtn && !els.generateBtn.disabled) els.generateBtn.disabled = true;
+    lockButtons();
     const st = typeof AppState !== 'undefined' ? AppState : null;
     if (st && st.templateId === 'custom-stl' && typeof templateBase !== 'undefined' && templateBase) {
       finish();
@@ -97,7 +109,7 @@ const CaviotEmptyStart = (() => {
   document.addEventListener(
     'click',
     (e) => {
-      if (gateOn() && e.target.closest && e.target.closest('#generateBtn')) {
+      if (gateOn() && e.target.closest && e.target.closest('#generateBtn,#downloadObjBtn')) {
         e.preventDefault();
         e.stopImmediatePropagation();
         if (typeof toast === 'function') toast(MSG, 'error');
