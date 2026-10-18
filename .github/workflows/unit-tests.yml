@@ -28,3 +28,20 @@ jobs:
             echo "::endgroup::"
           done
           exit $fail
+
+  native-start:
+    name: Phone app start screen (e2e)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --no-save --no-package-lock playwright-core@1.56.1
+      - name: Serve dist
+        run: |
+          node serve.mjs 4173 &
+          for i in $(seq 1 30); do curl -sf http://127.0.0.1:4173/ >/dev/null && break; sleep 1; done
+      - run: node e2e/empty-start-e2e.mjs http://127.0.0.1:4173/
+      - run: node e2e/native-labels-e2e.mjs http://127.0.0.1:4173/

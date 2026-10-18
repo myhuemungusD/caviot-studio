@@ -47,8 +47,10 @@ for(const [id,s]of Object.entries(sections)){
   const sec=el('section',{id,className:'panel phone-section'});sec.setAttribute('aria-labelledby',id+'Title');sec.innerHTML='<h3 class="phone-section-title" id="'+id+'Title">'+s.title+'</h3>';secEls[id]=sec;
 }
 secEls.phoneSecAdd.insertAdjacentHTML('beforeend','<div class="phone-add-grid">'+addButtonsHTML+'</div>');wireAddButtons(secEls.phoneSecAdd);
+// Phone apps say "Import STL" (OBJ and 3MF still work); the website keeps its longer label.
+const OWN_SLEEVE_LABEL=(typeof CaviotLabels!=='undefined'&&CaviotLabels.native)?'Import STL':'Use my own sleeve (STL)\u2026';
 // Own sleeve shape: a visible way to the custom template picker (STL, OBJ or 3MF), instead of only inside All settings.
-secEls.phoneSecSides.insertAdjacentHTML('beforeend','<div class="phone-own-sleeve"><button type="button" class="btn btn-ghost phone-own-sleeve-btn" id="phoneOwnSleeve">Use my own sleeve (STL)\u2026</button><p class="phone-hint">STL, OBJ or 3MF from Files, a scan app or your computer.</p></div>');
+secEls.phoneSecSides.insertAdjacentHTML('beforeend','<div class="phone-own-sleeve"><button type="button" class="btn btn-ghost phone-own-sleeve-btn" id="phoneOwnSleeve">'+OWN_SLEEVE_LABEL+'</button><p class="phone-hint">STL, OBJ or 3MF from Files, a scan app or your computer.</p></div>');
 function openOwnSleeve(){if(typeof openTemplateUpload==='function')openTemplateUpload();else toast('Custom templates are not available.','error')}
 secEls.phoneSecSides.querySelector('#phoneOwnSleeve').onclick=openOwnSleeve;
 secEls.phoneSecClean.insertAdjacentHTML('beforeend','<p class="phone-hint" id="phonePickHint">Preview of what gets printed. To pick the background colour, tap Pick, then tap the background in this picture.</p>');
@@ -100,7 +102,7 @@ function syncIrrelevant(){$('silhouette')?.closest('label')?.classList.toggle('p
 
 // ======================= Empty sleeve: "Add the customer's logo" =======================
 const start=el('div',{className:'phone-start',id:'phoneStart'});start.setAttribute('role','region');start.setAttribute('aria-labelledby','phoneStartTitle');
-start.innerHTML='<h2 id="phoneStartTitle">Add the customer\u2019s logo</h2><p>A photo, a screenshot or an image file. Or type text.</p><div class="phone-add-grid">'+addButtonsHTML+'</div><div class="phone-start-extra" id="phoneStartExtra" hidden></div><button type="button" class="phone-start-link" id="phoneStartOwnSleeve">Use my own sleeve (STL)\u2026</button>';
+start.innerHTML='<h2 id="phoneStartTitle">Add the customer\u2019s logo</h2><p>A photo, a screenshot or an image file. Or type text.</p><div class="phone-add-grid">'+addButtonsHTML+'</div><div class="phone-start-extra" id="phoneStartExtra" hidden></div><button type="button" class="phone-start-link" id="phoneStartOwnSleeve">'+OWN_SLEEVE_LABEL+'</button>';
 wireAddButtons(start);canvasArea.appendChild(start);
 const startExtra=start.querySelector('#phoneStartExtra');start.querySelector('#phoneStartOwnSleeve').onclick=openOwnSleeve;
 function syncStart(){

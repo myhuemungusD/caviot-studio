@@ -10,7 +10,10 @@ const BAD=/vape|vaping|foger|fogger|geek ?bar|tobacco|nicotine|smok/i;
 const modes={web:null,flag:()=>{window.CAVIOT_NEUTRAL_LABELS=true},capacitor:()=>{window.Capacitor={isNativePlatform:()=>true,getPlatform:()=>'ios'}}};
 async function settle(p,ms=180000){const t=Date.now();await sleep(300);while(Date.now()-t<ms){if(await p.evaluate(()=>typeof templatePreviewRunning!=='undefined'&&!!templateBase&&!templatePreviewRunning&&!templatePending&&!placementTimer&&!AppState.rebuildTimer&&!exportBusy))return true;await sleep(250)}return false}
 async function open(mode,opts){const ctx=await browser.newContext({...opts,acceptDownloads:true});if(modes[mode])await ctx.addInitScript(modes[mode]);const p=await ctx.newPage();const errors=[];p.on('pageerror',e=>errors.push(e.message));
-  await p.goto(base,{waitUntil:'load'});await p.waitForFunction(()=>typeof templateBase!=='undefined'&&!!templateBase,null,{timeout:120000});await settle(p);return{ctx,p,errors}}
+  await p.goto(base,{waitUntil:'load'});await p.waitForFunction(()=>typeof templateBase!=='undefined'&&!!templateBase,null,{timeout:120000});
+  // Phone apps open on "Choose a template" (empty-start.js); pick Classic Sleeve like a user would.
+  if(await p.evaluate(()=>typeof CaviotEmptyStart!=='undefined'&&CaviotEmptyStart.active)){await p.click('#emptyStartClassic');await p.waitForFunction(()=>!CaviotEmptyStart.active,null,{timeout:60000})}
+  await settle(p);return{ctx,p,errors}}
 const visibleText=p=>p.evaluate(()=>{const parts=[document.title,document.body.textContent];for(const e of document.querySelectorAll('*'))for(const a of ['title','aria-label','label','placeholder','alt'])if(e.getAttribute(a))parts.push(e.getAttribute(a));return parts.join('\n')});
 const hashes={};
 for(const mode of Object.keys(modes)){
