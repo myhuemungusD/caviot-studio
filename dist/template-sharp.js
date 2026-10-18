@@ -127,7 +127,11 @@ globalThis.SharpSleeve=(()=>{
    if(ridges.length){map=Float32Array.from(hm);const ramp=2*unit,rx=Math.ceil((minHalf+ramp)/dx)+1,ry=Math.ceil((minHalf+ramp)/dy)+1;
     for(let i=0;i<ridges.length;i+=2){const px=ridges[i],py=ridges[i+1],cx=Math.round(px/dx),cy=Math.round(py/dy);
      for(let y=Math.max(0,cy-ry);y<=Math.min(rows-1,cy+ry);y++)for(let x=Math.max(0,cx-rx);x<=Math.min(cols-1,cx+rx);x++){const ex=x*dx-px,ey=y*dy-py,v=INK_LEVEL+(minHalf-Math.sqrt(ex*ex+ey*ey))/ramp,k=y*cols+x;if(v>map[k])map[k]=Math.min(1,v)}}}}
-  const loops=traceLoops(map,cols,rows,dx,dy,INK_LEVEL).map(loop=>simplifyLoop(smoothLoop(loop,sourcePixel,unit*.5),unit*.05));
+  // Keyed artwork (a JPEG or opaque PNG whose background was removed) has compression ringing along every edge,
+  // one or two source pixels tall: smooth it at twice the source pixel. Specks and pinholes smaller than a 0.4 mm
+  // nozzle can print (under minIsland mm², default 0.5) are noise from the same keying and are dropped.
+  const smoothPixel=o.keyed?2*sourcePixel:sourcePixel,minIsland=o.keyed?Math.max(0,Number(o.minIsland??.5)||0):0;
+  const loops=traceLoops(map,cols,rows,dx,dy,INK_LEVEL).map(loop=>simplifyLoop(smoothLoop(loop,smoothPixel,unit*.5),unit*.05)).filter(loop=>{if(!minIsland)return true;let area=0;for(let i=0;i<loop.length;i++){const p=loop[i],q=loop[(i+1)%loop.length];area+=p[0]*q[1]-q[0]*p[1]}return Math.abs(area)/2>=minIsland});
   const n=cols*rows,dist=new Float32Array(n).fill(Infinity),band=3*pixel+minHalf;
   let inkSign=1,largest=0;for(const loop of loops){let area=0;for(let i=0;i<loop.length;i++){const p=loop[i],q=loop[(i+1)%loop.length];area+=p[0]*q[1]-q[0]*p[1]}if(Math.abs(area)>largest){largest=Math.abs(area);inkSign=area>0?1:-1}}
   // Exact distance to the smooth outline in a narrow band.
