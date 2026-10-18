@@ -421,6 +421,13 @@ function installNativeShell(capacitor) {
       await waitFor(() => pageApi.templateBase && pageApi.state?.templateId === 'etsyfolger-v1', 90000, 'ETSYFOLGER did not finish loading');
       const device = pageApi.device;
       if (!device) throw new Error('Device limits did not load');
+      // Phone apps open on "Choose a template" (dist/empty-start.js): export must be refused until one is picked.
+      const gate = globalThis.CaviotEmptyStart;
+      if (!gate || !gate.active) throw new Error('The Choose a template screen did not show');
+      if (!document.getElementById('generateBtn')?.disabled) throw new Error('Export was enabled before a template was chosen');
+      await report(plugin, { stage: 'empty-start', shown: true });
+      document.getElementById('emptyStartClassic').click();
+      await waitFor(() => !gate.active, 60000, 'Choosing Classic Sleeve did not open the studio');
       const choice = document.getElementById('templateChoice');
       if (!choice || choice.value !== 'etsyfolger-v1' || pageApi.state.templateId !== 'etsyfolger-v1') {
         throw new Error('ETSYFOLGER is not the default template');
