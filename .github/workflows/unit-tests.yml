@@ -1,0 +1,30 @@
+name: Unit tests
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  unit:
+    name: Root node unit tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # Every tests.mjs / *-tests.mjs at the repo root; any failure fails the job.
+      - name: Run unit tests
+        run: |
+          fail=0
+          for f in tests.mjs *-tests.mjs; do
+            echo "::group::$f"
+            if node "$f"; then echo "PASS $f"; else echo "::error::FAIL $f"; fail=1; fi
+            echo "::endgroup::"
+          done
+          exit $fail

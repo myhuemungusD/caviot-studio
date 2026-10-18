@@ -3,7 +3,6 @@
   "private": true,
   "description": "Caviot Studio: browser-based 3D sleeve designer (static Three.js app in dist/, iOS/Android in mobile/, Mac in desktop/).",
   "license": "UNLICENSED",
-  "type": "module",
   "scripts": {
     "serve": "node serve.mjs",
     "test": "node tests.mjs",
