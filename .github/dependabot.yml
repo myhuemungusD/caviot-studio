@@ -1,0 +1,30 @@
+# Weekly, grouped updates: one PR per ecosystem/directory per week instead of one per package.
+# Security updates are grouped too, so a vulnerable transitive dependency doesn't open a PR per package.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directories: ['/', '/desktop', '/mobile']
+    schedule:
+      interval: weekly
+      day: monday
+      time: '06:00'
+      timezone: America/Los_Angeles
+    open-pull-requests-limit: 3
+    groups:
+      npm-security:
+        applies-to: security-updates
+        patterns: ['*']
+      npm-minor-patch:
+        applies-to: version-updates
+        update-types: [minor, patch]
+        patterns: ['*']
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '06:00'
+      timezone: America/Los_Angeles
+    groups:
+      actions:
+        patterns: ['*']

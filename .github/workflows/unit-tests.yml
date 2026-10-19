@@ -2,8 +2,32 @@ name: Unit tests
 
 on:
   pull_request:
+    paths:
+      - 'dist/**'
+      - '*.mjs'
+      - '*.js'
+      - 'e2e/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'mobile/native/**'
+      - '.github/workflows/unit-tests.yml'
   push:
     branches: [main]
+    paths:
+      - 'dist/**'
+      - '*.mjs'
+      - '*.js'
+      - 'e2e/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'mobile/native/**'
+      - '.github/workflows/unit-tests.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: unit-${{ github.event.pull_request.number || github.ref }}
+  # Superseded PR pushes are cancelled; main runs (TestFlight, release AAB) always finish.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
