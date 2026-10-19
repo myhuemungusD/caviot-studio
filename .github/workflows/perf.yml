@@ -28,8 +28,8 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
       - name: Install playwright-core (uses the runner's Google Chrome)
@@ -42,7 +42,7 @@ jobs:
         run: node e2e/perf-budget.mjs http://127.0.0.1:4173/ --runs 5 --baseline perf/baseline.json --out perf-result.json
       - name: Upload results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: perf-result
           path: perf-result.json
