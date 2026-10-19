@@ -11,7 +11,7 @@
     "format:changed": "git diff --name-only --diff-filter=A origin/main...HEAD -- '*.js' '*.mjs' '*.css' '*.json' | xargs -r prettier --check"
   },
   "devDependencies": {
-    "@eslint/js": "^9.39.0",
+    "@eslint/js": "^10.0.1",
     "eslint": "^9.39.0",
     "globals": "^15.15.0",
     "prettier": "^3.6.0"
