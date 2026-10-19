@@ -1,4 +1,5 @@
 'use strict';
+// CI usage test: dist-only change
 // Phone apps only (iOS + Android native mode, see brand-labels.js): the app opens on an empty
 // "Choose a template" screen instead of showing a sleeve straight away. The built-in Classic Sleeve still
 // loads in the background, so picking it is instant and its exports are byte-identical to the website.
