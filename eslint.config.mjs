@@ -15,6 +15,9 @@ export default [
       'no-redeclare': 'off',
       'no-inner-declarations': 'off',
       'no-control-regex': 'off', // intentional: filename sanitizing and binary-file sniffing
+      // New in ESLint 10's recommended set; warnings so touching an older file doesn't fail lint.
+      'preserve-caught-error': 'warn',
+      'no-useless-assignment': 'warn',
       'no-irregular-whitespace': ['warn', { skipComments: true, skipStrings: true, skipTemplates: true }],
     },
   },
