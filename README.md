@@ -269,3 +269,5 @@ Why these styles, and not a raw heightmap or a neural cutout, is written up in [
 ## Mac desktop app
 
 `desktop/` is a macOS app that opens this same `dist/` build offline. It does not change the studio. Build, install, and the unsigned-app first launch (right-click the app, then Open) are documented in `desktop/README.md`.
+
+<!-- CI usage test: docs-only change -->
