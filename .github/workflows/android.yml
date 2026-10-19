@@ -1,13 +1,28 @@
 name: Android app
 
+# Runs only when something that ends up in the Android app changed. PRs + main only (no duplicate branch pushes).
 on:
   push:
+    branches: [main]
+    paths:
+      - 'dist/**'
+      - 'mobile/**'
+      - '!mobile/ios/**'
+      - '!mobile/**/*.md'
+      - '.github/workflows/android.yml'
   pull_request:
+    paths:
+      - 'dist/**'
+      - 'mobile/**'
+      - '!mobile/ios/**'
+      - '!mobile/**/*.md'
+      - '.github/workflows/android.yml'
   workflow_dispatch:
 
 concurrency:
-  group: android-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: android-${{ github.event.pull_request.number || github.ref }}
+  # Superseded PR pushes are cancelled; main runs (TestFlight, release AAB) always finish.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read

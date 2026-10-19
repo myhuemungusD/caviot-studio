@@ -1,13 +1,28 @@
 name: iOS app
 
+# Runs only when something that ends up in the iOS app changed, so docs-only merges never reach TestFlight.
 on:
   push:
+    branches: [main]
+    paths:
+      - 'dist/**'
+      - 'mobile/**'
+      - '!mobile/android/**'
+      - '!mobile/**/*.md'
+      - '.github/workflows/ios.yml'
   pull_request:
+    paths:
+      - 'dist/**'
+      - 'mobile/**'
+      - '!mobile/android/**'
+      - '!mobile/**/*.md'
+      - '.github/workflows/ios.yml'
   workflow_dispatch:
 
 concurrency:
-  group: ios-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: ios-${{ github.event.pull_request.number || github.ref }}
+  # Superseded PR pushes are cancelled; main runs (TestFlight, release AAB) always finish.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -15,6 +30,8 @@ permissions:
 jobs:
   simulator:
     name: Simulator build and smoke test
+    # macOS minutes are the expensive ones: the PR already ran this, so a merge to main goes straight to TestFlight.
+    if: github.event_name != 'push'
     runs-on: macos-latest
     timeout-minutes: 60
     steps:
@@ -91,7 +108,7 @@ jobs:
     name: Sign and upload to TestFlight
     needs: [simulator, signing-gate]
     # Upload only from main pushes or a manual run, so branches and PRs don't fill TestFlight.
-    if: needs.signing-gate.outputs.enabled == 'true' && (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main'))
+    if: always() && needs.signing-gate.outputs.enabled == 'true' && (needs.simulator.result == 'success' || needs.simulator.result == 'skipped') && (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main'))
     runs-on: macos-latest
     timeout-minutes: 60
     steps:

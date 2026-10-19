@@ -1,9 +1,26 @@
 name: macOS desktop
 
+# Runs only when the desktop wrapper or the studio it bundles changed.
 on:
   push:
+    branches: [main]
+    paths:
+      - 'dist/**'
+      - 'desktop/**'
+      - '!desktop/**/*.md'
+      - '.github/workflows/macos-desktop.yml'
   pull_request:
+    paths:
+      - 'dist/**'
+      - 'desktop/**'
+      - '!desktop/**/*.md'
+      - '.github/workflows/macos-desktop.yml'
   workflow_dispatch:
+
+concurrency:
+  group: macos-${{ github.event.pull_request.number || github.ref }}
+  # Superseded PR pushes are cancelled; main runs (TestFlight, release AAB) always finish.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   macos:

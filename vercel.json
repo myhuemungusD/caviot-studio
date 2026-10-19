@@ -4,6 +4,7 @@
   "buildCommand": "",
   "installCommand": "",
   "outputDirectory": "dist",
+  "ignoreCommand": "bash scripts/vercel-ignore.sh",
   "cleanUrls": false,
   "trailingSlash": false,
   "headers": [

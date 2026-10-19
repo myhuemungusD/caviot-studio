@@ -1,14 +1,22 @@
 name: Performance budget
 
+# Only when the studio's code (or the budget itself) changes. The baseline is in the repo, so main pushes add nothing.
 on:
   pull_request:
-  push:
-    branches: [main]
+    paths:
+      - 'dist/**/*.js'
+      - 'dist/**/*.html'
+      - 'dist/**/*.css'
+      - 'e2e/perf-budget.mjs'
+      - 'perf/**'
+      - 'serve.mjs'
+      - '.github/workflows/perf.yml'
   workflow_dispatch:
 
 concurrency:
-  group: perf-${{ github.ref }}
-  cancel-in-progress: true
+  group: perf-${{ github.event.pull_request.number || github.ref }}
+  # Superseded PR pushes are cancelled; main runs (TestFlight, release AAB) always finish.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read

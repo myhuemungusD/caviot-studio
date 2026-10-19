@@ -2,6 +2,21 @@ name: Lint changed files
 
 on:
   pull_request:
+    paths:
+      - '**/*.js'
+      - '**/*.mjs'
+      - '**/*.cjs'
+      - '**/*.css'
+      - '**/*.json'
+      - 'eslint.config.mjs'
+      - '.prettierrc.json'
+      - '.prettierignore'
+      - '.github/workflows/lint.yml'
+
+concurrency:
+  group: lint-${{ github.event.pull_request.number || github.ref }}
+  # Superseded PR pushes are cancelled; main runs (TestFlight, release AAB) always finish.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
