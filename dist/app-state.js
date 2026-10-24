@@ -50,6 +50,7 @@ const AppState = {
   // Design
   logoSizePct: 100,
   invert: true,            // light sticks out
+  reliefInvert: false,     // sleeve: the artwork sinks into a raised pad that follows its outline
   crisp: true,
   mirror: false,
   silhouette: true,        // flat plate: trim to the design (text: letters only, or the outline backing below)
@@ -144,6 +145,8 @@ const els = {
   bgSoft: $('bgSoft'),
   crisp: $('crisp'),
   invert: $('invert'),
+  invertRelief: $('invertRelief'),
+  invertReliefHint: $('invertReliefHint'),
   mirror: $('mirror'),
   silhouette: $('silhouette'),
   resIn: $('resIn'),
@@ -252,6 +255,7 @@ function collectSettings() {
     curveFalloff: AppState.curveFalloff,
     logoSizePct: AppState.logoSizePct,
     invert: AppState.invert,
+    reliefInvert: AppState.reliefInvert,
     crisp: AppState.crisp,
     mirror: AppState.mirror,
     silhouette: AppState.silhouette,
@@ -382,6 +386,24 @@ function applyPreset(id) {
 }
 
 // ---------- Project AppState → UI ----------
+// The one "Invert relief" switch. On the sleeve it sinks the design into a raised pad that hugs its outline.
+// On flat plates and logo-only it swaps which parts stick out (light or dark).
+function reliefInvertOn() {
+  return typeof templateActive === 'function' && templateActive() ? !!AppState.reliefInvert : AppState.invert === false;
+}
+function toggleReliefInvert() {
+  const sleeve = typeof templateActive === 'function' && templateActive();
+  if (sleeve) AppState.reliefInvert = !AppState.reliefInvert;
+  else AppState.invert = !AppState.invert;
+  projectStateToUI();
+  scheduleRebuild();
+  saveSettings();
+  if (typeof dirty === 'function') dirty();
+  if (sleeve && AppState.reliefInvert && !AppState.bgEnable && AppState.image && !AppState.text) {
+    toast('Turn on Remove background so only the logo flips, not the whole picture.');
+  }
+}
+
 function projectStateToUI() {
   // Mode pills
   if (els.exportSleeve) els.exportSleeve.checked = AppState.mode === 'sleeve';
@@ -401,6 +423,16 @@ function projectStateToUI() {
   if (els.imageScaleVal) els.imageScaleVal.textContent = String(Math.round(AppState.logoSizePct));
   // Processing
   if (els.invert) els.invert.checked = AppState.invert;
+  if (els.invertRelief) {
+    const on = reliefInvertOn();
+    els.invertRelief.setAttribute('aria-pressed', String(on));
+    if (els.invertReliefHint) {
+      const sleeve = typeof templateActive === 'function' && templateActive();
+      els.invertReliefHint.textContent = on
+        ? (sleeve ? 'On: the design is sunk into a raised pad that follows its outline.' : 'On: dark parts stick out.')
+        : 'Swap what sticks out.';
+    }
+  }
   if (els.crisp) els.crisp.checked = AppState.crisp;
   if (els.mirror) els.mirror.checked = AppState.mirror;
   if (els.silhouette) els.silhouette.checked = AppState.silhouette;

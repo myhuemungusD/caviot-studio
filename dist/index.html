@@ -123,6 +123,8 @@
           <input type="radio" id="modeCarved" name="reliefMode" value="carved" />
           <label for="modeCarved" title="Deboss into the sleeve (C)">↓ Deboss</label>
         </div>
+        <button type="button" class="btn btn-ghost invert-relief" id="invertRelief" aria-pressed="false" aria-describedby="invertReliefHint" title="Swap what sticks out: the raised parts sink and the area around them rises (I)">⇅ Invert relief</button>
+        <p class="invert-relief-hint" id="invertReliefHint">Swap what sticks out.</p>
       </section>
 
       <section class="panel" id="templatePlacement"><div class="panel-label">Place on the sleeve</div><button class="btn btn-ghost" id="moveDesign" aria-pressed="false" type="button">Move design on sleeve</button><p class="muted-tip"><span class="desktop-only">Hold the scroll wheel on a logo and drag to move it. Or turn this button on for left-button dragging.</span><span class="touch-only">Tap a design to select it, then drag it with one finger. Drag anywhere else to orbit; pinch to zoom; two fingers to pan.</span></p><label class="check"><input id="uniformDepth" type="checkbox" checked><span>Even depth (logos)</span></label><p class="muted-tip">Uses the artwork silhouette. Remove the background to isolate your logo.</p><div class="source-actions" id="templateStatusHome"><button class="btn btn-ghost btn-sm" id="centerDesign" type="button">Center on front</button><button class="btn btn-ghost btn-sm" id="clearDesign" type="button">Clear design</button></div></section>
@@ -384,7 +386,7 @@
         </div>
         <div class="divider"></div>
         <label class="check"><input type="checkbox" id="crisp" checked /> <span>Sharp edges (logos)</span></label>
-        <label class="check"><input type="checkbox" id="invert" checked /> <span>Light parts stick out</span></label>
+        <label class="check" hidden><input type="checkbox" id="invert" checked /> <span>Light parts stick out</span></label>
         <label class="check"><input type="checkbox" id="mirror" /> <span>Mirror left ↔ right</span></label>
         <label class="check"><input type="checkbox" id="silhouette" checked /> <span>Trim flat plate to image</span></label>
 

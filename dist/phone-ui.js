@@ -37,7 +37,7 @@ const sections={
   phoneSecAdd:{label:'Add',icon:'＋',title:'Add a logo'},
   phoneSecClean:{label:'Background',icon:'◩',title:'Remove background'},
   phoneSecSize:{label:'Size',icon:'↔',title:'Size & rotation'},
-  phoneSecFinish:{label:'Emboss',icon:'◐',title:'Emboss or deboss'},
+  phoneSecFinish:{label:'Emboss',icon:'◐',title:'Emboss, deboss or invert'},
   phoneSecSides:{label:'Front/back',icon:'⇆',title:'Front and back'},
   phoneAllSettings:{label:'All',icon:'☰',title:'All settings'}
 };
@@ -77,7 +77,7 @@ function mountPhone(){
   move(els.textInput,add);move(els.textStretchField,add);
   move(els.bgEnable.closest('label'),clean,$('phonePickHint'));move(els.bgControls,clean,$('phonePickHint'));move(document.querySelector('.hm-mini'),clean,$('phonePickHint'));
   move($('designSizing'),size);
-  move(els.modeRaised.closest('.pill-toggle'),finish);move(els.depthIn.closest('.big-field'),finish);
+  move(els.modeRaised.closest('.pill-toggle'),finish);move($('invertRelief'),finish);move($('invertReliefHint'),finish);move(els.depthIn.closest('.big-field'),finish);
   const layerList=$('designLayerList'),layerActs=layerList?.nextElementSibling?.classList.contains('layer-actions')?layerList.nextElementSibling:null;
   move(document.querySelector('.design-side-buttons'),sides);move(layerList,sides);move(layerActs,sides);move($('copyDesignSide'),sides);
   sides.appendChild(sides.querySelector('.phone-own-sleeve')); // own sleeve shape goes below the side controls
