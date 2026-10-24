@@ -1008,3 +1008,9 @@ body:not(.using-template) .project-context #templateStatus:not(.error) { display
 .photo-warning { color: var(--warning); font-size: 12px; line-height: 1.45; margin: 8px 0; }
 .photo-warning:empty { display: none; }
 #photoTools[hidden] { display: none !important; }
+
+/* One switch that swaps what sticks out (sleeve: design sinks into a raised pad that follows its outline). */
+.invert-relief { width: 100%; min-height: 40px; margin-top: 10px; font-weight: 600; }
+.btn.invert-relief[aria-pressed="true"], .btn.invert-relief[aria-pressed="true"]:hover:not(:disabled) { background: var(--accent); color: #101114; border-color: var(--accent); }
+.invert-relief-hint { margin: 6px 0 0; font-size: 12px; line-height: 1.45; color: var(--t3); }
+@media (pointer: coarse), (max-width: 760px) { .invert-relief { min-height: 44px; } }

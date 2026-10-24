@@ -69,3 +69,4 @@ jobs:
           for i in $(seq 1 30); do curl -sf http://127.0.0.1:4173/ >/dev/null && break; sleep 1; done
       - run: node e2e/empty-start-e2e.mjs http://127.0.0.1:4173/
       - run: node e2e/native-labels-e2e.mjs http://127.0.0.1:4173/
+      - run: node e2e/invert-relief-e2e.mjs http://127.0.0.1:4173/

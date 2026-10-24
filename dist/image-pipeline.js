@@ -423,6 +423,75 @@ function hasOwnAlpha(img) {
   return found;
 }
 
+// Exact squared Euclidean distance to the nearest set cell (Felzenszwalb & Huttenlocher). Unset grids give Infinity.
+function squaredDistanceToSet(set, rows, cols) {
+  const INF = 1e20, n = Math.max(rows, cols);
+  const out = new Float64Array(rows * cols), f = new Float64Array(n), d = new Float64Array(n), z = new Float64Array(n + 1);
+  const v = new Int32Array(n);
+  const pass = len => {
+    let k = 0;
+    v[0] = 0; z[0] = -INF; z[1] = INF;
+    for (let q = 1; q < len; q++) {
+      let s = ((f[q] + q * q) - (f[v[k]] + v[k] * v[k])) / (2 * q - 2 * v[k]);
+      while (s <= z[k]) { k--; s = ((f[q] + q * q) - (f[v[k]] + v[k] * v[k])) / (2 * q - 2 * v[k]); }
+      k++; v[k] = q; z[k] = s; z[k + 1] = INF;
+    }
+    k = 0;
+    for (let q = 0; q < len; q++) { while (z[k + 1] < q) k++; d[q] = (q - v[k]) * (q - v[k]) + f[v[k]]; }
+  };
+  for (let j = 0; j < cols; j++) {
+    for (let i = 0; i < rows; i++) f[i] = set[i * cols + j] ? 0 : INF;
+    pass(rows);
+    for (let i = 0; i < rows; i++) out[i * cols + j] = d[i];
+  }
+  for (let i = 0; i < rows; i++) {
+    for (let j = 0; j < cols; j++) f[j] = out[i * cols + j];
+    pass(cols);
+    for (let j = 0; j < cols; j++) out[i * cols + j] = d[j] >= INF / 2 ? Infinity : d[j];
+  }
+  return out;
+}
+
+// Invert relief on a sleeve design: the parts that stuck out sink, and a raised pad that hugs the artwork's outline
+// (gaps closed, holes filled, small margin) takes their place. Only the artwork's own shape is used, so removed
+// background never turns into a full-size square. Returns null when there is nothing to invert or the artwork
+// covers the whole picture (background removal off).
+function invertReliefMap(hm, rows, cols) {
+  const n = rows * cols, ink = new Uint8Array(n);
+  let count = 0, minI = rows, maxI = -1, minJ = cols, maxJ = -1;
+  for (let i = 0; i < rows; i++) {
+    for (let j = 0; j < cols; j++) {
+      if (hm[i * cols + j] < 0.5) continue;
+      ink[i * cols + j] = 1; count++;
+      if (i < minI) minI = i; if (i > maxI) maxI = i; if (j < minJ) minJ = j; if (j > maxJ) maxJ = j;
+    }
+  }
+  if (!count || count >= n * 0.98) return null;
+  const size = Math.max(maxI - minI + 1, maxJ - minJ + 1);
+  const close = Math.max(2, Math.round(size * 0.05)), margin = Math.max(1.5, size * 0.035);
+  // Close the outline: grow by `close`, then shrink by the same amount.
+  const toInk = squaredDistanceToSet(ink, rows, cols), outside = new Uint8Array(n);
+  for (let p = 0; p < n; p++) outside[p] = toInk[p] > close * close ? 1 : 0;
+  const toOutside = squaredDistanceToSet(outside, rows, cols), pad = new Uint8Array(n);
+  for (let p = 0; p < n; p++) pad[p] = ink[p] || toOutside[p] > close * close ? 1 : 0;
+  // Fill holes: anything not reachable from the picture's border is inside the pad.
+  const seen = new Uint8Array(n), stack = [];
+  const push = p => { if (!pad[p] && !seen[p]) { seen[p] = 1; stack.push(p); } };
+  for (let j = 0; j < cols; j++) { push(j); push((rows - 1) * cols + j); }
+  for (let i = 0; i < rows; i++) { push(i * cols); push(i * cols + cols - 1); }
+  while (stack.length) {
+    const p = stack.pop(), i = (p / cols) | 0, j = p - i * cols;
+    if (i > 0) push(p - cols); if (i < rows - 1) push(p + cols); if (j > 0) push(p - 1); if (j < cols - 1) push(p + 1);
+  }
+  for (let p = 0; p < n; p++) if (!seen[p]) pad[p] = 1;
+  const toPad = squaredDistanceToSet(pad, rows, cols), out = new Float32Array(n);
+  for (let p = 0; p < n; p++) {
+    const region = Math.min(1, Math.max(0, margin + 0.5 - Math.sqrt(toPad[p])));
+    out[p] = region * (1 - Math.min(1, Math.max(0, hm[p])));
+  }
+  return out;
+}
+
 function closeDiagonalMask(m, rows, cols) {
   let added = 0, changed = true;
   while (changed) {
@@ -508,6 +577,11 @@ function buildHeightmapAtDetail(targetSize, image, state = AppState) {
     }
   }
   if (templateActive() && state.uniformDepth && !photoTone) for(let i=0;i<hm.length;i++) hm[i]=alphaMap[i]/255;
+  let reliefInverted = false;
+  if (templateActive() && state.reliefInvert) {
+    const inverted = invertReliefMap(hm, rows, cols);
+    if (inverted) { hm = inverted; reliefInverted = true; }
+  }
   if (!(templateActive() && state.uniformDepth && crispMode)) for (let p = 0; p < state.smoothPasses; p++) hm = boxBlur(hm, rows, cols);
 
   let mask = null;
@@ -541,7 +615,7 @@ function buildHeightmapAtDetail(targetSize, image, state = AppState) {
   const sourceScale = Math.max(cols / Math.max(1, img.width), rows / Math.max(1, img.height)) * imgScalePct * (sharpTemplate ? blockPixelSize(sourceCanvas) : 1);
   // Keyed: the background was removed by color from a picture without its own transparency (JPEG, opaque PNG).
   const keyed = sourceCanvas !== img && !hasOwnAlpha(img);
-  return { hm, rows, cols, alphaMap, mask, toastMsg, sourceScale, keyed };
+  return { hm, rows, cols, alphaMap, mask, toastMsg, sourceScale, keyed, reliefInverted };
 }
 
 // ---------- Three.js preview ----------

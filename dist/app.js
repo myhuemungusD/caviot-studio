@@ -18,6 +18,7 @@ function bindUI() {
   });
 
   // Relief
+  if (els.invertRelief) els.invertRelief.addEventListener('click', toggleReliefInvert);
   if (els.modeRaised) els.modeRaised.addEventListener('change', () => {
     if (els.modeRaised.checked) {
       AppState.relief = 'raised';
@@ -383,6 +384,7 @@ function bindUI() {
       if (isFormField) return;
       AppState.relief = 'carved'; projectStateToUI(); scheduleRebuild(); saveSettings();
     }
+    if ((e.key === 'i' || e.key === 'I') && !mod && !isFormField) toggleReliefInvert();
     if (e.key === 'v' || e.key === 'V') {
       if (isFormField) return;
       AppState.relief = 'raised'; projectStateToUI(); scheduleRebuild(); saveSettings();
