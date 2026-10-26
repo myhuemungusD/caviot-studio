@@ -883,6 +883,29 @@
   .status-strip { overflow-x: auto; overflow-y: hidden; }
   #threeContainer > canvas { max-width: 100%; }
 
+  /* ─── Status strip fit (iPad portrait/landscape, narrow desktop windows) ───
+     Cells may shrink (min-width:0), so a long value used to spill past its own
+     box and print on top of the next label. Each value now ellipsizes inside
+     its cell (the full text stays in its title tooltip), the short numeric
+     cells and the right-hand links never shrink, and medium widths drop the
+     two least useful cells so the rest stay readable. Pure CSS: no layout work
+     in JS. Phones (≤760px) hide the strip in mobile.css; ≤900px keeps TRIS only
+     (template.css). */
+  .status-strip .stat-cell { flex: 0 1 auto; min-width: 0; overflow: hidden; }
+  .status-strip .stat-cell .k { flex: none; }
+  .status-strip .stat-cell .v { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .status-strip .stat-cell:nth-child(2),
+  .status-strip .stat-cell:nth-child(3),
+  .status-strip .stat-cell:nth-child(4) { flex-shrink: 0; }
+  .status-strip .status-right { flex: none; white-space: nowrap; }
+  @media (max-width: 1440px) { .status-strip { gap: 16px; } }
+  @media (min-width: 901px) and (max-width: 1180px) {
+    .status-strip .stat-cell:nth-child(2),
+    .status-strip .stat-cell:nth-child(4) { display: none; }
+    .status-strip { gap: 12px; padding: 0 12px; }
+    .status-strip .stat-cell { gap: 5px; }
+  }
+
   /* Busy state while the heightmap / mesh rebuilds */
   body.is-rebuilding { cursor: progress; }
   body.is-rebuilding .sidebar { pointer-events: none; opacity: 0.92; }

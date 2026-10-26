@@ -216,6 +216,23 @@ const els = {
   toast: $('toast'),
 };
 
+// ---------- Status strip tooltips ----------
+// Long stat values ellipsize to fit narrow windows and iPads (studio.css); keep the full text reachable as a
+// tooltip. Fires only when a stat changes (a handful of times per rebuild), so it costs nothing per frame.
+(function syncStatTitles() {
+  const strip = document.querySelector('.status-strip');
+  if (!strip || typeof MutationObserver === 'undefined') return;
+  const sync = () => {
+    for (const v of strip.querySelectorAll('.stat-cell .v')) {
+      const t = v.textContent.trim();
+      const want = t === '—' ? '' : t;
+      if (v.title !== want) v.title = want;
+    }
+  };
+  new MutationObserver(sync).observe(strip, { subtree: true, childList: true, characterData: true });
+  sync();
+})();
+
 // ---------- Toast ----------
 let toastTimer = null;
 function toast(msg, type) {
