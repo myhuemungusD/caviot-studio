@@ -24,4 +24,4 @@ Caviot Studio is not directed at children under 13 and collects no personal info
 If this ever changes (for example, if accounts or analytics are added), we will update this policy and the App Store privacy details before the change ships.
 
 ## Contact
-Design Mainline LLC, jason@designmainline.com
+Design Mainline LLC, admin@designmainline.org

@@ -70,3 +70,4 @@ jobs:
       - run: node e2e/empty-start-e2e.mjs http://127.0.0.1:4173/
       - run: node e2e/native-labels-e2e.mjs http://127.0.0.1:4173/
       - run: node e2e/invert-relief-e2e.mjs http://127.0.0.1:4173/
+      - run: node e2e/status-strip-e2e.mjs http://127.0.0.1:4173/

@@ -59,6 +59,7 @@ First release. Wrap logos, lettering and photos around any curved 3D model and e
 - Support URL: https://www.designmainline.com/caviot/support
 - Privacy Policy URL: https://www.designmainline.com/caviot/privacy
 - Marketing URL: https://www.designmainline.com/
+- Public support/contact email: admin@designmainline.org (forwards to Jason's main inbox; also the EU trader contact email Apple shows on the store page)
 - Copyright: © 2026 <organization legal name, set once the company account exists>
 
 ## App Review notes (no sign-in required)
