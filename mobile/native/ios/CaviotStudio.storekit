@@ -1,0 +1,38 @@
+{
+  "identifier" : "C0A71001",
+  "nonRenewingSubscriptions" : [
+
+  ],
+  "products" : [
+    {
+      "displayPrice" : "9.99",
+      "familyShareable" : true,
+      "internalID" : "6740000001",
+      "localizations" : [
+        {
+          "description" : "Unlock STL, OBJ and 3MF export for 3D printing. One-time purchase.",
+          "displayName" : "Caviot Studio Pro",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.caviot.studio.pro",
+      "referenceName" : "Caviot Studio Pro",
+      "type" : "NonConsumable"
+    }
+  ],
+  "settings" : {
+    "_failTransactionsEnabled" : false,
+    "_locale" : "en_US",
+    "_storefront" : "USA",
+    "_storeKitErrors" : [
+
+    ]
+  },
+  "subscriptionGroups" : [
+
+  ],
+  "version" : {
+    "major" : 3,
+    "minor" : 0
+  }
+}

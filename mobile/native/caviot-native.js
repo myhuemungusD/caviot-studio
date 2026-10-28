@@ -6,8 +6,10 @@ import {
   shareWasCancelled,
   cameraOutcome,
   nativePickerKind,
-  iphoneMemoryHolds
+  iphoneMemoryHolds,
+  proGateApplies
 } from './bridge-logic.js';
+import { installProGate } from './pro-paywall.js';
 
 // Optional native shell for the Capacitor app. On the web, and in Node tests, Capacitor is absent
 // and this module returns without patching download, camera, or export.
@@ -27,7 +29,8 @@ function installNativeShell(capacitor) {
     ? capacitor.registerPlugin('CaviotNative')
     : plugins.CaviotNative;
   pageApi = globalThis.__caviotPage || null;
-  const android = typeof capacitor.getPlatform === 'function' && capacitor.getPlatform() === 'android';
+  const platform = typeof capacitor.getPlatform === 'function' ? capacitor.getPlatform() : '';
+  const android = platform === 'android';
   document.documentElement.classList.add('capacitor-native');
   if (android) document.documentElement.classList.add('android-native');
 
@@ -41,6 +44,10 @@ function installNativeShell(capacitor) {
   configureChrome(plugins);
   patchExportHandoff({ filesystem, share, haptics });
   patchIpadMemoryGuard();
+  // Outermost export wrapper, so a locked export opens the paywall before any confirm or heavy work.
+  const pro = proGateApplies(platform) && native && typeof native.proStatus === 'function'
+    ? installProGate({ plugin: native, pageApi, say })
+    : null;
   bindPickersAndHaptics({ camera, haptics });
   listenForMemoryWarnings(native);
   listenForOpenedFiles(native, capacitor);
@@ -408,6 +415,28 @@ function installNativeShell(capacitor) {
     } catch { /* the page still works if the listener cannot be attached */ }
   }
 
+  // iOS smoke: the paywall opens and closes without exporting, then the smoke export is allowed through.
+  async function checkProGate(plugin) {
+    const status = await Promise.race([pro.ready(), sleep(20000).then(() => pro.state)]);
+    const showing = pro.open('smoke');
+    await waitFor(() => document.getElementById('proPaywall')?.open, 10000, 'The Pro paywall did not open');
+    const restoreShown = !!document.querySelector('#proPaywall [data-pro="restore"]');
+    document.querySelector('#proPaywall [data-pro="close"]').click();
+    const unlockedByChoice = await showing;
+    if (unlockedByChoice) throw new Error('Closing the Pro paywall unlocked export');
+    if (document.getElementById('proPaywall').open) throw new Error('The Pro paywall did not close');
+    await report(plugin, {
+      stage: 'pro-gate',
+      shown: true,
+      restore: restoreShown,
+      environment: status.environment,
+      product: status.productState,
+      owned: status.pro,
+      unlocked: pro.unlocked
+    });
+    pro.allowSmokeExport();
+  }
+
   async function beginSmokeIfRequested(plugin) {
     if (!plugin || typeof plugin.getLaunchFlags !== 'function') return;
     let flags;
@@ -461,6 +490,7 @@ function installNativeShell(capacitor) {
       await waitFor(() => !pageApi.previewRunning && !pageApi.previewPending && !pageApi.state?.rebuildTimer, 120000, 'Preview did not settle');
       await report(plugin, { stage: 'text-added', label: pageApi.state.sourceLabel });
       if (android) await report(plugin, { stage: 'perf-slider', ...(await benchmarkSlider()) });
+      if (pro) await checkProGate(plugin);
       const started = Date.now();
       const pending = pageApi.exportCurrent('stl');
       if (pending && typeof pending.then === 'function') pending.catch(() => {});

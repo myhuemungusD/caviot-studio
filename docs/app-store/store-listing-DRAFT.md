@@ -9,7 +9,7 @@ Wording rules (Guideline 1.4.3): don't use vape, vaping, Foger/Fogger, Geek Bar,
 | Subtitle | Logos on curved 3D prints | 25/30 |
 | Primary category | Graphics & Design | |
 | Secondary category | Productivity | |
-| Price | Free (Pro unlock planned, see iap-readiness.md) | |
+| Price | Free, with one In-App Purchase: Caviot Studio Pro, $9.99 one-time (see iap-readiness-DRAFT.md) | |
 | Version | 1.0 (MARKETING_VERSION in the Xcode project) | |
 | Bundle ID | com.caviot.studio | |
 
@@ -38,7 +38,7 @@ EMBOSS, DEBOSS OR INVERT
 • Undo and redo
 
 PRINT-READY EXPORT
-• Export STL or OBJ for any slicer
+• Export STL or OBJ for any slicer (one-time Caviot Studio Pro unlock, no subscription)
 • Export as the full sleeve, the logo only or a flat plate
 • Make watertight checks and repairs the mesh and keeps the cavity of your sleeve
 • Save and reopen projects
@@ -70,14 +70,15 @@ To test the main feature:
 1. Launch the app. On "Choose a template", tap "Classic Sleeve" (or "Import STL" to pick any STL/OBJ/3MF file from Files).
 2. Tap Tools > Add and pick any image from Photos/Files. It appears on the 3D sleeve, following the curved surface. Drag it to move it.
 3. Optional: under Tools > Front/back, tap "T+ Text" and type some text. Under Tools > Emboss, try Emboss, Deboss or Invert relief.
-4. Tap "Export STL" to make a 3D-printable file, which can be saved to Files or shared.
+4. Tap "Export STL". Designing, previewing and saving projects are free; exporting STL/OBJ print files needs the one-time in-app purchase "Caviot Studio Pro" (com.caviot.studio.pro, non-consumable, $9.99, no subscription). The Pro screen appears with the price, "Unlock Pro for $9.99", "Restore Purchases" and "Not now". Tap "Unlock Pro for $9.99" and confirm with the sandbox Apple Account; the export continues and the file can be saved to Files or shared.
+5. To test restore: delete and reinstall the app, tap "Export STL", then "Restore Purchases". Restore is also in Tools > All > Caviot Studio Pro. The purchase is verified on the device by StoreKit; there is no app account.
 
 The app is a general-purpose tool for customizing 3D-printable covers, sleeves and objects. It does not sell or promote any regulated products.
 ```
 Contact for review: <Jason's name, phone and email, entered in App Store Connect>. No demo account is needed.
 
-## App Privacy (nutrition label) at launch (no IAP)
-Data Not Collected: no analytics or crash SDKs, and no network calls for user data. Re-check this if RevenueCat or analytics is added (see iap-readiness.md).
+## App Privacy (nutrition label)
+Data Not Collected, including with the Pro in-app purchase: it uses StoreKit 2 on the device (Apple processes the payment; the developer receives no purchase data). No analytics or crash SDKs, and no network calls for user data. Re-check this if RevenueCat or analytics is added (see iap-readiness.md).
 
 ## Age rating
 Answer "None" for every content question. Expected result: 4+. Jason should confirm this in App Store Connect.

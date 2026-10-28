@@ -36,6 +36,7 @@
 		C0A7100100000000000000A1 /* CaviotNativePlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaviotNativePlugin.swift; sourceTree = "<group>"; };
 		C0A7100100000000000000B1 /* CaviotBridgeViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaviotBridgeViewController.swift; sourceTree = "<group>"; };
 		C0A7100100000000000000C1 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		C0A7100100000000000000D1 /* CaviotStudio.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; path = CaviotStudio.storekit; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -73,6 +74,7 @@
 				9582B6822FE993A50072D4E8 /* SceneDelegate.swift */,
 				50379B222058CBB4000EE86E /* capacitor.config.json */,
 				504EC3071FED79650016851F /* AppDelegate.swift */,
+				C0A7100100000000000000D1 /* CaviotStudio.storekit */,
 				C0A7100100000000000000C1 /* PrivacyInfo.xcprivacy */,
 				C0A7100100000000000000B1 /* CaviotBridgeViewController.swift */,
 				C0A7100100000000000000A1 /* CaviotNativePlugin.swift */,

@@ -8,6 +8,9 @@ Caviot Studio is made by Design Mainline LLC ("we"). This policy covers the Cavi
 ## What we collect
 Nothing. Caviot Studio has no accounts, no analytics, no advertising and no tracking. The app does not send your designs, photos, files or any other information to us or to anyone else.
 
+## In-app purchase
+On iPhone and iPad, the optional Caviot Studio Pro unlock is sold through Apple's App Store. Apple processes the payment under its own privacy policy. The app checks the purchase on your device with Apple's StoreKit; we do not receive your name, Apple Account or payment details.
+
 ## Photos, camera and files
 When you choose a photo, take a picture or open a 3D file, Caviot Studio reads it on your device to build your design. It stays on your device. Photo cutouts (the subject-finding model) also run on your device.
 

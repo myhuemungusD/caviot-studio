@@ -16,3 +16,49 @@ html.capacitor-native {
     padding-left: env(safe-area-inset-left);
   }
 }
+
+/* Caviot Studio Pro paywall (iPhone and iPad app only; mobile/native/pro-paywall.js). */
+.pro-paywall .pro-paywall-list {
+  padding-left: 20px;
+  margin: 12px 0;
+}
+
+.pro-paywall .pro-paywall-price {
+  color: var(--t1);
+  font-weight: 600;
+}
+
+.pro-paywall .pro-paywall-message:empty {
+  display: none;
+}
+
+.pro-paywall .pro-paywall-message[data-kind='error'] {
+  color: #ff8a80;
+}
+
+.pro-paywall .pro-paywall-legal {
+  font-size: 12px;
+  margin-top: 16px;
+}
+
+.pro-paywall .pro-paywall-legal a {
+  color: var(--accent);
+}
+
+.pro-panel .layer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+html.caviot-pro-locked #generateBtn::after,
+html.caviot-pro-locked #downloadObjBtn::after {
+  content: 'PRO';
+  margin-left: 6px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  border: 1px solid currentColor;
+  opacity: 0.8;
+}

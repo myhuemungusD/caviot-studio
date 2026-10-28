@@ -11,7 +11,14 @@ import {
   iphoneMemoryHolds,
   shareWasCancelled,
   cameraOutcome,
-  nativePickerKind
+  nativePickerKind,
+  PRO_PRODUCT_ID,
+  proGateApplies,
+  isGatedExportFormat,
+  betaUnlockApplies,
+  exportUnlocked,
+  storeOutcome,
+  proMessage
 } from '../native/bridge-logic.js';
 import { injectNativeBridge } from './sync-www.mjs';
 
@@ -102,6 +109,75 @@ test('the website index is not edited; the iOS copy gains the bridge once', () =
   assert.ok(bridge.includes('__caviotPage'));
   assert.equal(injectNativeBridge(once), once);
   assert.equal(fs.readFileSync(path.join(root, 'dist', 'index.html'), 'utf8'), html);
+});
+
+test('Pro is a one-time unlock sold only in the iOS app', () => {
+  assert.equal(PRO_PRODUCT_ID, 'com.caviot.studio.pro');
+  assert.equal(proGateApplies('ios'), true);
+  for (const platform of ['android', 'web', 'electron', '', undefined]) assert.equal(proGateApplies(platform), false, String(platform));
+  const swift = fs.readFileSync(path.join(root, 'mobile/native/ios/CaviotNativePlugin.swift'), 'utf8');
+  assert.ok(swift.includes('static let proProductId = "' + PRO_PRODUCT_ID + '"'));
+  assert.ok(swift.includes('import StoreKit'));
+  for (const method of ['proStatus', 'proProduct', 'proPurchase', 'proRestore']) {
+    assert.ok(swift.includes('CAPPluginMethod(name: "' + method + '"'), method);
+  }
+  assert.ok(swift.includes('AppStore.sync()'), 'Restore Purchases syncs with the App Store');
+  assert.ok(swift.includes('Transaction.currentEntitlements'), 'ownership comes from verified on-device entitlements');
+  assert.ok(swift.includes('revocationDate == nil'), 'refunded purchases do not unlock');
+  // The Xcode copy is what the build compiles; it must match the source of truth.
+  assert.equal(fs.readFileSync(path.join(root, 'mobile/ios/App/App/CaviotNativePlugin.swift'), 'utf8'), swift);
+});
+
+test('mesh export is gated; projects and the website are not', () => {
+  for (const format of ['stl', 'STL', 'obj', '3mf', undefined]) assert.equal(isGatedExportFormat(format), true, String(format));
+  for (const format of ['icaviot', 'json', 'png']) assert.equal(isGatedExportFormat(format), false, format);
+  assert.equal(exportUnlocked({ pro: true, environment: 'production', productState: 'ready' }), true);
+  assert.equal(exportUnlocked({ pro: false, environment: 'production', productState: 'ready' }), false);
+  assert.equal(exportUnlocked({ pro: false, environment: 'production', productState: 'not-found' }), false, 'the App Store build never unlocks without a purchase');
+  assert.equal(exportUnlocked({ pro: false, environment: 'production', productState: 'offline' }), false);
+  assert.equal(exportUnlocked({ pro: false, environment: 'sandbox', productState: 'not-found' }), true, 'TestFlight before the product exists');
+  assert.equal(exportUnlocked({ pro: false, environment: 'sandbox', productState: 'ready' }), false, 'TestFlight once the product exists uses sandbox purchases');
+  assert.equal(exportUnlocked({ pro: false, environment: 'sandbox', productState: 'offline' }), false);
+  assert.equal(betaUnlockApplies('development', 'not-found'), true);
+  assert.equal(betaUnlockApplies('development', 'error'), false);
+  assert.equal(exportUnlocked(null), false);
+});
+
+test('store failures become clear messages, offline included', () => {
+  assert.equal(storeOutcome({ code: 'offline', message: 'x' }), 'offline');
+  assert.equal(storeOutcome({ code: 'not-allowed' }), 'not-allowed');
+  assert.equal(storeOutcome({ code: 'unverified' }), 'unverified');
+  assert.equal(storeOutcome(new Error('The Internet connection appears to be offline.')), 'offline');
+  assert.equal(storeOutcome(new Error('boom'), false), 'offline');
+  assert.equal(storeOutcome({ code: 'store', message: 'boom' }), 'store');
+  assert.equal(storeOutcome(new Error('User cancelled')), 'cancelled');
+  assert.equal(storeOutcome(undefined), 'store');
+  assert.equal(proMessage('cancelled'), '');
+  assert.match(proMessage('offline'), /offline/i);
+  assert.match(proMessage('offline'), /saving projects/i);
+  assert.match(proMessage('pending'), /approv/i);
+  assert.match(proMessage('none'), /No Caviot Studio Pro purchase/);
+  assert.match(proMessage('not-allowed', '$9.99'), /\$9\.99/);
+  assert.match(proMessage('anything-else'), /could not complete/i);
+  for (const outcome of ['purchased', 'restored', 'offline', 'pending', 'store', 'unverified']) {
+    assert.doesNotMatch(proMessage(outcome), /vape|nicotine/i, outcome);
+  }
+});
+
+test('the StoreKit test store matches the product and is never bundled', () => {
+  const config = JSON.parse(fs.readFileSync(path.join(root, 'mobile/native/ios/CaviotStudio.storekit'), 'utf8'));
+  const [product] = config.products;
+  assert.equal(product.productID, PRO_PRODUCT_ID);
+  assert.equal(product.type, 'NonConsumable');
+  assert.equal(product.displayPrice, '9.99');
+  assert.equal(fs.readFileSync(path.join(root, 'mobile/ios/App/App/CaviotStudio.storekit'), 'utf8'), fs.readFileSync(path.join(root, 'mobile/native/ios/CaviotStudio.storekit'), 'utf8'));
+  const pbx = fs.readFileSync(path.join(root, 'mobile/ios/App/App.xcodeproj/project.pbxproj'), 'utf8');
+  assert.ok(pbx.includes('/* CaviotStudio.storekit */ = {isa = PBXFileReference'));
+  assert.ok(!pbx.includes('CaviotStudio.storekit in '), 'not in any build phase');
+  const scheme = fs.readFileSync(path.join(root, 'mobile/ios/App/App.xcodeproj/xcshareddata/xcschemes/App.xcscheme'), 'utf8');
+  assert.ok(scheme.includes('identifier = "../../App/CaviotStudio.storekit"'));
+  const privacy = fs.readFileSync(path.join(root, 'mobile/native/ios/PrivacyInfo.xcprivacy'), 'utf8');
+  assert.ok(!/NSPrivacyCollectedDataTypePurchaseHistory/.test(privacy), 'no purchase data is collected');
 });
 
 test('importing the bridge without Capacitor does not throw', async () => {
