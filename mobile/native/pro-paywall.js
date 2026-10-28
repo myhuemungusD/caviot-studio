@@ -68,7 +68,8 @@ export function installProGate({ plugin, pageApi, say, online = () => navigator.
 
   function loadProduct(force = false) {
     if (productLoad && !force) return productLoad;
-    state.productState = 'loading';
+    // A retry keeps a known "not set up yet" answer, so a test build never flickers back to locked.
+    if (state.productState !== 'not-found') state.productState = 'loading';
     render();
     productLoad = (async () => {
       try {

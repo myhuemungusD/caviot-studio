@@ -131,6 +131,7 @@ const proGate = events.find((event) => event.stage === 'pro-gate');
 if (!proGate) problems.push('the Pro paywall check did not run');
 else if (!proGate.shown || !proGate.restore) problems.push('the Pro paywall or its Restore Purchases button did not show');
 else if (proGate.environment !== 'development') problems.push('the simulator build reported the ' + proGate.environment + ' App Store environment');
+else if (proGate.product === 'not-found' && proGate.unlocked !== true) problems.push('a debug build without the product did not keep export unlocked');
 if (!text) problems.push('a text design was not added');
 if (failed) problems.push(failed.message || 'smoke test failed');
 if (!exported) problems.push('export did not finish');
