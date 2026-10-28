@@ -81,3 +81,72 @@ export function nativePickerKind(kind) {
     }
   }
 }
+
+// ---------- Caviot Studio Pro (one-time In-App Purchase, iPhone and iPad only) ----------
+// Must match the product created in App Store Connect and mobile/native/ios/CaviotNativePlugin.swift.
+export const PRO_PRODUCT_ID = 'com.caviot.studio.pro';
+const GATED_EXPORT_FORMATS = new Set(['stl', 'obj', '3mf']);
+const STORE_OUTCOMES = new Set([
+  'purchased', 'restored', 'none', 'cancelled', 'pending', 'offline', 'not-allowed',
+  'not-found', 'not-available', 'not-entitled', 'unverified', 'store', 'unknown'
+]);
+
+// Only the native iOS app sells Pro. The website, the Mac app and Android keep every export free.
+export function proGateApplies(platform) {
+  return platform === 'ios';
+}
+
+// Mesh files for printing need Pro. Designing, previewing and saving a .icaviot project stay free.
+export function isGatedExportFormat(format) {
+  return GATED_EXPORT_FORMATS.has(String(format || 'stl').toLowerCase());
+}
+
+// TestFlight, App Review and Xcode builds run against the sandbox. Until the product exists in
+// App Store Connect, StoreKit finds nothing there; export then stays open so testing is not blocked.
+// An App Store (production) build never unlocks this way.
+export function betaUnlockApplies(environment, productState) {
+  return (environment === 'sandbox' || environment === 'development') && productState === 'not-found';
+}
+
+export function exportUnlocked(state) {
+  if (!state) return false;
+  return !!(state.pro || state.smokeBypass || betaUnlockApplies(state.environment, state.productState));
+}
+
+// A Capacitor rejection carries the code set in Swift; anything else is named from the error text.
+export function storeOutcome(error, online = true) {
+  const code = String((error && error.code) || '');
+  if (STORE_OUTCOMES.has(code) && code !== 'store') return code;
+  const message = String((error && (error.message || error)) || '');
+  if (online === false || /offline|network|internet connection|timed out/i.test(message)) return 'offline';
+  if (/cancel/i.test(message)) return 'cancelled';
+  return 'store';
+}
+
+export function proMessage(outcome, price) {
+  const cost = price ? ' (' + price + ')' : '';
+  switch (outcome) {
+    case 'purchased':
+      return 'Caviot Studio Pro is unlocked. Thank you!';
+    case 'restored':
+      return 'Your Caviot Studio Pro purchase is restored.';
+    case 'none':
+      return 'No Caviot Studio Pro purchase was found for this Apple Account.';
+    case 'cancelled':
+      return '';
+    case 'pending':
+      return 'The purchase is waiting for approval (for example Ask to Buy). Export unlocks as soon as it is approved.';
+    case 'offline':
+      return 'You appear to be offline. Connect to the internet and try again. You can keep designing and saving projects meanwhile.';
+    case 'not-allowed':
+      return 'Purchases are turned off on this device (Screen Time). Ask the device owner to allow In-App Purchases' + cost + '.';
+    case 'not-found':
+    case 'not-available':
+      return 'Caviot Studio Pro is not available from the App Store right now. Please try again later.';
+    case 'not-entitled':
+    case 'unverified':
+      return 'The App Store could not verify this purchase. Try Restore Purchases, or try again later.';
+    default:
+      return 'The App Store could not complete the request. Please try again.';
+  }
+}

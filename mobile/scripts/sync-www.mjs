@@ -29,7 +29,7 @@ function copyWebApp() {
   }
   fs.rmSync(www, { recursive: true, force: true });
   fs.cpSync(dist, www, { recursive: true });
-  for (const file of ['caviot-native.js', 'bridge-logic.js', 'page-bridge.js', 'native.css', 'native-flags.js']) {
+  for (const file of ['caviot-native.js', 'bridge-logic.js', 'pro-paywall.js', 'page-bridge.js', 'native.css', 'native-flags.js']) {
     fs.copyFileSync(path.join(mobileRoot, 'native', file), path.join(www, file));
   }
   fs.writeFileSync(path.join(www, 'index.html'), injectNativeBridge(original));

@@ -66,6 +66,16 @@ On iPad the website uses full quality, and this app does too. If an export estim
 
 A reload during a large export still uses the website’s autosave on iPhone.
 
+## Caviot Studio Pro (iPhone/iPad only)
+
+Export (STL, OBJ, 3MF if added) is a one-time in-app purchase, `com.caviot.studio.pro` (Non-Consumable, $9.99). Designing, previewing, Save project / Open project and the fit-check ring stay free. Android, the Mac app and the website never load the gate.
+
+- Swift: `native/ios/CaviotNativePlugin.swift` adds `proStatus`, `proProduct`, `proPurchase`, `proRestore` (StoreKit 2: `Product.products`, `purchase()`, `Transaction.currentEntitlements`, `AppStore.sync()`), and listens to `Transaction.updates` (`proChanged`). No server, no SDK; Privacy stays Data Not Collected.
+- JS: `native/pro-paywall.js` wraps `__caviotPage.exportCurrent`, opens the paywall (`#proPaywall`) for a locked export, and adds the Caviot Studio Pro row (Unlock, Restore Purchases) to Tools > All. Rules and messages are in `native/bridge-logic.js`.
+- Environments: debug/simulator builds report `development`, TestFlight and App Review report `sandbox`, App Store builds report `production`. Only in development/sandbox, a product that does not exist in App Store Connect yet leaves export unlocked so testers are never blocked. Production never unlocks without a purchase.
+- Xcode: `native/ios/CaviotStudio.storekit` is copied into `ios/App/App/` and attached to the App scheme's Run action by `scripts/apply-ios.mjs`, so a local Run shows the $9.99 product. Debug > StoreKit > Manage Transactions resets or refunds test purchases.
+- Tests: `npm test` (rules, Swift, .storekit, scheme), `node e2e/pro-paywall-e2e.mjs mobile/www` from the repo root after `npm run sync:www` (mocked bridge), and the simulator smoke run checks that the paywall and Restore button appear before its export.
+
 ## Tests on GitHub
 
 `.github/workflows/ios.yml` runs on every push and pull request, on a macOS runner:
@@ -74,7 +84,7 @@ A reload during a large export still uses the website’s autosave on iPhone.
 2. `npm run sync`.
 3. An unsigned `xcodebuild` for the iOS Simulator (`CODE_SIGNING_ALLOWED=NO`), then an ad-hoc `codesign` so the simulator will install the bundle. No Apple certificate is used.
 4. Boot an available iPhone simulator, install the app, and launch it with `-CaviotSmoke`.
-5. The app waits for the Foger Sleeve, types a text design, exports an STL into Files, and writes `Documents/caviot-smoke.json`.
+5. The app waits for the Foger Sleeve, types a text design, opens and closes the Pro paywall (checking Restore Purchases is there), exports an STL into Files, and writes `Documents/caviot-smoke.json`.
 6. The workflow checks the template, the 700,000-triangle budget, the share plugin, and that the file is a binary STL whose triangle count matches its size.
 7. The `.app`, screenshots, `result.json`, and a copy of the STL are uploaded as the `ios-simulator` artifact.
 

@@ -126,6 +126,12 @@ const memoryEvent = ready || events.find((event) => event.stage === 'launch');
 const memory = Number(memoryEvent?.availableMemory);
 // The simulator often reports 0. A missing or non-numeric value means the call did not run.
 if (!memoryEvent || !Number.isFinite(memory) || memory < 0) problems.push('the app process did not report available memory');
+// Caviot Studio Pro: the paywall opened before export and closing it did not unlock anything.
+const proGate = events.find((event) => event.stage === 'pro-gate');
+if (!proGate) problems.push('the Pro paywall check did not run');
+else if (!proGate.shown || !proGate.restore) problems.push('the Pro paywall or its Restore Purchases button did not show');
+else if (proGate.environment !== 'development') problems.push('the simulator build reported the ' + proGate.environment + ' App Store environment');
+else if (proGate.product === 'not-found' && proGate.unlocked !== true) problems.push('a debug build without the product did not keep export unlocked');
 if (!text) problems.push('a text design was not added');
 if (failed) problems.push(failed.message || 'smoke test failed');
 if (!exported) problems.push('export did not finish');
