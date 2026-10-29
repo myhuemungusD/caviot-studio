@@ -5,7 +5,7 @@ organization account. This is the text that was prepared for Play Console; if it
 
 Wording rules: never use vape, vaping, Foger/Fogger, Geek Bar, pod, cartridge or smoke, and don't name other apps (Blender, Cura, Bambu and so on). No iOS terms (Files app, App Store, AirDrop, Safari). Checked with grep: clean.
 
-The "120 included fonts" line matches the submitted build; change it if PR #52 (14 open-licence fonts) ships.
+The fonts line reads "14 included fonts": PR #52 (merged October 29, 2026) replaced the 120 fonts with 14 open-licence fonts. The submitted 1.0 (1106) build and its Play Console text still say 120; enter this line in Play Console with the next build.
 
 | Field | Value | Limit |
 |---|---|---|
@@ -34,7 +34,7 @@ PUT YOUR DESIGN ON ANY CURVE
 
 LOGOS, LETTERING AND PHOTOS
 • Add a logo, a screenshot or a photo, and remove the background on your device
-• Type lettering in any of 120 included fonts
+• Type lettering in any of 14 included fonts
 • Photo styles: shadow, bold silhouette, line art, 3-level relief, smooth relief and lithophane
 • Separate designs for the front and back
 
