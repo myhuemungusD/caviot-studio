@@ -13,6 +13,7 @@ import {
   cameraOutcome,
   nativePickerKind,
   PRO_PRODUCT_ID,
+  PRO_GATE_ENABLED,
   proGateApplies,
   isGatedExportFormat,
   betaUnlockApplies,
@@ -21,6 +22,7 @@ import {
   proMessage
 } from '../native/bridge-logic.js';
 import { injectNativeBridge } from './sync-www.mjs';
+import { proGateSmokeProblems } from './pro-gate-smoke.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const tests = [];
@@ -111,10 +113,44 @@ test('the website index is not edited; the iOS copy gains the bridge once', () =
   assert.equal(fs.readFileSync(path.join(root, 'dist', 'index.html'), 'utf8'), html);
 });
 
-test('Pro is a one-time unlock sold only in the iOS app', () => {
+test('1.0 ships free: the Pro release switch is off', () => {
+  assert.equal(PRO_GATE_ENABLED, false, 'version 1.0 ships with export always open; turn this on for 1.1');
+  for (const platform of ['ios', 'android', 'web', 'electron', '', undefined]) assert.equal(proGateApplies(platform), false, String(platform));
+  // Export is open in every state StoreKit can report, including an App Store build with no product.
+  for (const environment of ['production', 'sandbox', 'development', 'unknown']) {
+    for (const productState of ['ready', 'not-found', 'offline', 'error', 'loading', 'unknown']) {
+      assert.equal(exportUnlocked({ pro: false, environment, productState }), true, environment + '/' + productState);
+    }
+  }
+  assert.equal(exportUnlocked(null), true);
+  assert.equal(exportUnlocked({ pro: false, environment: 'production', productState: 'not-found' }, false), true);
+  // The native shell installs the paywall only through proGateApplies, so with the switch off nothing Pro is built.
+  const shell = fs.readFileSync(path.join(root, 'mobile/native/caviot-native.js'), 'utf8');
+  assert.match(shell, /proGateApplies\(platform\) && native && typeof native\.proStatus === 'function'\s*\?\s*installProGate\(/);
+  assert.equal((shell.match(/installProGate\(/g) || []).length, 1, 'installProGate is called in one place only');
+});
+
+test('the simulator smoke checks the Pro gate in both modes', () => {
+  const off = { stage: 'pro-gate', enabled: false, shown: false, panel: false, badge: false, api: false, unlocked: true };
+  assert.deepEqual(proGateSmokeProblems(off, false), []);
+  assert.equal(proGateSmokeProblems({ ...off, shown: true }, false).length, 1);
+  assert.equal(proGateSmokeProblems({ ...off, badge: true }, false).length, 1);
+  assert.equal(proGateSmokeProblems({ ...off, api: true }, false).length, 1);
+  assert.equal(proGateSmokeProblems({ ...off, unlocked: false }, false).length, 1);
+  assert.equal(proGateSmokeProblems(off, true).length, 1, 'a build that disagrees with the switch fails');
+  assert.equal(proGateSmokeProblems(undefined, false).length, 1);
+  const on = { stage: 'pro-gate', enabled: true, shown: true, restore: true, environment: 'development', product: 'not-found', unlocked: true };
+  assert.deepEqual(proGateSmokeProblems(on, true), []);
+  assert.equal(proGateSmokeProblems({ ...on, restore: false }, true).length, 1);
+  assert.equal(proGateSmokeProblems({ ...on, environment: 'production' }, true).length, 1);
+  assert.equal(proGateSmokeProblems({ ...on, unlocked: false }, true).length, 1);
+  assert.equal(proGateSmokeProblems(on, false).length, 1);
+});
+
+test('Pro (gate on, 1.1) is a one-time unlock sold only in the iOS app', () => {
   assert.equal(PRO_PRODUCT_ID, 'com.caviot.studio.pro');
-  assert.equal(proGateApplies('ios'), true);
-  for (const platform of ['android', 'web', 'electron', '', undefined]) assert.equal(proGateApplies(platform), false, String(platform));
+  assert.equal(proGateApplies('ios', true), true);
+  for (const platform of ['android', 'web', 'electron', '', undefined]) assert.equal(proGateApplies(platform, true), false, String(platform));
   const swift = fs.readFileSync(path.join(root, 'mobile/native/ios/CaviotNativePlugin.swift'), 'utf8');
   assert.ok(swift.includes('static let proProductId = "' + PRO_PRODUCT_ID + '"'));
   assert.ok(swift.includes('import StoreKit'));
@@ -128,19 +164,19 @@ test('Pro is a one-time unlock sold only in the iOS app', () => {
   assert.equal(fs.readFileSync(path.join(root, 'mobile/ios/App/App/CaviotNativePlugin.swift'), 'utf8'), swift);
 });
 
-test('mesh export is gated; projects and the website are not', () => {
+test('gate on (1.1): mesh export is gated; projects and the website are not', () => {
   for (const format of ['stl', 'STL', 'obj', '3mf', undefined]) assert.equal(isGatedExportFormat(format), true, String(format));
   for (const format of ['icaviot', 'json', 'png']) assert.equal(isGatedExportFormat(format), false, format);
-  assert.equal(exportUnlocked({ pro: true, environment: 'production', productState: 'ready' }), true);
-  assert.equal(exportUnlocked({ pro: false, environment: 'production', productState: 'ready' }), false);
-  assert.equal(exportUnlocked({ pro: false, environment: 'production', productState: 'not-found' }), false, 'the App Store build never unlocks without a purchase');
-  assert.equal(exportUnlocked({ pro: false, environment: 'production', productState: 'offline' }), false);
-  assert.equal(exportUnlocked({ pro: false, environment: 'sandbox', productState: 'not-found' }), true, 'TestFlight before the product exists');
-  assert.equal(exportUnlocked({ pro: false, environment: 'sandbox', productState: 'ready' }), false, 'TestFlight once the product exists uses sandbox purchases');
-  assert.equal(exportUnlocked({ pro: false, environment: 'sandbox', productState: 'offline' }), false);
+  assert.equal(exportUnlocked({ pro: true, environment: 'production', productState: 'ready' }, true), true);
+  assert.equal(exportUnlocked({ pro: false, environment: 'production', productState: 'ready' }, true), false);
+  assert.equal(exportUnlocked({ pro: false, environment: 'production', productState: 'not-found' }, true), false, 'the App Store build never unlocks without a purchase');
+  assert.equal(exportUnlocked({ pro: false, environment: 'production', productState: 'offline' }, true), false);
+  assert.equal(exportUnlocked({ pro: false, environment: 'sandbox', productState: 'not-found' }, true), true, 'TestFlight before the product exists');
+  assert.equal(exportUnlocked({ pro: false, environment: 'sandbox', productState: 'ready' }, true), false, 'TestFlight once the product exists uses sandbox purchases');
+  assert.equal(exportUnlocked({ pro: false, environment: 'sandbox', productState: 'offline' }, true), false);
   assert.equal(betaUnlockApplies('development', 'not-found'), true);
   assert.equal(betaUnlockApplies('development', 'error'), false);
-  assert.equal(exportUnlocked(null), false);
+  assert.equal(exportUnlocked(null, true), false);
 });
 
 test('store failures become clear messages, offline included', () => {

@@ -3,7 +3,8 @@ import { execFileSync, spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { binaryStlOk } from '../native/bridge-logic.js';
+import { binaryStlOk, PRO_GATE_ENABLED } from '../native/bridge-logic.js';
+import { proGateSmokeProblems } from './pro-gate-smoke.mjs';
 
 const mobileRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const bundleId = 'com.caviot.studio';
@@ -126,12 +127,9 @@ const memoryEvent = ready || events.find((event) => event.stage === 'launch');
 const memory = Number(memoryEvent?.availableMemory);
 // The simulator often reports 0. A missing or non-numeric value means the call did not run.
 if (!memoryEvent || !Number.isFinite(memory) || memory < 0) problems.push('the app process did not report available memory');
-// Caviot Studio Pro: the paywall opened before export and closing it did not unlock anything.
-const proGate = events.find((event) => event.stage === 'pro-gate');
-if (!proGate) problems.push('the Pro paywall check did not run');
-else if (!proGate.shown || !proGate.restore) problems.push('the Pro paywall or its Restore Purchases button did not show');
-else if (proGate.environment !== 'development') problems.push('the simulator build reported the ' + proGate.environment + ' App Store environment');
-else if (proGate.product === 'not-found' && proGate.unlocked !== true) problems.push('a debug build without the product did not keep export unlocked');
+// Caviot Studio Pro, in whichever mode this build ships (PRO_GATE_ENABLED): off means no Pro UI and export
+// open; on means the paywall opened before export and closing it did not unlock anything.
+problems.push(...proGateSmokeProblems(events.find((event) => event.stage === 'pro-gate'), PRO_GATE_ENABLED));
 if (!text) problems.push('a text design was not added');
 if (failed) problems.push(failed.message || 'smoke test failed');
 if (!exported) problems.push('export did not finish');

@@ -91,9 +91,16 @@ const STORE_OUTCOMES = new Set([
   'not-found', 'not-available', 'not-entitled', 'unverified', 'store', 'unknown'
 ]);
 
-// Only the native iOS app sells Pro. The website, the Mac app and Android keep every export free.
-export function proGateApplies(platform) {
-  return platform === 'ios';
+// Release switch for Caviot Studio Pro. Version 1.0 ships FREE: false keeps export always open and never
+// installs the paywall, the Pro settings row, the "PRO" export badges or any StoreKit call. The StoreKit code
+// (pro-paywall.js, CaviotNativePlugin.swift) stays in place but inert. For 1.1, once the In-App Purchase
+// exists in App Store Connect, set this to true; nothing else changes and the paywall works exactly as tested.
+export const PRO_GATE_ENABLED = false;
+
+// Only the native iOS app sells Pro, and only while the gate is on. The website, the Mac app and Android
+// keep every export free. `enabled` defaults to the release switch; tests pass it to check both modes.
+export function proGateApplies(platform, enabled = PRO_GATE_ENABLED) {
+  return enabled === true && platform === 'ios';
 }
 
 // Mesh files for printing need Pro. Designing, previewing and saving a .icaviot project stay free.
@@ -108,7 +115,9 @@ export function betaUnlockApplies(environment, productState) {
   return (environment === 'sandbox' || environment === 'development') && productState === 'not-found';
 }
 
-export function exportUnlocked(state) {
+export function exportUnlocked(state, enabled = PRO_GATE_ENABLED) {
+  // Gate off (1.0): export is always open, whatever StoreKit says.
+  if (enabled !== true) return true;
   if (!state) return false;
   return !!(state.pro || state.smokeBypass || betaUnlockApplies(state.environment, state.productState));
 }

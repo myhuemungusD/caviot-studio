@@ -7,7 +7,8 @@ import {
   cameraOutcome,
   nativePickerKind,
   iphoneMemoryHolds,
-  proGateApplies
+  proGateApplies,
+  exportUnlocked
 } from './bridge-logic.js';
 import { installProGate } from './pro-paywall.js';
 
@@ -45,6 +46,7 @@ function installNativeShell(capacitor) {
   patchExportHandoff({ filesystem, share, haptics });
   patchIpadMemoryGuard();
   // Outermost export wrapper, so a locked export opens the paywall before any confirm or heavy work.
+  // Only when the Pro release switch is on (PRO_GATE_ENABLED in bridge-logic.js); 1.0 ships free without it.
   const pro = proGateApplies(platform) && native && typeof native.proStatus === 'function'
     ? installProGate({ plugin: native, pageApi, say })
     : null;
@@ -427,6 +429,7 @@ function installNativeShell(capacitor) {
     if (document.getElementById('proPaywall').open) throw new Error('The Pro paywall did not close');
     await report(plugin, {
       stage: 'pro-gate',
+      enabled: true,
       shown: true,
       restore: restoreShown,
       environment: status.environment,
@@ -435,6 +438,19 @@ function installNativeShell(capacitor) {
       unlocked: pro.unlocked
     });
     pro.allowSmokeExport();
+  }
+
+  // iOS smoke with the Pro gate off (1.0 ships free): nothing Pro is on the page and export is open.
+  async function reportProGateOff(plugin) {
+    await report(plugin, {
+      stage: 'pro-gate',
+      enabled: false,
+      shown: !!document.getElementById('proPaywall'),
+      panel: !!document.getElementById('proPanel'),
+      badge: document.documentElement.classList.contains('caviot-pro-locked'),
+      api: typeof globalThis.CaviotPro !== 'undefined',
+      unlocked: exportUnlocked(null)
+    });
   }
 
   async function beginSmokeIfRequested(plugin) {
@@ -491,6 +507,7 @@ function installNativeShell(capacitor) {
       await report(plugin, { stage: 'text-added', label: pageApi.state.sourceLabel });
       if (android) await report(plugin, { stage: 'perf-slider', ...(await benchmarkSlider()) });
       if (pro) await checkProGate(plugin);
+      else if (platform === 'ios') await reportProGateOff(plugin);
       const started = Date.now();
       const pending = pageApi.exportCurrent('stl');
       if (pending && typeof pending.then === 'function') pending.catch(() => {});
