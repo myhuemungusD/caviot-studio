@@ -8,7 +8,7 @@ Initial audience: independent 3D-printing makers who customize sleeves and small
 
 ## Launch offer
 
-Personal tool for now, as requested by the owner. Subscription work is deferred. The app has no fake checkout, subscription or gated features. A paid edition needs a concrete pricing decision, delivery model, payment provider and support policy before charging customers.
+Original brief (September 2026): personal tool, no subscription, checkout or gated features. Current status (October 29, 2026): published by Design Mainline LLC; iOS 1.0 is in App Review and Android 1.0 is submitted to Google Play, both free. The only paid feature is the iPhone/iPad Caviot Studio Pro export unlock ($9.99 one-time, StoreKit, planned for 1.1); no subscriptions. See the Release status section in README.md.
 
 ## Suggested product copy
 
@@ -23,8 +23,8 @@ Personal tool for now, as requested by the owner. Subscription work is deferred.
 1. Test upload, text, custom fonts, project save/open, STL/OBJ, error recovery and mobile controls in target browsers. Automated code checks are complete; browser interaction testing remains.
 2. Print and measure representative half sleeves, whole sleeves, flat reliefs and fit rings. Document tested printer, material, settings and dimensional results.
 3. Decide which device profiles to support. Elliptical cavities may not fit objects with flat sides. Replace unverified presets with measured, tested profiles where needed.
-4. Set a support contact and operating business identity. Decide public access and domain. Add final terms appropriate to the business and distribution model.
-5. If charging, connect a real payment and entitlement flow and test purchase, fulfillment, recovery and refunds. These are not present in the free launch edition.
+4. Done: support contact admin@designmainline.org, business Design Mainline LLC, support and privacy pages at designmainline.com/caviot. Still open: decide public access and domain. Add final terms appropriate to the business and distribution model.
+5. If charging, connect a real payment and entitlement flow and test purchase, fulfillment, recovery and refunds. On iPhone/iPad the StoreKit 2 Pro purchase and restore flow is built (PR #51) but the product is not live yet; the website, Mac and Android apps have no payment flow.
 
 ## First customer validation
 

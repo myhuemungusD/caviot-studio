@@ -1,5 +1,7 @@
 # Sharp text / flat text / top bar: progress (branch sharp-text)
 
+Historical note: merged into `main` (PR #11). Kept as a record of that work.
+
 Verification pass recorded October 8. Feature work was already on the branch; this note covers the review fixes and the full green run.
 
 ## Done
