@@ -3,9 +3,9 @@
 // Each worker version only ever serves the exact bytes listed here, so an update can never mix old and new files.
 import fs from 'node:fs';import path from 'node:path';import crypto from 'node:crypto';import {fileURLToPath} from 'node:url';
 const dist=fileURLToPath(new URL('./dist/',import.meta.url));
-// Fetched on first use instead of at install: the 120 fonts and the 17 MB print surface (first export).
-// Blockletter is the default lettering font, so it is precached with the app.
-const onDemand=p=>(/^fonts\/.+\.(ttf|otf|woff2?)$/i.test(p)&&!/^fonts\/Blockletter-/.test(p))||p==='templates/ETSYFOLGER-print.mesh'||p.startsWith('vendor/libheif/')||p.startsWith('vendor/onnx/')||p.startsWith('vendor/u2net/');
+// Fetched on first use instead of at install: the included fonts and the 17 MB print surface (first export).
+// Bebas Neue is the default lettering font (DEFAULT_BUILTIN_FONT in builtin-fonts.js), so it is precached with the app.
+const onDemand=p=>(/^fonts\/.+\.(ttf|otf|woff2?)$/i.test(p)&&!/^fonts\/BebasNeue-/.test(p))||p==='templates/ETSYFOLGER-print.mesh'||p.startsWith('vendor/libheif/')||p.startsWith('vendor/onnx/')||p.startsWith('vendor/u2net/');
 const skip=p=>p==='sw.js'||/(^|\/)\./.test(p)||/LICENSE/i.test(p);
 export function manifest(){
   const files={};

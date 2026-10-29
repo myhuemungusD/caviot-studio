@@ -28,7 +28,7 @@ PUT YOUR DESIGN ON ANY CURVE
 
 LOGOS, LETTERING AND PHOTOS
 • Add a logo, a screenshot or a photo, and remove the background on your device
-• Type lettering in any of 120 included fonts
+• Type lettering in 14 included fonts, or import your own
 • Photo styles: shadow, bold silhouette, line art, 3-level relief, smooth relief and lithophane
 • Separate designs for the front and back
 
@@ -86,7 +86,7 @@ Answered in App Store Connect; the app shows as 4+ (checked October 29, 2026).
 ## Screenshots
 Captioned PNGs (iPhone 6.9" 1320x2868 and iPad 13" 2064x2752, 6 each) are made outside the repo so they don't trigger CI. Captions:
 1. Your logo on any curve: wraps cleanly around tumblers, sleeves and cases in one step, with no 3D modeling or UV maps needed (an imported tumbler STL with a logo)
-2. Logos and lettering in 3D: a photo, a screenshot or typed text, with 120 fonts included
+2. Logos and lettering in 3D: a photo, a screenshot or typed text, with 14 fonts included or your own
 3. Emboss, deboss or invert: raise it, engrave it, or flip what sticks out with one tap
 4. Invert relief: sinks your design into a raised pad that hugs its outline
 5. Bring your own shape: start with the Classic Sleeve or import an STL, OBJ or 3MF

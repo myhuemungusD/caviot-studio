@@ -11,7 +11,7 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 async function settle(p,ms=120000){const t=Date.now();await sleep(300);while(Date.now()-t<ms){if(await p.evaluate(()=>!AppState.rebuildTimer&&!exportBusy&&!(typeof templatePreviewRunning!=='undefined'&&(templatePreviewRunning||templatePending))))return true;await sleep(200)}return false}
 async function open(){const ctx=await browser.newContext({viewport:{width:1500,height:900},acceptDownloads:true});const p=await ctx.newPage();const errors=[];p.on('pageerror',e=>errors.push(e.message));
   await p.goto(base);await p.waitForFunction(()=>typeof templateBase!=='undefined'&&!!templateBase,null,{timeout:120000});await settle(p);p.errors=errors;return p}
-async function setup(p,{mode='flat',template,font='Blockletter',text='FOGER',width=152,backing}={}){
+async function setup(p,{mode='flat',template,font='Bebas Neue',text='FOGER',width=152,backing}={}){
   if(template){await p.selectOption('#templateChoice',template);await settle(p)}
   if(mode!=='sleeve'){await p.click('label[for='+(mode==='flat'?'exportFlat':'exportLogoOnly')+']');await settle(p)}
   if(mode==='flat'){await p.fill('#widthIn',String(width));await p.dispatchEvent('#widthIn','change')}
@@ -48,7 +48,7 @@ async function exportSTL(p){const [dl]=await Promise.all([p.waitForEvent('downlo
   return {tris:n,bytes:buf.length,closed:open===0,wound:bad===0}}
 
 // 1. Fonts on a 152 mm flat plate (Jason's case): letters only, the default trimmed text plate.
-for(const font of ['Blockletter','Harry P','Waltograph','Cowboys',null]){
+for(const font of ['Bebas Neue','Pacifico','Lobster','Rye',null]){
   const p=await open();const name=font||'system sans-serif';console.log('font: '+name);
   await setup(p,{font});const s=await measureFlat(p,false),g=await measureFlat(p,true);
   ok(s.sharp&&s.closed,name+': preview is closed sharp lettering ('+s.tris+' tris)');
@@ -56,13 +56,13 @@ for(const font of ['Blockletter','Harry P','Waltograph','Cowboys',null]){
   ok(s.runs===0,name+': no stair steps (grid export had '+g.runs+' runs)');
   ok(g.max>3*s.max,name+': old grid export was '+g.max.toFixed(2)+' mm off (mean '+g.mean.toFixed(2)+')');
   const stats=await p.evaluate(()=>$('statGrid').textContent+' | '+$('statQualityMode').textContent);ok(/outline/.test(stats)&&/same in export/.test(stats),name+': status bar says '+stats);
-  if(shots&&font==='Harry P'){await p.evaluate(()=>{camera.position.set(0,55,48);controls.target.set(0,0,0);controls.update()});await sleep(400);await p.screenshot({path:shots+'flat-harryp.png'})}
+  if(shots&&font==='Pacifico'){await p.evaluate(()=>{camera.position.set(0,55,48);controls.target.set(0,0,0);controls.update()});await sleep(400);await p.screenshot({path:shots+'flat-pacifico.png'})}
   ok(!p.errors.length,name+': no page errors '+p.errors.join(' | '));await p.context().close()}
 
 // 2. Every non-template shape exports the same closed mesh as its preview.
 const shapes=[['flat solid plate',{backing:'Solid'}],['flat outline backing',{backing:'Outline'}],['flat rounded rectangle',{backing:'Rounded'}],['flat connector bar',{backing:'Bar'}],['flat letters only',{backing:'None'}],['logo only',{mode:'logo-only'}],
   ['parametric sleeve',{mode:'sleeve',template:'parametric'}]];
-for(const [label,o] of shapes){const p=await open();console.log('shape: '+label);await setup(p,{...o,font:'Harry P'});
+for(const [label,o] of shapes){const p=await open();console.log('shape: '+label);await setup(p,{...o,font:'Pacifico'});
   const info=await p.evaluate(()=>{const v=MC.validateMesh(previewMesh.positions,previewMesh.indices);return {sharp:!!previewMesh.textRelief,error:previewMesh.textReliefError||'',tris:v.triCount,closed:!v.boundary&&!v.nonManifold&&!v.zeroArea,pieces:AppState.lastTextRelief?.pieces,tip:$('textBackingTip')?.textContent||''}});
   ok(info.sharp&&info.closed,label+': closed sharp preview ('+info.tris+' tris)'+(info.error?' error '+info.error:''));
   if(['Outline','Rounded','Bar'].includes(o.backing))ok(info.pieces===1&&/one piece/.test(info.tip),label+': one piece · '+info.tip);
@@ -107,5 +107,18 @@ for(const [label,o] of shapes){const p=await open();console.log('shape: '+label)
  await p.evaluate(()=>undoEdit());await settle(p);
  ok(await p.evaluate(w0=>$('uniformScaleRange').value==='100'&&Math.abs(AppState.designWidth-w0[0])<.01,w0),'undo restores the size and the slider rests at 100% again');
  ok(!p.errors.length,'defaults/scale: no page errors '+p.errors.join(' | '));await p.context().close()}
+
+// 6. A font that is no longer included falls back to Bebas Neue with a visible notice, both when it was the
+// remembered picker choice and when an opened project names it (the "Project opened" toast must carry the notice).
+{const p=await open();console.log('removed font fallback');await setup(p,{mode:'sleeve',font:'Lobster'});
+ const gone='builtin:Blockletter-0123abcd.otf';
+ const remembered=await p.evaluate(async gone=>{await chooseBuiltin(gone,true);return {value:els.fontChoice.value,stored:localStorage.getItem('icaviot-builtin-font'),toast:els.toast.textContent}},gone);
+ ok(/BebasNeue/.test(remembered.value)&&/BebasNeue/.test(remembered.stored)&&/no longer included/.test(remembered.toast),'a remembered removed font falls back to Bebas Neue with a notice ('+remembered.toast+')');
+ const opened=await p.evaluate(async gone=>{const q=ProjectFormat.decode(JSON.stringify(buildProjectData()));for(const l of q.layers.flat())if(l.kind==='text')l.fontChoice=gone;
+   const seen=[];const t=window.toast;window.toast=(m,k)=>{seen.push(m);return t(m,k)};try{await openProjectData(q,{confirmReplace:false})}finally{window.toast=t}
+   await new Promise(r=>setTimeout(r,300));return {value:els.fontChoice.value,toast:els.toast.textContent,seen}},gone);
+ ok(/BebasNeue/.test(opened.value),'an opened project naming a removed font selects Bebas Neue ('+opened.value+')');
+ ok(/^Project opened\. .*no longer included\. Using Bebas Neue instead/.test(opened.toast),'the Project opened toast keeps the removed-font notice ('+opened.toast+')');
+ ok(!p.errors.length,'removed font: no page errors '+p.errors.join(' | '));await p.context().close()}
 
 await browser.close();console.log(`\ntext relief e2e: ${passes} passed, ${failures} failed`);process.exit(failures?1:0);

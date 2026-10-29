@@ -6,9 +6,9 @@ let passed=0;const test=async(name,fn)=>{await fn();passed++;console.log('ok -',
 
 await test('dist/sw.js is current (run node build-sw.mjs after changing dist/)',()=>{
   assert.equal(read('sw.js').toString(),render(),'dist/sw.js is stale: run node build-sw.mjs');
-  const m=manifest();for(const must of ['index.html','mobile.js','mobile.css','device-tier.js','pwa.js','manifest.webmanifest','vendor/three.min.js','templates/ETSYFOLGER-preview.mesh','fonts/catalog.js','fonts/Blockletter-0ca48c09.otf'])assert(m.precache.includes(must),must+' precached');
+  const m=manifest();for(const must of ['index.html','mobile.js','mobile.css','device-tier.js','pwa.js','manifest.webmanifest','vendor/three.min.js','templates/ETSYFOLGER-preview.mesh','fonts/catalog.js','fonts/BebasNeue-Regular-08e46238.ttf'])assert(m.precache.includes(must),must+' precached');
   assert(!m.precache.includes('templates/ETSYFOLGER-print.mesh')&&m.files['templates/ETSYFOLGER-print.mesh'],'print surface on demand but versioned');
-  assert(!m.precache.some(p=>/^fonts\/.+\.ttf$/.test(p)),'fonts on demand');
+  assert.deepEqual(m.precache.filter(p=>/^fonts\/.+\.(ttf|otf|woff2?)$/i.test(p)),['fonts/BebasNeue-Regular-08e46238.ttf'],'only the default font is precached; the rest load on demand');
   assert(m.precache.includes('photo-relief.js')&&m.precache.includes('photo-ui.js')&&m.precache.includes('heic.js'),'photo scripts precached');
   assert(!m.precache.some(p=>p.startsWith('vendor/libheif/'))&&m.files['vendor/libheif/libheif.wasm'],'HEIC decoder on demand but versioned');
   assert(!m.precache.some(p=>p.startsWith('vendor/onnx/')||p.startsWith('vendor/u2net/'))&&m.files['vendor/u2net/u2netp.onnx']&&m.files['vendor/onnx/ort-wasm-simd.wasm'],'subject finder on demand but versioned');
