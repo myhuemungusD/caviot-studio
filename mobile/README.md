@@ -4,7 +4,7 @@ This folder is the App Store app. It bundles the same static site that lives in 
 
 The website in `dist/` is not modified. The Mac app lives in `desktop/` and the Android app in `mobile/android` (see `ANDROID.md`); this iOS shell does not touch them.
 
-Status (October 29, 2026): 1.0 build 160 is Waiting for Review in App Store Connect (app 6823151777, Design Mainline LLC, review contact admin@designmainline.org, releases automatically after approval). Build 160 includes the Pro gate below; the `com.caviot.studio.pro` product has not been created in App Store Connect yet.
+Status (October 29, 2026): 1.0 is in review in App Store Connect (app 6823151777, Design Mainline LLC, review contact admin@designmainline.org, manual release). 1.0 ships free: the Pro gate below is switched off (`PRO_GATE_ENABLED = false` in `native/bridge-logic.js`), and a free build replaces build 160, which had the gate on. The `com.caviot.studio.pro` product has not been created in App Store Connect yet; Pro is planned for 1.1.
 
 The phone apps open on **Choose a template** (`dist/empty-start.js`): Classic Sleeve (the Foger Sleeve, formerly ETSYFOLGER, renamed for the phone apps, with vape presets hidden) or Import STL (STL, OBJ or 3MF from Files). Export stays disabled until one is chosen. The website and the Mac app still open straight on the Foger Sleeve.
 
@@ -70,13 +70,15 @@ A reload during a large export still uses the website’s autosave on iPhone.
 
 ## Caviot Studio Pro (iPhone/iPad only)
 
-Export (STL, OBJ, 3MF if added) is a one-time in-app purchase, `com.caviot.studio.pro` (Non-Consumable, $9.99). Designing, previewing, Save project / Open project and the fit-check ring stay free. Android, the Mac app and the website never load the gate.
+**Off in 1.0 (free).** `PRO_GATE_ENABLED` in `native/bridge-logic.js` is `false`, so export is always open and nothing below is installed: no paywall, no Pro row, no PRO badges, no StoreKit call, no Pro, unlock or purchase wording. For 1.1, create the product in App Store Connect, then set `PRO_GATE_ENABLED = true`; the behavior below comes back unchanged (see `docs/app-store/iap-readiness-DRAFT.md`).
+
+With the gate on, export (STL, OBJ, 3MF if added) is a one-time in-app purchase, `com.caviot.studio.pro` (Non-Consumable, $9.99). Designing, previewing, Save project / Open project and the fit-check ring stay free. Android, the Mac app and the website never load the gate.
 
 - Swift: `native/ios/CaviotNativePlugin.swift` adds `proStatus`, `proProduct`, `proPurchase`, `proRestore` (StoreKit 2: `Product.products`, `purchase()`, `Transaction.currentEntitlements`, `AppStore.sync()`), and listens to `Transaction.updates` (`proChanged`). No server, no SDK; Privacy stays Data Not Collected.
 - JS: `native/pro-paywall.js` wraps `__caviotPage.exportCurrent`, opens the paywall (`#proPaywall`) for a locked export, and adds the Caviot Studio Pro row (Unlock, Restore Purchases) to Tools > All. Rules and messages are in `native/bridge-logic.js`.
 - Environments: debug/simulator builds report `development`, TestFlight and App Review report `sandbox`, App Store builds report `production`. Only in development/sandbox, a product that does not exist in App Store Connect yet leaves export unlocked so testers are never blocked. Production never unlocks without a purchase.
 - Xcode: `native/ios/CaviotStudio.storekit` is copied into `ios/App/App/` and attached to the App scheme's Run action by `scripts/apply-ios.mjs`, so a local Run shows the $9.99 product. Debug > StoreKit > Manage Transactions resets or refunds test purchases.
-- Tests: `npm test` (rules, Swift, .storekit, scheme), `node e2e/pro-paywall-e2e.mjs mobile/www` from the repo root after `npm run sync:www` (mocked bridge), and the simulator smoke run checks that the paywall and Restore button appear before its export.
+- Tests: `npm test` (switch off for 1.0, rules with the gate forced on, Swift, .storekit, scheme), `node e2e/pro-paywall-e2e.mjs mobile/www` from the repo root after `npm run sync:www` (both modes: gate off as shipped, gate on by serving the switch flipped, mocked bridge), and the simulator smoke run checks the compiled-in mode before its export.
 
 ## Tests on GitHub
 
@@ -86,7 +88,7 @@ Export (STL, OBJ, 3MF if added) is a one-time in-app purchase, `com.caviot.studi
 2. `npm run sync`.
 3. An unsigned `xcodebuild` for the iOS Simulator (`CODE_SIGNING_ALLOWED=NO`), then an ad-hoc `codesign` so the simulator will install the bundle. No Apple certificate is used.
 4. Boot an available iPhone simulator, install the app, and launch it with `-CaviotSmoke`.
-5. The app waits for the template to load, checks that Choose a template is shown and export is disabled, picks Classic Sleeve, types a text design, opens and closes the Pro paywall (checking Restore Purchases is there), exports an STL into Files, and writes `Documents/caviot-smoke.json`.
+5. The app waits for the template to load, checks that Choose a template is shown and export is disabled, picks Classic Sleeve, types a text design, checks the Pro gate for the compiled-in mode (gate off: no paywall, Pro row or badge and export unlocked; gate on: opens and closes the paywall, checking Restore Purchases is there), exports an STL into Files, and writes `Documents/caviot-smoke.json`.
 6. The workflow checks the template, the 700,000-triangle budget, the share plugin, and that the file is a binary STL whose triangle count matches its size.
 7. The `.app`, screenshots, `result.json`, and a copy of the STL are uploaded as the `ios-simulator` artifact.
 

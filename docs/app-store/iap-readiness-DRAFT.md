@@ -1,8 +1,15 @@
 # In-app purchase readiness: Caviot Studio Pro ($9.99, one-time)
 
-Status: **built in the iPhone/iPad app (StoreKit 2, no server, no third-party SDK)**. Nothing has been created in App Store Connect; the product must be created there by the Account Holder (steps below). The Mac app, Android app and website are unchanged and have no paywall.
+Status: **1.0 ships free; the Pro gate is built but switched off.** The StoreKit 2 code (no server, no third-party SDK) is in the iPhone/iPad app but inert until 1.1. Nothing has been created in App Store Connect; the product must be created there by the Account Holder (steps below). The Mac app, Android app and website are unchanged and have no paywall.
 
-**Release risk (October 29, 2026):** 1.0 was submitted with build 160 (Waiting for Review, release automatically after approval), which contains this gate, and no in-app purchase is attached to 1.0. App Review runs in sandbox, where a missing product leaves export unlocked. A production App Store build never unlocks without a purchase (`betaUnlockApplies` in `mobile/native/bridge-logic.js`), so once 1.0 is live, STL/OBJ export stays locked and the purchase cannot complete until `com.caviot.studio.pro` exists, is approved and is on sale. Planned: ship Pro with 1.1 (iPhone/iPad only).
+**1.0 ships free (October 29, 2026).** `PRO_GATE_ENABLED = false` in `mobile/native/bridge-logic.js`. With the switch off, export is always open on every build (App Store, TestFlight, Xcode), the paywall, the Caviot Studio Pro settings row, the PRO export badges and the "Test build" notice are never created, no StoreKit call is made, and no text or accessibility label mentions Pro, unlock or purchase. The new free build replaces build 160 in the 1.0 submission.
+
+**Turning Pro on for 1.1:**
+1. Create `com.caviot.studio.pro` in App Store Connect (steps below), attach it to the 1.1 version and submit it with that version.
+2. Set `export const PRO_GATE_ENABLED = true;` in `mobile/native/bridge-logic.js`. Nothing else changes: the paywall, Restore Purchases and the StoreKit rules work exactly as in build 160 and as the gate-on tests check.
+3. Raise `MARKETING_VERSION` to 1.1, then run `node mobile/scripts/bridge-tests.mjs` and `node e2e/pro-paywall-e2e.mjs mobile/www` (both run both modes; the bridge test that pins the switch off must be updated to pin it on) and check the simulator smoke run, which asserts whichever mode is compiled in.
+
+**Why it is off (previous release risk):** 1.0 was submitted with build 160 (Waiting for Review, release automatically after approval), which contains this gate, and no in-app purchase is attached to 1.0. App Review runs in sandbox, where a missing product leaves export unlocked. A production App Store build never unlocks without a purchase (`betaUnlockApplies` in `mobile/native/bridge-logic.js`), so once 1.0 is live, STL/OBJ export stays locked and the purchase cannot complete until `com.caviot.studio.pro` exists, is approved and is on sale. Planned: ship Pro with 1.1 (iPhone/iPad only).
 
 ## What shipped in code
 - Product: `com.caviot.studio.pro`, Non-Consumable, one-time, $9.99 (the price shown in the app always comes from StoreKit, never hard-coded).
@@ -13,7 +20,7 @@ Status: **built in the iPhone/iPad app (StoreKit 2, no server, no third-party SD
 - Failures: cancel says nothing; offline, pending (Ask to Buy), store errors and unverified transactions each show a plain message and never unlock. An owned unlock keeps working offline.
 - Test builds: in TestFlight / App Review (sandbox) and Xcode debug builds, if the product does not exist in App Store Connect yet, export stays unlocked and the Pro row says "Test build". Once the product exists, the real paywall shows and sandbox purchases are free. A production App Store build never unlocks without a purchase.
 - Local testing: `CaviotStudio.storekit` is attached to the App scheme (Run), so Xcode runs show the $9.99 product with no App Store Connect setup.
-- Tests: `mobile/scripts/bridge-tests.mjs` (rules, Swift, .storekit, scheme), `e2e/pro-paywall-e2e.mjs` (mocked StoreKit bridge: purchase, cancel, offline, pending, restore, owned offline, product missing, stalled App Store, TestFlight, Android/website untouched), and the simulator smoke run checks the paywall and Restore button before its export.
+- Tests: `mobile/scripts/bridge-tests.mjs` (release switch off for 1.0, rules with the gate forced on, Swift, .storekit, scheme), `e2e/pro-paywall-e2e.mjs` (gate off as shipped: export works with no Pro UI or wording, including a production build where the product is not found; gate on, forced by serving the switch flipped, with a mocked StoreKit bridge: purchase, cancel, offline, pending, restore, owned offline, product missing, stalled App Store, TestFlight, Android/website untouched), and the simulator smoke run checks the compiled-in mode before its export (gate off: no paywall, Pro row, badge or `CaviotPro`, export unlocked; gate on: the paywall and Restore button).
 - Privacy: unchanged, **Data Not Collected**. No new entry in `PrivacyInfo.xcprivacy`.
 
 

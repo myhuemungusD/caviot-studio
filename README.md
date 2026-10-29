@@ -12,7 +12,7 @@ Privacy policy: https://www.designmainline.com/caviot/privacy · Support: https:
 | Platform | Status |
 | --- | --- |
 | Website | Live at https://www.designmainline.com/forge (copied from `dist/` by DesignMainline's `scripts/sync-caviot.sh`, which now ships the 14 open-license fonts too) and at this repo's Vercel deploy, https://caviot-studio.vercel.app (rebuilds only when `dist/` changes). Free, every export open. |
-| iPhone / iPad | 1.0, build 160, **Waiting for Review** in App Store Connect (app 6823151777). Free download, rated 4+, releases automatically after approval. Build 160 contains the Caviot Studio Pro export unlock (`com.caviot.studio.pro`, $9.99, PR #51); the product is not created in App Store Connect yet. See `docs/app-store/iap-readiness-DRAFT.md`. |
+| iPhone / iPad | 1.0, **in review** in App Store Connect (app 6823151777), manual release. **Free, export always open**: the Caviot Studio Pro gate (`com.caviot.studio.pro`, $9.99, PR #51) is switched off with `PRO_GATE_ENABLED = false` in `mobile/native/bridge-logic.js`, and a free build replaces build 160 (which had the gate on). Pro is planned for 1.1: create the product in App Store Connect, then set the switch to `true`. See `docs/app-store/iap-readiness-DRAFT.md`. |
 | Android | 1.0, versionCode 1106 (CI release build from `main`), **submitted to Google Play production** on October 29, 2026. Package `com.caviot.studio`, free, no in-app purchases, Data safety: no data collected, target audience 18+, content rating Everyone. See `mobile/ANDROID.md`. |
 | Mac | `desktop/` builds an unsigned (or signed, when secrets are set) disk image in CI. Not distributed through a store. |
 
@@ -79,7 +79,7 @@ Tests: `node text-relief-tests.mjs` (135 checks: trace accuracy, closed meshes i
 
 Automated tests cover closed-edge geometry for representative modes, caps, fit-ring height, serialized STL/OBJ, malformed projects and worker exports. Browser checks for the current template and repair flow are listed below. Physical printing has not been performed. Presets use an elliptical cross-section and are unverified starting dimensions. Checks do not detect all self-intersections, strength problems or printer-specific limitations.
 
-Project files preserve each image, editable text and selected font, with PNG backups. Additional custom font files are not embedded. Settings and fonts persist locally; artwork requires an explicit project download. No cloud backup, customer accounts or analytics is implemented. The only payment code is the iPhone/iPad Caviot Studio Pro in-app purchase (StoreKit 2, `mobile/`); the website, Mac and Android apps have none.
+Project files preserve each image, editable text and selected font, with PNG backups. Additional custom font files are not embedded. Settings and fonts persist locally; artwork requires an explicit project download. No cloud backup, customer accounts or analytics is implemented. The only payment code is the iPhone/iPad Caviot Studio Pro in-app purchase (StoreKit 2, `mobile/`), switched off in 1.0 (`PRO_GATE_ENABLED = false`) and planned for 1.1; the website, Mac and Android apps have none.
 
 Keep your original HTML as the historical source. The included third-party Three.js distribution remains version 0.128.0 for compatibility; this release does not claim a dependency security audit.
 
@@ -91,7 +91,7 @@ Make watertight performs conservative welding, duplicate/degenerate-face cleanup
 
 Validation: `node tests.mjs` (34 checks), `node repair-tests.mjs` (9 assertions), `node template-tests.mjs` (preview and print, emboss/deboss around four sides), and `node check-full-repair.mjs` (963,074-triangle template closed with consistent winding and manifold vertices). Browser checks include template loading, lettering, deboss, Make watertight and successful full-resolution repaired STL export. Physical print testing remains outstanding.
 
-Billing: see *Release status* above (one-time Pro unlock on iPhone/iPad only, no subscriptions).
+Billing: see *Release status* above (1.0 is free; a one-time Pro unlock on iPhone/iPad only is planned for 1.1, no subscriptions).
 
 ## Included fonts and sharp lettering
 

@@ -1,9 +1,14 @@
 // usage: node e2e/pro-paywall-e2e.mjs [wwwDir] [shotsDir]
 // The iPhone/iPad app's Caviot Studio Pro paywall, with the native StoreKit bridge mocked in the page.
-// Serves the phone-app copy (mobile/www, from `node mobile/scripts/sync-www.mjs`) and checks:
-// export opens the paywall when locked, saving a project stays free, offline and failed purchases explain
-// themselves, Restore Purchases works, a purchase continues the export, TestFlight builds before the product
-// exists stay unlocked, an owned unlock skips the paywall, and Android and the website never show it.
+// Serves the phone-app copy (mobile/www, from `node mobile/scripts/sync-www.mjs`) in both modes of the Pro
+// release switch (PRO_GATE_ENABLED in mobile/native/bridge-logic.js):
+// - Gate off (the shipped default, 1.0 is free): export works in every App Store environment, including
+//   production with the product missing; no paywall, Pro settings row, PRO badge, StoreKit call or Pro,
+//   unlock or purchase wording (text or accessibility labels) appears; the "Test build" notice never shows.
+// - Gate on (forced here by serving bridge-logic.js with the switch flipped, as 1.1 will ship): export opens
+//   the paywall when locked, saving a project stays free, offline and failed purchases explain themselves,
+//   Restore Purchases works, a purchase continues the export, TestFlight builds before the product exists
+//   stay unlocked, an owned unlock skips the paywall, and Android and the website never show it.
 import { chromium } from 'playwright-core';
 import http from 'node:http';
 import fs from 'node:fs';
@@ -30,8 +35,20 @@ const types = {
   '.wasm': 'application/wasm',
   '.webmanifest': 'application/manifest+json',
 };
-const server = http.createServer((req, res) => {
+const GATE_OFF_SOURCE = 'export const PRO_GATE_ENABLED = false;';
+const bridgeSource = fs.readFileSync(path.join(root, 'bridge-logic.js'), 'utf8');
+if (!bridgeSource.includes(GATE_OFF_SOURCE)) {
+  console.error('bridge-logic.js does not ship with the Pro gate off (' + GATE_OFF_SOURCE + ')');
+  process.exit(1);
+}
+const gateOnBridge = bridgeSource.replace(GATE_OFF_SOURCE, 'export const PRO_GATE_ENABLED = true;');
+
+const createServer = (gateOn) => http.createServer((req, res) => {
   const pathname = decodeURIComponent(new URL(req.url, 'http://localhost').pathname);
+  if (gateOn && pathname === '/bridge-logic.js') {
+    res.writeHead(200, { 'Content-Type': 'text/javascript; charset=utf-8' });
+    return res.end(gateOnBridge);
+  }
   const file = path.resolve(root, '.' + pathname + (pathname.endsWith('/') ? 'index.html' : ''));
   if (path.relative(root, file).startsWith('..')) {
     res.writeHead(403);
@@ -46,8 +63,15 @@ const server = http.createServer((req, res) => {
     fs.createReadStream(file).pipe(res);
   });
 });
-await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
-const base = 'http://127.0.0.1:' + server.address().port + '/';
+const listen = async (server) => {
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  return 'http://127.0.0.1:' + server.address().port + '/';
+};
+const server = createServer(true);
+const offServer = createServer(false);
+// Gate on (1.1) for the paywall scenarios below; gate off (1.0, as shipped) for the free scenarios.
+const base = await listen(server);
+const offBase = await listen(offServer);
 
 const browser = await chromium.launch({
   executablePath: process.env.CHROME || '/usr/bin/google-chrome',
@@ -157,21 +181,21 @@ function mockNative(scenario) {
   };
 }
 
-async function open(scenario) {
+async function open(scenario, url = base) {
   const context = await browser.newContext({ viewport: { width: 1280, height: 860 }, serviceWorkers: 'block' });
   if (scenario) await context.addInitScript(mockNative, scenario);
   const page = await context.newPage();
   const errors = [];
   page.on('pageerror', (error) => errors.push(error.message));
   page.on('dialog', (dialog) => dialog.accept());
-  await page.goto(base, { waitUntil: 'load' });
+  await page.goto(url, { waitUntil: 'load' });
   await page.waitForFunction(() => typeof templateBase !== 'undefined' && !!templateBase, null, { timeout: 120000 });
   if (await page.evaluate(() => typeof CaviotEmptyStart !== 'undefined' && CaviotEmptyStart.active)) {
     await page.click('#emptyStartClassic');
     await page.waitForFunction(() => !CaviotEmptyStart.active, null, { timeout: 60000 });
   }
   await page.waitForFunction(() => !document.getElementById('generateBtn').disabled, null, { timeout: 120000 });
-  if (scenario && (scenario.platform || 'ios') === 'ios') await page.waitForFunction(() => globalThis.CaviotPro, null, { timeout: 10000 });
+  if (url === base && scenario && (scenario.platform || 'ios') === 'ios') await page.waitForFunction(() => globalThis.CaviotPro, null, { timeout: 10000 });
   return { context, page, errors };
 }
 
@@ -192,6 +216,69 @@ async function idle(page) {
   await page.waitForFunction(() => typeof exportBusy === 'undefined' || !exportBusy, null, { timeout: 300000 });
 }
 
+// 0. Gate off (1.0 ships free): export works everywhere with no Pro UI, wording or StoreKit call.
+//    Includes an App Store (production) build where the product does not exist, the case that locked
+//    everyone out before the switch.
+const proWording = /\bpro\b|unlock|purchase|test build/i;
+async function proTraces(page) {
+  return page.evaluate((source) => {
+    const pattern = new RegExp(source, 'i');
+    const labels = [];
+    for (const element of document.querySelectorAll('[aria-label],[title],[aria-description],[alt]')) {
+      for (const name of ['aria-label', 'title', 'aria-description', 'alt']) {
+        const value = element.getAttribute(name);
+        if (value && pattern.test(value)) labels.push(name + '=' + value);
+      }
+    }
+    const badges = [...document.querySelectorAll('#generateBtn, #downloadObjBtn')]
+      .map((button) => getComputedStyle(button, '::after').content)
+      .filter((content) => content && content !== 'none' && content !== 'normal' && pattern.test(content));
+    const text = (document.body.innerText || '').split('\n').filter((line) => pattern.test(line));
+    return {
+      api: typeof globalThis.CaviotPro,
+      dialog: !!document.getElementById('proPaywall'),
+      panel: !!document.getElementById('proPanel'),
+      locked: document.documentElement.classList.contains('caviot-pro-locked'),
+      calls: (window.__calls || []).slice(),
+      labels,
+      badges,
+      text,
+    };
+  }, proWording.source);
+}
+for (const [name, scenario] of [
+  ['ios production, product not found', { environment: 'production', product: 'not-found' }],
+  ['ios production, App Store offline', { environment: 'production', product: 'offline' }],
+  ['ios production, product exists', { environment: 'production', product: 'ready', purchase: 'store' }],
+  ['ios sandbox (TestFlight), product not found', { environment: 'sandbox', product: 'not-found' }],
+]) {
+  console.log('gate off: ' + name);
+  const { context, page, errors } = await open(scenario, offBase);
+  await sleep(500);
+  const before = await proTraces(page);
+  ok(
+    before.api === 'undefined' && !before.dialog && !before.panel && !before.locked && before.calls.length === 0,
+    'no paywall, Pro row, PRO badge or StoreKit call ' + JSON.stringify({ ...before, labels: undefined, text: undefined })
+  );
+  ok(before.labels.length === 0 && before.badges.length === 0 && before.text.length === 0, 'no Pro, unlock or purchase wording in text or labels ' + JSON.stringify([before.labels, before.badges, before.text]));
+  // Settings (phone "all" panel / sidebar) are where the Pro row lived: still nothing there.
+  ok(await page.evaluate(() => !/Caviot Studio Pro|Restore Purchases|Test build/i.test(document.body.textContent)), 'no Pro settings text or Test build notice anywhere in the page');
+  await page.click('#generateBtn');
+  await sleep(300);
+  ok(!(await paywallOpen(page)), 'Export STL opens no paywall');
+  ok(!!(await waitWrite(page, /\.stl$/)), 'Export STL writes the STL');
+  await idle(page);
+  await page.click('#downloadObjBtn');
+  ok(!!(await waitWrite(page, /\.obj$/)), 'Export OBJ writes the OBJ');
+  await idle(page);
+  const after = await proTraces(page);
+  ok(!after.dialog && after.calls.length === 0 && after.text.length === 0 && after.labels.length === 0, 'still nothing Pro after exporting ' + JSON.stringify(after));
+  ok(errors.length === 0, 'no page errors ' + JSON.stringify(errors));
+  if (shots && name.startsWith('ios production, product not found')) await page.screenshot({ path: shots + '/gate-off-production.png' });
+  await context.close();
+}
+
+// Gate on (1.1) from here on: bridge-logic.js is served with PRO_GATE_ENABLED = true.
 // 1. App Store build, starts offline, then buys Pro.
 {
   console.log('ios production: locked, offline, failures, purchase');
@@ -396,5 +483,6 @@ for (const [name, scenario] of [
 
 await browser.close();
 server.close();
+offServer.close();
 console.log('pro paywall e2e: ' + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);
