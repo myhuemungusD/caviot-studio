@@ -7,7 +7,7 @@ Specs for an Apple App Preview: 15–30 s, H.264 .mov/.mp4, portrait **886x1920*
 | 0–3 s | The finished tumbler with the PEAK logo wrapped around it, slowly orbiting | **Your logo. Any curve.** |
 | 3–7 s | "Choose a template" → tap **Import STL** → the tumbler model loads | Import any STL, OBJ or 3MF |
 | 7–12 s | Tools → Add → pick the logo; it appears wrapped on the curve, then drag it up | Follows the surface, in one step |
-| 12–17 s | Front/back → T+ Text → type "TRAIL CREW" in a bold font | Lettering, 120 fonts |
+| 12–17 s | Front/back → T+ Text → type "TRAIL CREW" in a bold font | Lettering, 14 fonts or your own |
 | 17–22 s | Emboss tab → tap **Invert relief**; the camera orbits close to show the raised pad | Emboss, deboss or invert |
 | 22–27 s | Tap **Export STL** → the share sheet / save to Files | Print-ready STL for any slicer |
 | 27–30 s | The hero tumbler again, then the app icon and name | **Caviot Studio** · No 3D modeling needed |

@@ -81,11 +81,13 @@ This is a personal tool. Billing and subscription work are deferred.
 
 ## Included fonts and sharp lettering
 
-All 120 font files from the supplied 42 ZIP archives are bundled in `dist/fonts/`, including TTF/OTF alternatives and accompanying notices. The font picker is populated on first load. Fonts load when selected, selected included fonts are remembered in this browser, and custom uploads remain supported. Browser FontFace validation loaded all 120 successfully.
+14 open-license fonts are bundled in `dist/fonts/`: 13 under the SIL Open Font License 1.1 and Permanent Marker under Apache 2.0, all unmodified from [google/fonts](https://github.com/google/fonts). Each font's license is in `dist/fonts/notices/<font>/`, and `dist/fonts/catalog.json` records the license and source of every file. Only fonts whose license allows commercial use and bundling in an app belong here; don't add personal-use, demo or brand-named fonts. Bebas Neue is the default (`DEFAULT_BUILTIN_FONT` in `dist/builtin-fonts.js`). A saved choice that names a font no longer included (an older project, or this browser's last choice) falls back to the default. Fonts load when selected, the selected font is remembered in this browser, and custom uploads remain supported.
+
+The 120 fonts bundled until October 2026 were removed: their licenses were personal-use only, non-commercial, missing, or tied to other companies' brands, so they could not ship in a paid app.
 
 Sharp edges + Even depth now traces a silhouette contour with explicit sidewalls instead of a sloped grayscale height transition. The design region is refined to 0.24 mm preview spacing and 0.14 mm export spacing, with 768/1024-pixel artwork maps and separate sidewall shading normals. Text raster resolution is 2048 × 1024. The cavity is unchanged. This is a raster contour approximation rather than native vector font geometry. Sharp designs keep clear of opening boundaries instead of tapering there.
 
-`node sharp-tests.mjs` checks raised, engraved and rotated designs: manifold edges and vertices, consistent winding, no degenerate faces, and unchanged original coordinates. Browser tests verified the picker, Blockletter, all font files and successful sharp-lettering STL export. Physical print testing remains outstanding.
+`node sharp-tests.mjs` checks raised, engraved and rotated designs: manifold edges and vertices, consistent winding, no degenerate faces, and unchanged original coordinates. Browser tests verified the picker, the default font, all font files and successful sharp-lettering STL export. Physical print testing remains outstanding.
 
 ## Responsive placement
 
