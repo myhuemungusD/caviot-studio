@@ -1,6 +1,6 @@
-# Caviot Studio Support (DRAFT, not published)
+# Caviot Studio Support (draft history)
 
-Proposed URL: https://designmainline.com/caviot/support
+Published at https://www.designmainline.com/caviot/support. The published page (`caviot/support.html` in the DesignMainline repo) is the source of truth; this file is the original draft.
 
 Caviot Studio helps you design custom 3D-printable sleeves and covers. Import a sleeve template (STL, OBJ or 3MF), add logos, text or photo silhouettes, and export a print-ready STL or OBJ for your slicer.
 

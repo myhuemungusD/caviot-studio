@@ -1,6 +1,6 @@
-# App Store listing copy (DRAFT, neutral wording, ready to paste)
+# App Store listing copy (neutral wording)
 
-Status: draft. Nothing has been entered in App Store Connect. Enter it after the organization developer account is set up.
+Status (checked in App Store Connect on October 29, 2026): this copy is entered for **1.0, build 160, Waiting for Review**, Design Mainline LLC, release automatically after approval. Entered for 1.0 **without** the Pro wording: the description's export line reads "• Export STL or OBJ for any slicer", review note step 4 reads "Tap "Export STL" to make a 3D-printable file, which can be saved to Files or shared.", What's New is empty, and no in-app purchase exists in App Store Connect. The Pro wording below (marked **1.1**) is for the Caviot Studio Pro release. Note that build 160 already contains the Pro export gate (PR #51); see iap-readiness-DRAFT.md.
 Wording rules (Guideline 1.4.3): don't use vape, vaping, Foger/Fogger, Geek Bar, pod, cartridge or smoke anywhere: not in the text, the screenshots or the preview video. Also leave other apps' names (Blender, Cura, Bambu and so on) out of the keywords (Guideline 2.3.7).
 
 | Field | Value | Limit |
@@ -9,7 +9,7 @@ Wording rules (Guideline 1.4.3): don't use vape, vaping, Foger/Fogger, Geek Bar,
 | Subtitle | Logos on curved 3D prints | 25/30 |
 | Primary category | Graphics & Design | |
 | Secondary category | Productivity | |
-| Price | Free, with one In-App Purchase: Caviot Studio Pro, $9.99 one-time (see iap-readiness-DRAFT.md) | |
+| Price | 1.0: Free, no In-App Purchase. Planned for 1.1: Caviot Studio Pro, $9.99 one-time (see iap-readiness-DRAFT.md) | |
 | Version | 1.0 (MARKETING_VERSION in the Xcode project) | |
 | Bundle ID | com.caviot.studio | |
 
@@ -38,7 +38,7 @@ EMBOSS, DEBOSS OR INVERT
 • Undo and redo
 
 PRINT-READY EXPORT
-• Export STL or OBJ for any slicer (one-time Caviot Studio Pro unlock, no subscription)
+• Export STL or OBJ for any slicer (1.1 adds: "(one-time Caviot Studio Pro unlock, no subscription)")
 • Export as the full sleeve, the logo only or a flat plate
 • Make watertight checks and repairs the mesh and keeps the cavity of your sleeve
 • Save and reopen projects
@@ -55,14 +55,14 @@ PRIVATE BY DESIGN
 ## What's New (1.0)
 First release. Wrap logos, lettering and photos around any curved 3D model and export print-ready STL files.
 
-## URLs (all returned 200 on Oct 25, 2026)
+## URLs (all returned 200 on Oct 25, 2026; the same URLs are set in App Store Connect)
 - Support URL: https://www.designmainline.com/caviot/support
 - Privacy Policy URL: https://www.designmainline.com/caviot/privacy
 - Marketing URL: https://www.designmainline.com/
 - Public support/contact email: admin@designmainline.org (forwards to Jason's main inbox; also the EU trader contact email Apple shows on the store page)
-- Copyright: © 2026 <organization legal name, set once the company account exists>
+- Copyright: 2026 Design Mainline LLC
 
-## App Review notes (no sign-in required)
+## App Review notes (no sign-in required; 1.1 version with the Pro steps, 1.0 differs in step 4 and has no step 5)
 ```
 No account or sign-in is needed. Everything runs on the device and the app works offline; there is no server component.
 
@@ -75,13 +75,13 @@ To test the main feature:
 
 The app is a general-purpose tool for customizing 3D-printable covers, sleeves and objects. It does not sell or promote any regulated products.
 ```
-Contact for review: <Jason's name, phone and email, entered in App Store Connect>. No demo account is needed.
+Contact for review: entered in App Store Connect; email admin@designmainline.org. No demo account is needed.
 
 ## App Privacy (nutrition label)
 Data Not Collected, including with the Pro in-app purchase: it uses StoreKit 2 on the device (Apple processes the payment; the developer receives no purchase data). No analytics or crash SDKs, and no network calls for user data. Re-check this if RevenueCat or analytics is added (see iap-readiness.md).
 
 ## Age rating
-Answer "None" for every content question. Expected result: 4+. Jason should confirm this in App Store Connect.
+Answered in App Store Connect; the app shows as 4+ (checked October 29, 2026).
 
 ## Screenshots
 Captioned PNGs (iPhone 6.9" 1320x2868 and iPad 13" 2064x2752, 6 each) are made outside the repo so they don't trigger CI. Captions:

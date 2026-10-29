@@ -2,7 +2,14 @@
 
 `mobile/android` is a Capacitor 8 Android project that bundles the same offline `dist/` copy as the iPhone
 app (`npm run sync:android` copies it in and injects `caviot-native.js`). The website and the iOS project
-are unchanged. App id: `com.caviot.studio`. Min Android 7 (API 24); WebView updates through Play.
+are unchanged. App id: `com.caviot.studio`. Min Android 7 (API 24), compile/target SDK 36; WebView updates through Play.
+
+**Status (October 29, 2026):** 1.0 (versionCode 1106, the signed AAB from Android run 40864282259 on `main`
+6ca7894) was submitted to Google Play **production** under the Design Mainline LLC organization account.
+Free, no in-app purchases (the Pro gate is iOS only, `proGateApplies` in `native/bridge-logic.js`). Data
+safety: no data collected. Target audience 18+, content rating Everyone. Like iPhone, the app opens on
+**Choose a template** (Classic Sleeve or Import STL) and hides the vape presets. Store listing text:
+`docs/play-store/store-listing.md`.
 
 ## Build locally
 
@@ -32,13 +39,18 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 ## CI (`.github/workflows/android.yml`)
 
-Every push/PR: bridge tests → sync → `assembleDebug` + JVM unit tests → upload `caviot-android-debug-apk`
-→ Pixel 6 / API 34 emulator smoke (cold start, default template, perf numbers, text design, STL export,
+Pushes to `main` and PRs that change `dist/**`, `mobile/**` (not `mobile/ios/**` and not Markdown) or the
+workflow, plus manual dispatch: bridge tests → sync → `assembleDebug` + JVM unit tests → upload `caviot-android-debug-apk`
+→ Pixel 6 / API 34 emulator smoke (cold start, Choose a template gate, Classic Sleeve, perf numbers, text design, STL export,
 then an "Open with" VIEW intent for a real STL) → upload `android-smoke` (result.json, screenshots, logcat).
 The emulator uses a software GPU, so its frame rates are far below a real phone; treat them as a floor.
 
 Signed release AAB: only on `workflow_dispatch` or `main`, and only when the secrets below exist. A manual
 run also uploads a **draft** to the Play internal track if the service account secret exists.
+Release builds use versionCode `1000 + run number` (`-PcaviotVersionCode`) and versionName 1.0.
+
+Set as of October 29, 2026: the four `ANDROID_KEY*`/`ANDROID_KEYSTORE*` secrets. Not set: `PLAY_SERVICE_ACCOUNT_JSON`,
+so AABs are uploaded to Play Console by hand.
 
 | Secret | What |
 | --- | --- |
@@ -53,6 +65,9 @@ Keep a backup; with Play App Signing a lost upload key can be reset through Play
 
 ## Google Play setup (Design Mainline LLC)
 
+Steps 1–5 are done (organization account approved; app created; 1.0 submitted to production October 29, 2026).
+Step 7 is not done.
+
 1. Register at play.google.com/console as an **Organization**, not Personal. Use Design Mainline LLC, its
    D-U-N-S (14-018-2909, must match the D&B record name and address exactly), jason@designmainline.com, a
    public phone number, and https://designmainline.com. One-time $25 fee.
@@ -61,7 +76,7 @@ Keep a backup; with Play App Signing a lost upload key can be reset through Play
 2. Verify the organization (Google checks D-U-N-S against the payments profile; allow a few days).
 3. Create the app "Caviot Studio", package `com.caviot.studio`, free, category Art & Design.
 4. Opt in to Play App Signing. Upload the first AAB by hand (Play requires the first one manually).
-5. Fill in: privacy policy URL (designmainline.com), Data safety (no data collected; files stay on device),
+5. Fill in: privacy policy URL (https://www.designmainline.com/caviot/privacy), Data safety (no data collected; files stay on device),
    content rating questionnaire, target audience 18+, ads: none. Describe it as a 3D sleeve/relief design
    tool; Play restricts apps that facilitate tobacco/vape sales, so keep store text and screenshots off vaping.
 6. Internal testing track → add your Google account → install from the opt-in link.

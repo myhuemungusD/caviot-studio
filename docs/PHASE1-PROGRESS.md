@@ -1,4 +1,4 @@
-# Phone redesign: Phase 1 progress (branch `mobile-phase1`, NOT merged)
+# Phone redesign: Phase 1 progress (branch `mobile-phase1`, merged in PR #10 on October 8, 2026)
 
 Updated: 2026-10-07 PT. Status: all 8 items done, all suites pass; draft PR open for review.
 
