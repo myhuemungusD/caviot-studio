@@ -2,6 +2,8 @@
 
 Status: **built in the iPhone/iPad app (StoreKit 2, no server, no third-party SDK)**. Nothing has been created in App Store Connect; the product must be created there by the Account Holder (steps below). The Mac app, Android app and website are unchanged and have no paywall.
 
+**Release risk (October 29, 2026):** 1.0 was submitted with build 160 (Waiting for Review, release automatically after approval), which contains this gate, and no in-app purchase is attached to 1.0. App Review runs in sandbox, where a missing product leaves export unlocked. A production App Store build never unlocks without a purchase (`betaUnlockApplies` in `mobile/native/bridge-logic.js`), so once 1.0 is live, STL/OBJ export stays locked and the purchase cannot complete until `com.caviot.studio.pro` exists, is approved and is on sale. Planned: ship Pro with 1.1 (iPhone/iPad only).
+
 ## What shipped in code
 - Product: `com.caviot.studio.pro`, Non-Consumable, one-time, $9.99 (the price shown in the app always comes from StoreKit, never hard-coded).
 - Free: designing, preview, Save project / Open project (`.icaviot`), the fit-check ring.

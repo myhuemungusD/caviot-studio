@@ -1,7 +1,6 @@
-# Caviot Studio Privacy Policy (DRAFT, not published)
+# Caviot Studio Privacy Policy (draft history)
 
-Proposed URL: https://designmainline.com/caviot/privacy
-Effective date: [set when published]
+Published at https://www.designmainline.com/caviot/privacy (effective October 17, 2026). The published page (`caviot/privacy.html` in the DesignMainline repo) is the source of truth and has since added an in-app purchase section; this file is the original draft.
 
 Caviot Studio is made by Design Mainline LLC ("we"). This policy covers the Caviot Studio apps for iPhone, iPad, Android and Mac, and the website at caviot-studio.vercel.app.
 

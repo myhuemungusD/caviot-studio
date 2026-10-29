@@ -4,6 +4,20 @@ This PC copy is **build 2026.09.21** (the independent design layers and Undo upd
 
 A browser-based tool for turning images and text into 3D-printable sleeves and reliefs. The existing mesh engine has been preserved and separated from the interface.
 
+## Release status (October 29, 2026)
+
+Publisher: **Design Mainline LLC** (Apple and Google Play organization accounts). Contact: admin@designmainline.org.
+Privacy policy: https://www.designmainline.com/caviot/privacy · Support: https://www.designmainline.com/caviot/support
+
+| Platform | Status |
+| --- | --- |
+| Website | Live at https://www.designmainline.com/forge (copied from `dist/` by DesignMainline's `scripts/sync-caviot.sh`, bundled fonts stripped) and at this repo's Vercel deploy, https://caviot-studio.vercel.app (rebuilds only when `dist/` changes). Free, every export open. |
+| iPhone / iPad | 1.0, build 160, **Waiting for Review** in App Store Connect (app 6823151777). Free download, rated 4+, releases automatically after approval. Build 160 contains the Caviot Studio Pro export unlock (`com.caviot.studio.pro`, $9.99, PR #51); the product is not created in App Store Connect yet. See `docs/app-store/iap-readiness-DRAFT.md`. |
+| Android | 1.0, versionCode 1106 (CI release build from `main`), **submitted to Google Play production** on October 29, 2026. Package `com.caviot.studio`, free, no in-app purchases, Data safety: no data collected, target audience 18+, content rating Everyone. See `mobile/ANDROID.md`. |
+| Mac | `desktop/` builds an unsigned (or signed, when secrets are set) disk image in CI. Not distributed through a store. |
+
+Phone apps (iPhone, iPad, Android) open on **Choose a template** (Classic Sleeve or Import STL), call the built-in template **Classic Sleeve** and hide the vape presets. The website and the Mac app open on the **Foger Sleeve** with every preset. No platform collects data; designs stay on the device.
+
 ## Quick start on Windows
 
 1. Extract the ZIP into a normal folder.
@@ -65,7 +79,7 @@ Tests: `node text-relief-tests.mjs` (135 checks: trace accuracy, closed meshes i
 
 Automated tests cover closed-edge geometry for representative modes, caps, fit-ring height, serialized STL/OBJ, malformed projects and worker exports. Browser checks for the current template and repair flow are listed below. Physical printing has not been performed. Presets use an elliptical cross-section and are unverified starting dimensions. Checks do not detect all self-intersections, strength problems or printer-specific limitations.
 
-Project files preserve each image, editable text and selected font, with PNG backups. Additional custom font files are not embedded. Settings and fonts persist locally; artwork requires an explicit project download. No cloud backup, customer accounts, payment system, licensing enforcement or analytics is implemented.
+Project files preserve each image, editable text and selected font, with PNG backups. Additional custom font files are not embedded. Settings and fonts persist locally; artwork requires an explicit project download. No cloud backup, customer accounts or analytics is implemented. The only payment code is the iPhone/iPad Caviot Studio Pro in-app purchase (StoreKit 2, `mobile/`); the website, Mac and Android apps have none.
 
 Keep your original HTML as the historical source. The included third-party Three.js distribution remains version 0.128.0 for compatibility; this release does not claim a dependency security audit.
 
@@ -77,13 +91,13 @@ Make watertight performs conservative welding, duplicate/degenerate-face cleanup
 
 Validation: `node tests.mjs` (34 checks), `node repair-tests.mjs` (9 assertions), `node template-tests.mjs` (preview and print, emboss/deboss around four sides), and `node check-full-repair.mjs` (963,074-triangle template closed with consistent winding and manifold vertices). Browser checks include template loading, lettering, deboss, Make watertight and successful full-resolution repaired STL export. Physical print testing remains outstanding.
 
-This is a personal tool. Billing and subscription work are deferred.
+Billing: see *Release status* above (one-time Pro unlock on iPhone/iPad only, no subscriptions).
 
 ## Included fonts and sharp lettering
 
 14 open-license fonts are bundled in `dist/fonts/`: 13 under the SIL Open Font License 1.1 and Permanent Marker under Apache 2.0, all unmodified from [google/fonts](https://github.com/google/fonts). Each font's license is in `dist/fonts/notices/<font>/`, and `dist/fonts/catalog.json` records the license and source of every file. Only fonts whose license allows commercial use and bundling in an app belong here; don't add personal-use, demo or brand-named fonts. Bebas Neue is the default (`DEFAULT_BUILTIN_FONT` in `dist/builtin-fonts.js`). A saved choice that names a font no longer included (an older project, or this browser's last choice) falls back to the default. Fonts load when selected, the selected font is remembered in this browser, and custom uploads remain supported.
 
-The 120 fonts bundled until October 2026 were removed: their licenses were personal-use only, non-commercial, missing, or tied to other companies' brands, so they could not ship in a paid app.
+The 120 fonts bundled until October 2026 were removed: their licenses were personal-use only, non-commercial, missing, or tied to other companies' brands, so they could not ship in a paid app. The iOS build 160 and Android 1.0 (build 1106) submitted on October 29, 2026 were built before this change and still contain them; the next store builds ship the 14 fonts only.
 
 Sharp edges + Even depth now traces a silhouette contour with explicit sidewalls instead of a sloped grayscale height transition. The design region is refined to 0.24 mm preview spacing and 0.14 mm export spacing, with 768/1024-pixel artwork maps and separate sidewall shading normals. Text raster resolution is 2048 × 1024. The cavity is unchanged. This is a raster contour approximation rather than native vector font geometry. Sharp designs keep clear of opening boundaries instead of tapering there.
 
@@ -136,7 +150,7 @@ Selected-design depth and finish sit directly below rotation. New designs and bo
 
 ## Start-up — September 30
 
-The studio opens straight on the Foger Sleeve (formerly ETSYFOLGER) with no start card or onboarding overlay over the canvas (the "Your sleeve. Your design." card with Upload design / Try lettering, and the older "Make it yours" empty-state panel, are removed). Add artwork from the side panel as before: upload, drop or paste an image, or **Text**. Custom templates are not restored on start-up; see below.
+The studio opens straight on the Foger Sleeve (formerly ETSYFOLGER) with no start card or onboarding overlay over the canvas (the "Your sleeve. Your design." card with Upload design / Try lettering, and the older "Make it yours" empty-state panel, are removed). Add artwork from the side panel as before: upload, drop or paste an image, or **Text**. Custom templates are not restored on start-up; see below. The phone apps (iPhone, iPad, Android) are different: they open on **Choose a template** (`dist/empty-start.js`) with nothing loaded until you pick Classic Sleeve or Import STL.
 
 ## Custom STL templates
 
@@ -220,6 +234,7 @@ byte-identical exports; checked against `main`).
   locally for testing).
 - **Hosting**: `vercel.json` serves `dist/` as a static site with no build step.
 - **iPhone and iPad**: `mobile/` wraps this same `dist/` with Capacitor for a bundled App Store app. The website is unchanged. See `mobile/README.md` for the Xcode project, the simulator workflow, and what an Apple Developer account needs before TestFlight.
+- **Android**: `mobile/android` wraps the same `dist/` for Google Play. See `mobile/ANDROID.md`.
 - **Tests**: `node pwa-tests.mjs`, `node phone-tests.mjs` (device limits, STL pre-check, autosave rules); browser
   checks in `e2e/` (`mobile-e2e.mjs` and `mobile-phase1-e2e.mjs` for iPhone 14 / SE, Pixel 7 and iPad with real
   touch input, `pwa-e2e.mjs` for offline and updates; all need `playwright-core` and Chrome).

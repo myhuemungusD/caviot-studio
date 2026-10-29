@@ -2,13 +2,15 @@
 
 This folder is the App Store app. It bundles the same static site that lives in `dist/` and runs it inside a WKWebView with Capacitor. The files are inside the app. There is no `server.url`, so the app is not a thin wrapper around the website. Apple’s guideline 4.2 is the reason for that, and for the native share sheet, Files saving, camera, Photos, haptics, safe areas, icon, and splash.
 
-The website in `dist/` is not modified. A separate Mac app may live in `desktop/` on another branch; this folder does not touch it.
+The website in `dist/` is not modified. The Mac app lives in `desktop/` and the Android app in `mobile/android` (see `ANDROID.md`); this iOS shell does not touch them.
 
-The Foger Sleeve (formerly ETSYFOLGER) is still the template that opens on first launch. The native code never changes the template.
+Status (October 29, 2026): 1.0 build 160 is Waiting for Review in App Store Connect (app 6823151777, Design Mainline LLC, review contact admin@designmainline.org, releases automatically after approval). Build 160 includes the Pro gate below; the `com.caviot.studio.pro` product has not been created in App Store Connect yet.
+
+The phone apps open on **Choose a template** (`dist/empty-start.js`): Classic Sleeve (the Foger Sleeve, formerly ETSYFOLGER, renamed for the phone apps, with vape presets hidden) or Import STL (STL, OBJ or 3MF from Files). Export stays disabled until one is chosen. The website and the Mac app still open straight on the Foger Sleeve.
 
 ## Run it on a Mac
 
-Xcode 16 or newer, and Node.js 22.
+Xcode 26 or newer (App Store Connect only accepts builds from Xcode 26 since April 28, 2026; `scripts/ci-testflight.sh` checks), and Node.js 22.
 
 ```bash
 cd mobile
@@ -78,13 +80,13 @@ Export (STL, OBJ, 3MF if added) is a one-time in-app purchase, `com.caviot.studi
 
 ## Tests on GitHub
 
-`.github/workflows/ios.yml` runs on every push and pull request, on a macOS runner:
+`.github/workflows/ios.yml` runs on a macOS runner for pushes to `main` and pull requests that change `dist/**`, `mobile/**` (not `mobile/android/**` and not Markdown) or the workflow itself, and on manual dispatch:
 
 1. `npm test` for the bridge rules.
 2. `npm run sync`.
 3. An unsigned `xcodebuild` for the iOS Simulator (`CODE_SIGNING_ALLOWED=NO`), then an ad-hoc `codesign` so the simulator will install the bundle. No Apple certificate is used.
 4. Boot an available iPhone simulator, install the app, and launch it with `-CaviotSmoke`.
-5. The app waits for the Foger Sleeve, types a text design, opens and closes the Pro paywall (checking Restore Purchases is there), exports an STL into Files, and writes `Documents/caviot-smoke.json`.
+5. The app waits for the template to load, checks that Choose a template is shown and export is disabled, picks Classic Sleeve, types a text design, opens and closes the Pro paywall (checking Restore Purchases is there), exports an STL into Files, and writes `Documents/caviot-smoke.json`.
 6. The workflow checks the template, the 700,000-triangle budget, the share plugin, and that the file is a binary STL whose triangle count matches its size.
 7. The `.app`, screenshots, `result.json`, and a copy of the STL are uploaded as the `ios-simulator` artifact.
 
@@ -123,72 +125,12 @@ After the build appears in TestFlight, install it on a phone you registered as a
 
 ## App Store listing
 
-Fill these in App Store Connect. The text below is a draft you can edit. Do not claim a measured print fit, a subscription, or cloud backup. None of those exist.
-
-**Name:** Caviot Studio
-
-**Subtitle:** Design sleeves. Export STL.
-
-**Category:** Graphics & Design. Secondary: Productivity.
-
-**Age rating:** 4+. No unrestricted web, no user-generated public content, no accounts.
-
-**Price:** Free.
-
-**Keywords:** stl,3d print,sleeve,logo,emboss,deboss,relief,lettering
-
-**Promotional text:** Turn a logo or a few words into a sleeve you can export for a 3D printer. The design stays on your device.
-
-**Description:**
-
-Caviot Studio turns a photo, a logo, or lettering into a 3D-printable sleeve or relief.
-
-Open the app and the Foger Sleeve is already there, with the DM mark carved into the underside. Add a picture from Photos or the camera, pick a file, or type text. Move it, resize it, and choose emboss or deboss. Export an STL and send it to Files, AirDrop, or a slicer with the share sheet.
-
-Designs stay on this iPhone or iPad. There is no account and no upload. Large models are safer on a computer; the app warns you before an export that may be too big for the device.
-
-**What’s New (1.0):** First iPhone and iPad release. Design on the Foger Sleeve, export STL, and share the file.
-
-**Support URL:** a page you control, with a contact address. App Store Connect rejects an empty support URL.
-
-**Marketing URL:** optional. The public studio site is fine if you have one.
-
-**Copyright:** your name or your company’s name and the year.
-
-**Screenshots:** App Store Connect lists the sizes it currently requires. Plan on a 6.9-inch iPhone set and a 13-inch iPad set, portrait. Three shots are enough: the sleeve on first launch, a text or logo design, and the share sheet or the file in Files. The CI screenshots are from a smaller iPhone simulator and are evidence the app launched, not the store images. Capture the store set from the Simulator’s Device → Trigger Screenshot, or from a device, after you have a signed build.
-
-**Review notes:** No login. The app works offline. Camera and Photos are used only when the reviewer taps Camera or Photos to add a logo. Sample text is enough to reach Export. The sleeve that opens first is ETSYFOLGER.
-
-**Export compliance:** the app uses only standard HTTPS inside the system frameworks. `ITSAppUsesNonExemptEncryption` is false, so the usual “no non-exempt encryption” answer applies.
-
-**Sign-in:** there is none. Do not turn on Sign in with Apple.
+The listing entered in App Store Connect for 1.0 is in `docs/app-store/store-listing-DRAFT.md` (subtitle, keywords, description, review notes, screenshots). Do not claim a measured print fit, a subscription, or cloud backup. None of those exist.
 
 ## Privacy policy
 
-Publish this at a public URL and paste that URL into App Store Connect. App privacy questionnaire: Data Not Collected. The app does not track. Camera and Photos are optional permissions used only to pick a logo.
-
----
-
-**Privacy policy for Caviot Studio (iPhone and iPad)**
-
-Caviot Studio is a design tool that runs on your device. The developer does not operate an account system, an analytics service, or a server that receives your designs.
-
-**Data the app does not collect.** The app does not collect, transmit, or sell personal information. It does not use advertising identifiers, tracking, or third-party analytics. There is no account, no email capture, and no payment inside the app.
-
-**What stays on your device.** Artwork, text, project files, and autosave data are stored locally (on disk and in the web view’s on-device database). Exports are written to the app’s Documents folder, which you can open in the Files app, and can be sent somewhere else only if you use the system share sheet. Deleting the app deletes that local data.
-
-**Camera and Photos.** If you tap Camera, iOS asks to use the camera so you can photograph a logo. If you tap Photos, the system photo picker opens and the app receives only the picture you select. The picture is used to build the 3D design on the device. The app does not upload it, does not read the rest of your library, and does not add it to your photo library. You can refuse camera access and still type text, choose a photo, or open an image from Files.
-
-**Files.** Exported STL, OBJ, and project files are saved in the app’s Documents folder so you can find them in Files. Sharing a file uses Apple’s share sheet. Where it goes after that is up to the app you pick.
-
-**Children.** The app is not directed at children under 13, and it does not knowingly collect personal information from anyone.
-
-**Changes.** If this policy changes, the new text will be published at this same URL. The app does not gain a collection practice that this policy does not describe.
-
-**Contact.** Replace this sentence with a real email address before you publish the policy.
-
----
+Published at https://www.designmainline.com/caviot/privacy (source: `caviot/privacy.html` in the DesignMainline repo; draft history in `docs/app-store/privacy-policy-DRAFT.md`). App privacy questionnaire: Data Not Collected. The app does not track. Camera and Photos are optional permissions used only to pick a logo. Contact: admin@designmainline.org. Support page: https://www.designmainline.com/caviot/support.
 
 ## Version numbers
 
-`MARKETING_VERSION` is 1.0 and `CURRENT_PROJECT_VERSION` is 1, in the App target’s build settings. Raise the build number for every upload. Raise the marketing version when the listing should show a new version.
+`MARKETING_VERSION` is 1.0 in the App target’s build settings. The TestFlight job sets `CURRENT_PROJECT_VERSION` to the GitHub run number (`scripts/ci-testflight.sh`), so every upload gets a new build number automatically (1.0 is build 160). Raise the marketing version when the listing should show a new version (1.1 is planned for Caviot Studio Pro).

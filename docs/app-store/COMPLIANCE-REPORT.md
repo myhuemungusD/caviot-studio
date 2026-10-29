@@ -3,6 +3,8 @@
 Scope: mobile/ (Capacitor 8), bundle com.caviot.studio, App Store Connect app 6823151777, build 1.0 (78).
 Legend: PASS, FIXED (in this PR), NEEDS JASON (decision listed).
 
+**Update, October 29, 2026:** this is the October 16 snapshot. Since then 1.0 was submitted with build 160 and is Waiting for Review. Rows 6, 7, 8, 10 and 12 are done: privacy and support pages are published at https://www.designmainline.com/caviot/privacy and /caviot/support and set in App Store Connect, the App Privacy answer is Data Not Collected, the age rating shows 4+, and the listing is entered (Design Mainline LLC, review contact admin@designmainline.org). Row 19: build 160 includes the Pro gate, but `com.caviot.studio.pro` is not created in App Store Connect yet, and 1.0 was submitted without an in-app purchase.
+
 | # | Item | Result | Notes |
 |---|------|--------|-------|
 | 1 | 4.2 Minimum functionality | PASS (moderate risk) | The web code is bundled in the app (no `server.url`), so it works fully offline. Native features: camera/photo picker, Files import, "Open in Caviot" document types for STL/OBJ/3MF, share sheet export, haptics. Reviewers reject Capacitor apps that are a URL in a frame; this is not one. Recommend review notes plus a 30 s screen video showing import → design → export. |
