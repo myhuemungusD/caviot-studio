@@ -11,7 +11,7 @@ Privacy policy: https://www.designmainline.com/caviot/privacy · Support: https:
 
 | Platform | Status |
 | --- | --- |
-| Website | Live at https://www.designmainline.com/forge (copied from `dist/` by DesignMainline's `scripts/sync-caviot.sh`, bundled fonts stripped) and at this repo's Vercel deploy, https://caviot-studio.vercel.app (rebuilds only when `dist/` changes). Free, every export open. |
+| Website | Live at https://www.designmainline.com/forge (copied from `dist/` by DesignMainline's `scripts/sync-caviot.sh`, which now ships the 14 open-license fonts too) and at this repo's Vercel deploy, https://caviot-studio.vercel.app (rebuilds only when `dist/` changes). Free, every export open. |
 | iPhone / iPad | 1.0, build 160, **Waiting for Review** in App Store Connect (app 6823151777). Free download, rated 4+, releases automatically after approval. Build 160 contains the Caviot Studio Pro export unlock (`com.caviot.studio.pro`, $9.99, PR #51); the product is not created in App Store Connect yet. See `docs/app-store/iap-readiness-DRAFT.md`. |
 | Android | 1.0, versionCode 1106 (CI release build from `main`), **submitted to Google Play production** on October 29, 2026. Package `com.caviot.studio`, free, no in-app purchases, Data safety: no data collected, target audience 18+, content rating Everyone. See `mobile/ANDROID.md`. |
 | Mac | `desktop/` builds an unsigned (or signed, when secrets are set) disk image in CI. Not distributed through a store. |
