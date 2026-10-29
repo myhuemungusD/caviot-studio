@@ -4,7 +4,7 @@
 import js from '@eslint/js';
 import globals from 'globals';
 export default [
-  { ignores: ['dist/vendor/**', 'dist/sw.js', '**/node_modules/**', 'mobile/ios/**', 'mobile/android/**', 'desktop/dist/**', '**/*.min.js'] },
+  { ignores: ['dist/vendor/**', 'dist/sw.js', '**/node_modules/**', 'mobile/www/**', 'mobile/ios/**', 'mobile/android/**', 'desktop/dist/**', '**/*.min.js'] },
   js.configs.recommended,
   {
     languageOptions: { ecmaVersion: 'latest', sourceType: 'module', globals: { ...globals.browser, ...globals.worker, ...globals.node } },
