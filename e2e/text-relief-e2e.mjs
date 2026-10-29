@@ -108,4 +108,17 @@ for(const [label,o] of shapes){const p=await open();console.log('shape: '+label)
  ok(await p.evaluate(w0=>$('uniformScaleRange').value==='100'&&Math.abs(AppState.designWidth-w0[0])<.01,w0),'undo restores the size and the slider rests at 100% again');
  ok(!p.errors.length,'defaults/scale: no page errors '+p.errors.join(' | '));await p.context().close()}
 
+// 6. A font that is no longer included falls back to Bebas Neue with a visible notice, both when it was the
+// remembered picker choice and when an opened project names it (the "Project opened" toast must carry the notice).
+{const p=await open();console.log('removed font fallback');await setup(p,{mode:'sleeve',font:'Lobster'});
+ const gone='builtin:Blockletter-0123abcd.otf';
+ const remembered=await p.evaluate(async gone=>{await chooseBuiltin(gone,true);return {value:els.fontChoice.value,stored:localStorage.getItem('icaviot-builtin-font'),toast:els.toast.textContent}},gone);
+ ok(/BebasNeue/.test(remembered.value)&&/BebasNeue/.test(remembered.stored)&&/no longer included/.test(remembered.toast),'a remembered removed font falls back to Bebas Neue with a notice ('+remembered.toast+')');
+ const opened=await p.evaluate(async gone=>{const q=ProjectFormat.decode(JSON.stringify(buildProjectData()));for(const l of q.layers.flat())if(l.kind==='text')l.fontChoice=gone;
+   const seen=[];const t=window.toast;window.toast=(m,k)=>{seen.push(m);return t(m,k)};try{await openProjectData(q,{confirmReplace:false})}finally{window.toast=t}
+   await new Promise(r=>setTimeout(r,300));return {value:els.fontChoice.value,toast:els.toast.textContent,seen}},gone);
+ ok(/BebasNeue/.test(opened.value),'an opened project naming a removed font selects Bebas Neue ('+opened.value+')');
+ ok(/^Project opened\. .*no longer included\. Using Bebas Neue instead/.test(opened.toast),'the Project opened toast keeps the removed-font notice ('+opened.toast+')');
+ ok(!p.errors.length,'removed font: no page errors '+p.errors.join(' | '));await p.context().close()}
+
 await browser.close();console.log(`\ntext relief e2e: ${passes} passed, ${failures} failed`);process.exit(failures?1:0);
