@@ -43,6 +43,7 @@ function installNativeShell(capacitor) {
   let memoryWarnedAt = 0;
 
   configureChrome(plugins);
+  showAppVersion(plugins.App);
   patchExportHandoff({ filesystem, share, haptics });
   patchIpadMemoryGuard();
   // Outermost export wrapper, so a locked export opens the paywall before any confirm or heavy work.
@@ -154,6 +155,22 @@ function installNativeShell(capacitor) {
     document.addEventListener('pointerup', release, { capture: true, passive: true });
     document.addEventListener('pointercancel', release, { capture: true, passive: true });
     document.addEventListener('visibilitychange', () => { if (document.hidden) set(false); });
+  }
+
+  // The installed version and build number at the end of the tools sheet, so a TestFlight build can be identified on the phone.
+  function showAppVersion(app) {
+    if (!app || typeof app.getInfo !== 'function') return;
+    app
+      .getInfo()
+      .then(info => {
+        if (!info || !info.build || document.getElementById('appVersion')) return;
+        const line = document.createElement('p');
+        line.id = 'appVersion';
+        line.className = 'muted-tip app-version';
+        line.textContent = 'Caviot Studio ' + (info.version || '') + ' (build ' + info.build + ')';
+        (document.querySelector('.sidebar') || document.body).append(line);
+      })
+      .catch(() => {});
   }
 
   function configureChrome(all) {

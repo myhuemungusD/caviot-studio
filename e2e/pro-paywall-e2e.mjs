@@ -177,7 +177,7 @@ function mockNative(scenario) {
     isNativePlatform: () => true,
     getPlatform: () => scenario.platform || 'ios',
     registerPlugin: (name) => (name === 'CaviotNative' ? native : {}),
-    Plugins: { Filesystem: filesystem, Share: share },
+    Plugins: { Filesystem: filesystem, Share: share, App: { getInfo: async () => ({ version: '1.0', build: '999' }) } },
   };
 }
 
@@ -263,6 +263,7 @@ for (const [name, scenario] of [
   ok(before.labels.length === 0 && before.badges.length === 0 && before.text.length === 0, 'no Pro, unlock or purchase wording in text or labels ' + JSON.stringify([before.labels, before.badges, before.text]));
   // Settings (phone "all" panel / sidebar) are where the Pro row lived: still nothing there.
   ok(await page.evaluate(() => !/Caviot Studio Pro|Restore Purchases|Test build/i.test(document.body.textContent)), 'no Pro settings text or Test build notice anywhere in the page');
+  ok(await page.evaluate(() => document.getElementById('appVersion')?.textContent === 'Caviot Studio 1.0 (build 999)'), 'the tools sheet shows the installed version and build number');
   await page.click('#generateBtn');
   await sleep(300);
   ok(!(await paywallOpen(page)), 'Export STL opens no paywall');
