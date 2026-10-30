@@ -31,7 +31,7 @@ async function run(label,breakCustomPreview){
   ok(await settle(p),'preview settled');const after=await shown(p);
   ok(after.custom&&Math.abs(after.height-50)<.5&&after.width<31,'imported template still shown after the preview ('+after.height.toFixed(1)+' mm tall, '+after.width.toFixed(1)+' mm wide)');
   ok(after.designs===1,'the design is kept');
-  if(breakCustomPreview){ok(!after.valid&&after.quality==='Check placement','failed preview reported (Check placement)');ok(/too dense/.test(after.status),'reason in the template status: '+after.status);ok(/template is loaded, but your design could not be formed/.test(after.toast),'toast explains the missing design');}
+  if(breakCustomPreview){ok(!after.valid&&after.quality==='Check placement','failed preview reported (Check placement)');ok(/could not be formed/.test(after.status)&&!/too dense/.test(after.status),'reason in the template status: '+after.status);ok(/template is loaded, but your design could not be formed/.test(after.toast),'toast explains the missing design');}
   else ok(after.valid&&/Designs follow the sleeve surface/.test(after.status),'design formed on the imported template');
   if(shots)await p.screenshot({path:shots+(breakCustomPreview?'failed-preview':'imported')+'.png'});
   ok(errors.length===0,'no page errors'+(errors.length?': '+errors.join(' | '):''));await ctx.close();

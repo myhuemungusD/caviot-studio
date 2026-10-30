@@ -192,10 +192,31 @@ await test('export names the bottom logo when it misses the printable underside'
   const sideMiss=await worker({id:19,type:'export',format:'stl',template:{kind:'custom',key:'bottom-miss'},options:{designs:[design({designY:500})],maxHeight:.4,negative:false,sharp:true}});
   assert.match(sideMiss[0].error,/not on a printable surface|One side has no artwork/);
 });
-await test('sharp-edge budget errors on custom templates explain what helps',async()=>{
+// A closed can whose wall is made of long thin slivers (0.07 x 1.5 mm), like CAD exports of drink cans. Longest-edge
+// refinement multiplies such faces, so Sharp edges used to stop with "This template is too dense for Sharp edges".
+function sliverCan(r=20,h=60,n=1800,rowsTall=40){const t=[],P=(i,z)=>[r*Math.cos(i/n*2*Math.PI),r*Math.sin(i/n*2*Math.PI),z];
+  for(let i=0;i<n;i++){const j=i+1;for(let k=0;k<rowsTall;k++){const z0=k*h/rowsTall,z1=(k+1)*h/rowsTall;t.push([P(i,z0),P(j,z0),P(j,z1)],[P(i,z0),P(j,z1),P(i,z1)])}t.push([[0,0,0],P(j,0),P(i,0)],[[0,0,h],P(i,h),P(j,h)])}return t}
+await test('dense sliver templates adapt Sharp edges on their own (no error, valid export)',async()=>{
+  const out=await worker({type:'custom-prepare',id:40,buffer:ab(binarySTL(sliverCan())),orientation:{},skipPrint:true,displayTriangles:120000});
+  const ready=out.find(r=>r.stage==='ready');assert(ready,out[0]?.error);
+  const print=(await worker({type:'custom-print',id:41,base:ready.base})).find(r=>r.stage==='print').print;
+  const art={heightmap:logo,rows:logo.length/1024,cols:1024,designWidth:40,designHeight:29.9,designAngle:0,designY:30,designRotation:0,maxHeight:.6,negative:false,sharp:true};
+  // Phone spacing with a budget the old refinement overflowed on this mesh ("too dense for Sharp edges").
+  const options={designs:[art],maxHeight:.6,negative:false,sharp:true,previewSpacing:.3,exportSpacing:.2,meshBudget:600000};
+  const preview=await worker({type:'preview',id:42,template:{kind:'custom',key:'sliver-can',prepared:ready.preview},options});assert(!preview[0].error,preview[0].error);
+  assert(preview[0].info.sharp&&preview[0].info.affected>0);
+  const exported=await worker({type:'export',id:43,format:'stl',template:{kind:'custom',key:'sliver-can-print',prepared:print},options});assert(!exported[0].error,exported[0].error);
+  const info=exported[0].info,v=exported[0].validation;
+  assert(info.sharp&&info.dense&&!info.sharpFallback&&info.spacing<=.26,'sharp outlines kept close to the requested spacing: '+JSON.stringify(info));
+  assert.deepEqual([v.boundary,v.nonManifold,v.zeroArea],[0,0,0]);assert(CustomTemplate.load(exported[0].buffer).report.closed,'exported STL is closed');
+  // Even a budget below the template's own vertex count still exports a valid mesh instead of an error.
+  const tiny=await worker({type:'export',id:44,format:'stl',template:{kind:'custom',key:'sliver-can-print'},options:{...options,meshBudget:60000}});assert(!tiny[0].error,tiny[0].error);
+  const w=tiny[0].validation;assert.deepEqual([w.boundary,w.nonManifold,w.zeroArea],[0,0,0]);
+});
+await test('an unexpected mesh budget error is reported without blaming the template',async()=>{
   const original=SharpSleeve.buildAdaptive;SharpSleeve.buildAdaptive=()=>{const e=Error('Artwork needs more mesh detail than this browser can hold.');e.code='MESH_BUDGET';throw e};
   try{const base=CustomTemplate.orient(CustomTemplate.load(binarySTL(box(30,30,30))).source,{up:'+z'});const out=await worker({id:17,type:'export',format:'stl',template:{kind:'custom',key:'budget',base},options:{designs:[design({designY:15})],maxHeight:.4,negative:false,sharp:true}});
-    assert.match(out[0].error,/too dense for Sharp edges.*Turn off Sharp edges \(logos\)/)}finally{SharpSleeve.buildAdaptive=original}
+    assert.doesNotMatch(out[0].error,/too dense|Turn off Sharp edges/);assert.match(out[0].error,/Change a setting to retry/)}finally{SharpSleeve.buildAdaptive=original}
 });
 await test('worker reports parse errors',async()=>{const out=await worker({type:'custom-prepare',id:10,buffer:ab(Buffer.from('solid x\nendsolid x\n')),orientation:{}});assert.match(out[0].error,/no triangles/)});
 

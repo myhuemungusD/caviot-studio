@@ -197,6 +197,9 @@ globalThis.SharpSleeve=(()=>{
   const nearTest=i=>!!outer[i]&&regions.some(d=>{const xy=SleeveTemplate.artworkPoint(view,i,d);if(!xy)return false;const [dx,dy]=xy;return Math.abs(dx*d.c+dy*d.s)<d.designWidth/2+2&&Math.abs(-dx*d.s+dy*d.c)<d.designHeight/2+2});
   const edgeDistance=[];
   const distanceToContour=i=>{if(edgeDistance[i]!==undefined)return edgeDistance[i];let nearest=Infinity;for(const d of regions){if(!d.contour)return 0;const xy=SleeveTemplate.artworkPoint(view,i,d);if(!xy)continue;const [dx,dy]=xy;nearest=Math.min(nearest,Math.abs(sampleDistance(d,(dx*d.c+dy*d.s)/d.designWidth+.5,.5-(-dx*d.s+dy*d.c)/d.designHeight)))}return edgeDistance[i]=nearest;};
+  // o.minArea (fallback for dense, sliver-heavy custom templates): faces already smaller than this are not split.
+  // Longest-edge splits multiply long thin triangles without making them any rounder, which is what overflows the budget.
+  const minArea=o.minArea>0?o.minArea:0;
   const splits=pairTable(tris.length/6),edge=(a,b)=>a<b?splits.get(a,b):splits.get(b,a);
   for(let pass=0;pass<12;pass++){
    if(pass)splits.clear();const touched=new Uint8Array(p.length/3);
@@ -204,6 +207,7 @@ globalThis.SharpSleeve=(()=>{
     // Keep the finest triangles only in a conservative band around contours.
     // Interiors retain a 0.5 mm surface mesh; the original sleeve is untouched.
     if(best<=.5){const d0=distanceToContour(t0),d1=distanceToContour(t1),d2=distanceToContour(t2);if(Math.min(d0,d1,d2)>best*1.5+spacing)continue}
+    if(minArea){const ux=p[t1*3]-p[t0*3],uy=p[t1*3+1]-p[t0*3+1],uz=p[t1*3+2]-p[t0*3+2],vx=p[t2*3]-p[t0*3],vy=p[t2*3+1]-p[t0*3+1],vz=p[t2*3+2]-p[t0*3+2];if((uy*vz-uz*vy)**2+(uz*vx-ux*vz)**2+(ux*vy-uy*vx)**2<4*minArea*minArea)continue}
     const i=p.length/3;if(a<b)splits.set(a,b,i);else splits.set(b,a,i);touched[a]=touched[b]=1;for(let k=0;k<3;k++){p.push((p[a*3+k]+p[b*3+k])/2);n.push((n[a*3+k]+n[b*3+k])/2)}const length=Math.hypot(n[i*3],n[i*3+1],n[i*3+2])||1;for(let k=0;k<3;k++)n[i*3+k]/=length;let du=uv[b]-uv[a];du-=Math.round(du/perimeter)*perimeter;uv.push((uv[a]+du/2+perimeter)%perimeter);distance.push(Math.min(distance[a],distance[b]));thickness.push(Math.min(thickness[a],thickness[b]));outer.push(outer[a]&&outer[b]?1:0);
    }
    if(!splits.size)break;if(p.length/3>(o.meshBudget||1400000)){const error=Error('Artwork needs more mesh detail than this browser can hold.');error.code='MESH_BUDGET';throw error;}// Faces go into a growable typed buffer (same order as before) instead of millions of Array pushes.
@@ -288,7 +292,18 @@ globalThis.SharpSleeve=(()=>{
  }
  function buildAdaptive(source,o){
   const requested=o.sharpSpacing||.22;let spacing=requested;
-  for(;;){try{const result=build(source,{...o,sharpSpacing:spacing});result.info.requestedSpacing=requested;result.info.adapted=spacing>requested;return result;}catch(error){if(error.code!=='MESH_BUDGET'||spacing>=.5)throw error;spacing=Math.min(.5,spacing*1.3);}}
+  const done=(result,extra)=>{result.info.requestedSpacing=requested;result.info.adapted=spacing>requested||!!extra;Object.assign(result.info,extra);return result};
+  const budget=error=>{if(error.code!=='MESH_BUDGET')throw error};
+  // 1. The requested outline spacing. The built-in sleeve keeps its earlier behaviour exactly: on a tight (phone) budget it
+  //    coarsens the spacing up to 0.5 mm. Imported templates go straight to step 2 instead, which keeps outlines finer there.
+  for(;;){try{return done(build(source,{...o,sharpSpacing:spacing}))}catch(error){budget(error);if(o.weldSafe||spacing>=.5)break;spacing=Math.min(.5,spacing*1.3)}}
+  if(o.weldSafe)spacing=requested;
+  // 2. Dense imported STLs: leave faces that are already small (area under a quarter of spacing squared) as they are,
+  //    so only round, coarse faces are split. The outlines keep the requested spacing wherever the mesh allows it.
+  //    If that still overflows, the spacing grows step by step (to 1 mm at most) instead of failing.
+  for(;;){try{return done(build(source,{...o,sharpSpacing:spacing,minArea:.25*spacing*spacing}),{dense:true})}catch(error){budget(error);if(spacing>=1)break;spacing=Math.min(1,spacing*1.3)}}
+  // 3. Last resort: the regular wrap (no outline refinement) always fits the mesh as it is.
+  spacing=requested;const result=SleeveTemplate.build(source,{...o,sharp:false,designs:o.designs?.map(d=>({...d,sharp:false}))});return done(result,{sharpFallback:true});
  }
  return{build,buildAdaptive,refine,contourField,pixelField,vectorField,traceLoops,sampleDistance,flipCollinear};
 })();
