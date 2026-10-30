@@ -62,3 +62,7 @@ html.caviot-pro-locked #downloadObjBtn::after {
   border: 1px solid currentColor;
   opacity: 0.8;
 }
+.app-version {
+  text-align: center;
+  padding: 12px 16px 20px;
+}
