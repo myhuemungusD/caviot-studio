@@ -115,10 +115,6 @@ function loadImageFile(file) {
     const maxSide = mobile && CaviotDevice.device ? CaviotDevice.device.maxImageSide : Infinity;
     const longSide = Math.max(img.width, img.height);
     if (img.width * img.height > limit || longSide > maxSide) {
-      if (!mobile) {
-        toast('Image dimensions are too large — use 24 megapixels or less', 'error');
-        return;
-      }
       const scale = Math.min(Math.sqrt(limit / (img.width * img.height)) * 0.999, maxSide / longSide);
       const c = document.createElement('canvas');
       c.width = Math.max(1, Math.floor(img.width * scale));
@@ -156,10 +152,6 @@ function downscalePhotoCanvas(canvas) {
   const maxSide = mobile && CaviotDevice.device ? CaviotDevice.device.maxImageSide : Infinity;
   const longSide = Math.max(canvas.width, canvas.height);
   if (canvas.width * canvas.height <= limit && longSide <= maxSide) return canvas;
-  if (!mobile) {
-    toast('Image dimensions are too large — use 24 megapixels or less', 'error');
-    return null;
-  }
   const scale = Math.min(Math.sqrt(limit / (canvas.width * canvas.height)) * 0.999, maxSide / longSide);
   const c = document.createElement('canvas');
   c.width = Math.max(1, Math.floor(canvas.width * scale));

@@ -80,7 +80,9 @@ self.onmessage=async({data})=>{
         if(data.options.designs?.[missing]?.surface!=='underside')throw Error('One side has no artwork on a printable surface. Check its placement and background removal.');
         throw Error(data.template?.kind==='custom'?'The bottom logo does not reach a printable part of this template\'s underside. Move or enlarge it, or use a simpler STL so the underside keeps more detail.':'The bottom logo is not on a printable surface. Check its placement.');
       }
-      if(!checked)stage('Checking mesh');const v=checked||MeshCore.validateMesh(result.positions,result.indices);
+      if(!checked)stage('Checking mesh');let v=checked||MeshCore.validateMesh(result.positions,result.indices);
+      // A flawed mesh is repaired automatically (as if Make watertight were on) instead of failing the export.
+      if(!checked&&(v.boundary||v.nonManifold||v.zeroArea)){stage('Making watertight');try{const repaired=MeshRepair.repair(result.positions,result.indices),r=repaired.report;if(r.closed&&!r.boundary&&!r.nonManifold&&!r.zeroArea){result.positions=repaired.positions;result.indices=repaired.indices;v={triCount:r.triCount,zeroArea:0,boundary:0,nonManifold:0};result.info.autoRepaired=true}}catch(error){console.warn('Automatic repair failed:',error)}}
       if(v.boundary||v.nonManifold||v.zeroArea)throw Error('Mesh check: '+v.zeroArea+' collapsed faces, '+v.boundary+' open edges, '+v.nonManifold+' non-manifold edges. Reduce depth or move the design.');
       // Export Z-up for slicers, preserving the template shape and millimeter scale.
       const positions=result.positions;for(let i=0;i<positions.length;i+=3){const y=positions[i+1];positions[i+1]=-positions[i+2];positions[i+2]=y}
@@ -91,8 +93,8 @@ self.onmessage=async({data})=>{
       const indices=new Uint32Array(result.indices);postMessage({id:data.id,positions:result.positions,indices,amplitude:result.amplitude,walls:result.walls,info:result.info},[result.positions.buffer,indices.buffer,result.amplitude.buffer]);
     }
   }catch(error){
-    // For custom templates the usual cause is template density, not the artwork, so say what helps.
-    const message=error.code==='MESH_BUDGET'&&data.template?.kind==='custom'?'This template is too dense for Sharp edges with this artwork. Turn off Sharp edges (logos), make the artwork smaller, or simplify the STL.':error.code==='MESH_BUDGET'&&data.options?.meshBudget?'This design needs more mesh detail than is safe on this device. Make the artwork smaller or simpler, or export it on a computer.':error.message||'Template processing failed.';
+    // Sharp edges adapt to the mesh budget on their own (SharpSleeve.buildAdaptive), so a budget error is not expected here.
+    const message=error.code==='MESH_BUDGET'?'This design could not be formed with the detail this device allows. Change a setting to retry.':error.message||'Template processing failed.';
     postMessage({id:data.id,error:message});
   }
 };
